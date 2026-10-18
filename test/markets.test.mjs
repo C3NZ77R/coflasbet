@@ -42,9 +42,9 @@ test('markets: cada selección trae p, fair y oddsy, con oddsy < fair', () => {
 
 test('markets: fútbol trae todos los mercados y líneas del brief', () => {
   const ms = marketsFor('soccer', SOCCER);
-  assert.deepEqual([...new Set(ms.map((m) => m.key))], ['1x2', 'dc', 'dnb', 'ou', 'ou_home', 'ou_away', 'btts', 'ah', 'cs']);
+  assert.deepEqual([...new Set(ms.map((m) => m.key))], ['1x2', 'dc', 'dnb', 'ou', 'ou_home', 'ou_away', 'btts', 'ah', 'aou', 'cs']);
   assert.deepEqual(ms.filter((m) => m.key === 'ou').map((m) => m.selections[0].line), [0.5, 1.5, 2.5, 3.5, 4.5, 5.5]);
-  assert.deepEqual(ms.filter((m) => m.key === 'ah').map((m) => m.selections[0].line), [-1, -0.5, 0.5, 1]); // líneas de Betano.co
+  assert.deepEqual(ms.filter((m) => m.key === 'ah').map((m) => m.selections[0].line), [-1, -0.75, -0.5, -0.25, 0.25, 0.5, 0.75, 1]); // líneas de Betano.co
 });
 
 test('markets: btts.Sí con lh = la = 0 es 0 y nada sale NaN', () => {
@@ -65,6 +65,9 @@ test('markets: identidades entre mercados de fútbol', () => {
   assert.equal(sel(pick(ms, 'ah', -1), 'Visitante').line, 1);
   const g1 = scoreGrid(SOCCER.lh, SOCCER.la), by = (f) => g1.reduce((s, row, i) => s + row.reduce((t, v, j) => (f(i - j) ? t + v : t), 0), 0);
   close(sel(pick(ms, 'ah', -1), 'Local').p, by((d) => d > 1) / (1 - by((d) => d === 1))); // ganar por 1 devuelve
+  // −0.25 = media a 0 (empate devuelve) y media a −0.5: p = (H + H) / 2 / (1 − D / 2)
+  close(sel(pick(ms, 'ah', -0.25), 'Local').p, H / (1 - D / 2));
+  close(sel(pick(ms, 'aou', 2.25), 'Más').p, sel(pick(ms, 'ou', 2.5), 'Más').p / (1 - (g1[0][2] + g1[1][1] + g1[2][0]) / 2)); // media a 2 (2 goles devuelve) y media a 2.5
   close(sel(pick(ms, 'ou_home', 0.5), 'Menos').p, g1[0].reduce((s, v) => s + v, 0));
   const g = scoreGrid(SOCCER.lh, SOCCER.la);
   close(sel(pick(ms, 'ou', 2.5), 'Menos').p, g[0][0] + g[0][1] + g[1][0] + g[1][1] + g[0][2] + g[2][0]);

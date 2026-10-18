@@ -2,7 +2,7 @@
 // Por selección: probabilidad, cuota justa (1/p) y cuota Oddsy (con margen). Toca la cuota Oddsy para agregarla a Mis picks.
 import { LEAGUES } from '../leagues.js';
 
-const KEYS = { '1x2': 'Resultado (1X2)', ml: 'Ganador', spread: 'Spread', rl: 'Run/Puck line', ah: 'Hándicap asiático', ou: 'Totales', ou_home: 'Goles local', ou_away: 'Goles visitante', dc: 'Doble oportunidad', dnb: 'Empate no válido', btts: 'Ambos marcan', cs: 'Marcador exacto',
+const KEYS = { '1x2': 'Resultado (1X2)', ml: 'Ganador', spread: 'Spread', rl: 'Run/Puck line', ah: 'Hándicap asiático', aou: 'Total asiático', ou: 'Totales', ou_home: 'Goles local', ou_away: 'Goles visitante', dc: 'Doble oportunidad', dnb: 'Empate no válido', btts: 'Ambos marcan', cs: 'Marcador exacto',
   sets: 'Resultado en sets', ou_sets: 'Total de sets', ou_games: 'Total de games', games_hcp: 'Hándicap de games', win_set: 'Gana al menos un set', first_set: 'Primer set' };
 const pad = (n) => String(n).padStart(2, '0');
 const ymd = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
