@@ -1,6 +1,6 @@
 # Cuotas propias (modelo Coflas) + tenis ATP — diseño y plan
 
-Fecha: 2026-10-18. Estado: **borrador para aprobar**.
+Fecha: 2026-10-18. Estado: **aprobado** (decisiones abajo).
 
 ## Intención
 1. **Quitar las cuotas de casas** (The Odds API, `COFLAS_ODDS_API_KEY`, `demo-odds.json`, `demo-props.json`). Coflas deja de mostrar precios ajenos.
@@ -59,11 +59,11 @@ La regla común es estimar la distribución del resultado, sumar la probabilidad
 - **Tenis**, "props" posibles con datos reales: games ganados por el jugador, sets ganados y tasas de acierto de total de games en sus últimos partidos.
 
 ### Margen
-Mostramos la **cuota justa** (sin margen) y, al lado, la "cuota Coflas" con margen `m`. La decisión sobre `m` está pendiente (ver Decisiones).
+Mostramos la **cuota justa** (sin margen) y, al lado, la **cuota Coflas** con margen del 5%.
 
 ## Arquitectura (cambios)
 - **Nuevo `lib/pricing.mjs`:** funciones puras para normal CDF, Poisson pmf, binomial negativa, matriz Dixon-Coles, `fairOdds(p)`, `withMargin(p, m)` y redondeo de líneas. Sin dependencias.
-- **Nuevo `lib/ratings.mjs`:** ratings por equipo desde los scoreboards de la temporada en ESPN (ataque/defensa o rating neto, y ventaja local por liga). Caché de 6 h.
+- **Nuevo `lib/ratings.mjs`:** ratings por equipo desde el calendario de cada equipo en ESPN (`teams/{id}/schedule`; los rangos de fecha del scoreboard dan 400 en ligas de equipo) (ataque/defensa o rating neto, y ventaja local por liga). Caché de 6 h.
 - **Nuevo `lib/tennis.mjs`:** scoreboard mensual ATP → partidos normalizados; mapa de superficies; Elo; Markov; ranking top 100; historial por jugador.
 - **Nuevo `lib/markets.mjs`:** `marketsFor(league, game) → [{ market, label, selections: [{ name, line?, p, fair, odds }] }]`.
 - **`server.mjs`:**
@@ -92,14 +92,12 @@ Cada fase termina con `node --test` en verde y push a `main`, que despliega en V
 | 5 | Tenis: datos | `lib/tennis.mjs`, `test/tennis.test.mjs` con fixture `aug.json` recortado | ranking top 100, partidos del día y ficha de jugador con datos reales |
 | 6 | Tenis: Elo + Markov + mercados | `lib/tennis.mjs`, `lib/markets.mjs`, test de Markov (p de saque 0.64 contra 0.64 → partido 50%) | el backtest de 2026 le gana a "gana el mejor rankeado" |
 | 7 | Tenis: vistas estilo Outlier | `views/games.js`, nuevas `tennis-player.js` y `tennis-rankings.js`, `app.js` | se puede navegar ATP → partido → jugador → historial con tasas de acierto de games y sets |
-| 8 | EV, boosts, arbitraje y middles según tu decisión | vistas y `betmath.js` | — |
+| 8 | Compara tu casa + limpieza | borrar `arbitrage.js` y `middles.js`; `ev.js` y `boosts.js` reciben la cuota del usuario | EV calculado contra la cuota justa; no quedan referencias a arbitraje ni middles |
 
-## Decisiones pendientes (tuyas)
-1. **EV+, arbitraje, middles y boosts** necesitan cuotas de casas. Mi propuesta:
-   - **Borrar arbitraje y middles**: sin varias casas no tienen sentido.
-   - **Convertir EV+ en "Compara tu casa"**: pegas la cuota que te da BetPlay o Wplay, y te decimos el EV contra nuestra cuota justa. Reusa `betmath.js`.
-   - **Boosts**: igual, con la cuota que tú ingresas.
-2. **Margen:** ¿mostramos solo la cuota justa (herramienta de análisis) o también una "cuota Coflas" con margen, por ejemplo 5%, como si fuéramos casa?
+## Decisiones tomadas (por ti, 2026-10-18)
+1. **Se borran arbitraje y middles** (`arbitrage.js`, `middles.js` y su lógica en `betmath.js`).
+2. **EV+ y boosts pasan a "Compara tu casa":** el usuario escribe la cuota de su casa y le mostramos el EV contra nuestra cuota justa. En boosts, la cuota es la que ya trae el boost.
+3. **Cada mercado muestra dos cuotas:** la **justa** (`1/p`) y la **cuota Coflas** con margen del 5% (`1/(p·1.05)`).
 
 ## Decisiones que tomé yo (revísalas)
 - Superficie de tenis por mapa fijo de torneos (atajo: ESPN no la da; se reemplaza si encontramos una fuente).
