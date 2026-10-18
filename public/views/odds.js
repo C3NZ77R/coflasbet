@@ -2,11 +2,14 @@
 // Por selección: probabilidad, cuota justa (1/p) y cuota Coflas (con margen). Toca la cuota Coflas para agregarla a Mis picks.
 import { LEAGUES } from '../leagues.js';
 
-const KEYS = { '1x2': 'Resultado (1X2)', ml: 'Ganador', spread: 'Spread', rl: 'Run/Puck line', ah: 'Hándicap asiático', ou: 'Totales', dc: 'Doble oportunidad', dnb: 'Empate no válido', btts: 'Ambos marcan', cs: 'Marcador exacto' };
+const KEYS = { '1x2': 'Resultado (1X2)', ml: 'Ganador', spread: 'Spread', rl: 'Run/Puck line', ah: 'Hándicap asiático', ou: 'Totales', dc: 'Doble oportunidad', dnb: 'Empate no válido', btts: 'Ambos marcan', cs: 'Marcador exacto',
+  sets: 'Resultado en sets', ou_sets: 'Total de sets', ou_games: 'Total de games', games_hcp: 'Hándicap de games', win_set: 'Gana al menos un set', first_set: 'Primer set' };
 const pad = (n) => String(n).padStart(2, '0');
 const ymd = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
 const signed = (x) => (x > 0 ? `+${x}` : String(x));
 const abbr = (t) => t?.abbr || t?.name || '';
+// Fecha de Bogotá del partido: el detalle de tenis la usa para encontrarlo (las demás ligas la ignoran).
+const day = (iso) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).replaceAll('-', '');
 
 export default {
   title: 'Comparador de cuotas',
@@ -79,12 +82,12 @@ export default {
       const name = (g, s) => (s.name === 'Local' ? abbr(g.home) : s.name === 'Visitante' ? abbr(g.away) : s.name);
       const table = (g, m) => h`<div class="scroll"><table class="odds-table">
           <caption class="sr-only">${m.label}: ${g.away.name} en ${g.home.name}</caption>
-          <thead><tr><th scope="col">${m.label}</th>${m.selections.map((s) => h`<th scope="col">${name(g, s)}${s.line != null ? ` ${m.key === 'ou' ? s.line : signed(s.line)}` : ''}</th>`)}</tr></thead>
+          <thead><tr><th scope="col">${m.label}</th>${m.selections.map((s) => h`<th scope="col">${name(g, s)}${s.line != null ? ` ${m.key.startsWith('ou') ? s.line : signed(s.line)}` : ''}</th>`)}</tr></thead>
           <tbody>
             <tr><th scope="row">Prob.</th>${m.selections.map((s) => h`<td>${ui.fmtPct(s.p)}</td>`)}</tr>
             <tr><th scope="row">Justa</th>${m.selections.map((s) => h`<td>${ui.fmtOdds(s.fair)}</td>`)}</tr>
             <tr><th scope="row">Coflas</th>${m.selections.map((s) => {
-              const n = `${name(g, s)}${s.line != null ? ` ${m.key === 'ou' ? s.line : signed(s.line)}` : ''}`;
+              const n = `${name(g, s)}${s.line != null ? ` ${m.key.startsWith('ou') ? s.line : signed(s.line)}` : ''}`;
               // Mismo id que en Partidos: el pick se reconoce en ambas vistas.
               const pick = { id: `coflas:${state.league}:${g.id}:${m.key}:${m.label}:${s.name}`, label: `${n} (${m.label}) · ${abbr(g.away)} @ ${abbr(g.home)}`, price: s.coflas, book: 'coflas', league: state.league, gameId: g.id };
               picks.push(pick);
@@ -94,7 +97,7 @@ export default {
       $('[data-list]').innerHTML = shown.length
         ? h`${shown.map(({ g, markets }) => h`<article class="card odds-card">
             <div class="odds-meta"><span class="odds-league">${LEAGUES.find((l) => l.id === state.league)?.title}</span><time datetime="${g.start}">${ui.when(g.start)}</time></div>
-            <h2 class="odds-match"><a href="#/${state.league}/games/${encodeURIComponent(g.id)}">${g.away.name} <small>@</small> ${g.home.name}</a></h2>
+            <h2 class="odds-match"><a href="#/${state.league}/games/${encodeURIComponent(g.id)}?date=${day(g.start)}">${g.away.name} <small>@</small> ${g.home.name}</a></h2>
             ${markets.filter((m) => m.key === state.market).map((m) => table(g, m))}
           </article>`)}`
         : ui.empty(state.games.length ? 'Ningún partido coincide con la búsqueda.' : 'No hay partidos con cuotas del modelo en los próximos 3 días en esta liga.');

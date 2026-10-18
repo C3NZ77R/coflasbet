@@ -9,9 +9,12 @@ const $ = (s) => document.querySelector(s);
 const LEAGUE_VIEWS = ['props', 'games', 'insights', 'popular'];
 const DETAIL_VIEWS = ['props', 'games'];
 const PRO_VIEWS = ['ev', 'boosts'];
-const NAMES = { props: 'Props', games: 'Partidos', insights: 'Insights', popular: 'Populares', ev: 'EV+', boosts: 'Boosts', odds: 'Comparador', calculators: 'Calculadoras' };
+const NAMES = { props: 'Props', games: 'Partidos', insights: 'Insights', popular: 'Populares', ev: 'EV+', boosts: 'Boosts', odds: 'Comparador', calculators: 'Calculadoras', 'tennis-rankings': 'Ranking ATP', 'tennis-player': 'Jugador ATP' };
 const lastLeague = () => leagueById(store.get('league')) ?? LEAGUES[0];
-const defaultHash = () => `#/${lastLeague().id}/props`;
+// El tenis solo tiene Partidos (sin props, insights ni populares).
+const viewsOf = (lg) => (lg.sport === 'tennis' ? ['games'] : LEAGUE_VIEWS);
+const home = (lg) => `#/${lg.id}/${viewsOf(lg).includes('props') ? 'props' : 'games'}`;
+const defaultHash = () => home(lastLeague());
 
 // '#/nba/props/abc?x=1' → { name, league, params, query } | null
 function parse(hash) {
@@ -23,8 +26,10 @@ function parse(hash) {
   if (seg[0] === 'pro' && seg.length === 2 && PRO_VIEWS.includes(seg[1])) return r(seg[1]);
   if (seg[0] === 'comparador' && seg.length === 1) return r('odds');
   if (seg[0] === 'calculadoras' && seg.length === 1) return r('calculators');
+  if (seg[0] === 'tennis-rankings' && seg.length === 1) return r('tennis-rankings');
+  if (seg[0] === 'tennis-player' && seg.length === 2) return r('tennis-player', null, seg[1]);
   const lg = leagueById(seg[0]);
-  if (lg && LEAGUE_VIEWS.includes(seg[1]) && (seg.length === 2 || (seg.length === 3 && DETAIL_VIEWS.includes(seg[1])))) return r(seg[1], lg, seg[2]);
+  if (lg && viewsOf(lg).includes(seg[1]) && (seg.length === 2 || (seg.length === 3 && DETAIL_VIEWS.includes(seg[1])))) return r(seg[1], lg, seg[2]);
   return null;
 }
 
@@ -96,17 +101,17 @@ function setTitle(title, league) {
 function updateChrome(r, league) {
   for (const a of document.querySelectorAll('#nav [data-nav]')) {
     const v = a.dataset.nav;
-    if (LEAGUE_VIEWS.includes(v)) a.href = `#/${league.id}/${v}`;
+    if (LEAGUE_VIEWS.includes(v)) a.href = `#/${(viewsOf(league).includes(v) ? league : LEAGUES[0]).id}/${v}`;
     if (v === r.name) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   }
   $('.nav-more').classList.toggle('has-current', !LEAGUE_VIEWS.includes(r.name));
   setMore(false);
-  $('.brand').href = `#/${league.id}/props`;
+  $('.brand').href = home(league);
   const chips = $('#leagues');
   chips.hidden = !r.league;
   if (r.league) {
-    chips.innerHTML = h`${LEAGUES.map((l) => h`<a href="#/${l.id}/${r.name}"${l.id === r.league.id ? raw(' aria-current="page"') : ''}>${l.title}</a>`)}`;
+    chips.innerHTML = h`${LEAGUES.map((l) => h`<a href="#/${l.id}/${viewsOf(l).includes(r.name) ? r.name : 'games'}"${l.id === r.league.id ? raw(' aria-current="page"') : ''}>${l.title}</a>`)}`;
     const cur = chips.querySelector('[aria-current]');
     if (cur) chips.scrollLeft = cur.offsetLeft - chips.offsetLeft - 16; // solo horizontal: no mueve la página
   }

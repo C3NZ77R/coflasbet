@@ -98,3 +98,25 @@ test('store: addPick reemplaza por id, removePick y track', () => {
   assert.equal(store.get('views').k1.view, 2);
   assert.equal(store.get('views').k1.add, 1);
 });
+
+test('ficha de tenis: encabezado con nombre y Elo; marcador, games y % de más de X games', async () => {
+  const { normScoreboard, eloFrom } = await import('../lib/tennis.mjs');
+  const { headHtml, perspective, hitsHtml } = await import('../public/views/tennis-player.js');
+  const { readFileSync } = await import('node:fs');
+  const matches = normScoreboard(JSON.parse(readFileSync(new URL('./fixtures/atp-month.json', import.meta.url), 'utf8')));
+  const id = '2375';
+  const mine = matches.filter((m) => m.a.id === id || m.b.id === id);
+  const player = { id, name: 'Alexander <Zverev>', country: 'Germany', flag: null };
+  const s = String(headHtml({ player, rank: 2, points: 9720, elo: eloFrom(matches).get(id) }));
+  assert.match(s, /Alexander &lt;Zverev&gt;/);
+  assert.match(s, /Elo/);
+  assert.match(s, /#2/);
+  const final = perspective(matches.find((m) => m.id === '182677'), '9250'); // Shelton perdió la final 3-6 6-7 7-5 2-6
+  assert.equal(final.score, '3-6 6-7(2) 7-5 2-6');
+  assert.equal(final.sets, '1-3');
+  assert.equal(final.games, 42);
+  assert.equal(final.won, false);
+  const rows = mine.map((m) => perspective(m, id));
+  const k = rows.filter((r) => !r.retired).slice(0, 5).filter((r) => r.games > 22.5).length;
+  assert.match(String(hitsHtml(rows, 22.5)), new RegExp(`${k} de ${Math.min(5, rows.filter((r) => !r.retired).length)}`));
+});

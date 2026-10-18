@@ -7,7 +7,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { LEAGUES, leagueById } from './public/leagues.js';
 import * as espn from './lib/espn.mjs';
 import { getProps } from './lib/props.mjs';
-import { getMarkets, getAccuracy } from './lib/markets.mjs';
+import { getMarkets, getAccuracy, getTennisGames, atpElo } from './lib/markets.mjs';
+import { getRankings, getPlayer } from './lib/tennis.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
@@ -36,25 +37,50 @@ function leagueParam(url) {
   if (!lg) throw bad(`Liga inválida. Opciones: ${LEAGUES.map((l) => l.id).join(', ')}`);
   return lg.id;
 }
+const isTennis = (id) => leagueById(id).sport === 'tennis';
+// Rutas de equipos y jugadores de ESPN: no existen para tenis.
+function teamLeague(url) {
+  const id = leagueParam(url);
+  if (isTennis(id)) throw bad('Ruta no disponible para tenis');
+  return id;
+}
 
 const ROUTES = {
   '/api/leagues': async () => ({ source: 'espn', data: LEAGUES }),
   '/api/markets': async (url) => getMarkets(leagueParam(url), { game: param(url, 'game', RX.id), date: param(url, 'date', RX.date) }),
   '/api/accuracy': async () => ({ source: 'coflas', data: getAccuracy() }),
-  '/api/games': async (url) => ({ source: 'espn', data: await espn.getGames(leagueParam(url), param(url, 'date', RX.date)) }),
-  '/api/game': async (url) => ({ source: 'espn', data: await espn.getGame(leagueParam(url), param(url, 'id', RX.id, true)) }),
+  '/api/games': async (url) => {
+    const lg = leagueParam(url);
+    const date = param(url, 'date', RX.date);
+    return { source: 'espn', data: await (isTennis(lg) ? getTennisGames(date) : espn.getGames(lg, date)) };
+  },
+  '/api/game': async (url) => ({ source: 'espn', data: await espn.getGame(teamLeague(url), param(url, 'id', RX.id, true)) }),
   '/api/gamelog': async (url) => ({
     source: 'espn',
-    data: await espn.getGamelog(leagueParam(url), param(url, 'athlete', RX.id, true), param(url, 'season', RX.season)),
+    data: await espn.getGamelog(teamLeague(url), param(url, 'athlete', RX.id, true), param(url, 'season', RX.season)),
   }),
-  '/api/roster': async (url) => ({ source: 'espn', data: await espn.getRoster(leagueParam(url), param(url, 'team', RX.id, true)) }),
-  '/api/injuries': async (url) => ({ source: 'espn', data: await espn.getInjuries(leagueParam(url)) }),
-  '/api/search': async (url) => ({ source: 'espn', data: await espn.searchAthletes(leagueParam(url), param(url, 'q', RX.q, true).trim()) }),
-  '/api/props': async (url) => getProps(leagueParam(url), param(url, 'game', RX.id)),
+  '/api/roster': async (url) => ({ source: 'espn', data: await espn.getRoster(teamLeague(url), param(url, 'team', RX.id, true)) }),
+  '/api/injuries': async (url) => ({ source: 'espn', data: await espn.getInjuries(teamLeague(url)) }),
+  '/api/search': async (url) => ({ source: 'espn', data: await espn.searchAthletes(teamLeague(url), param(url, 'q', RX.q, true).trim()) }),
+  '/api/props': async (url) => {
+    const lg = leagueParam(url);
+    const game = param(url, 'game', RX.id);
+    return isTennis(lg) ? { source: 'coflas', data: [] } : getProps(lg, game); // sin modelo de props de tenis
+  },
+  '/api/tennis/rankings': async () => {
+    const [rows, { ratings }] = await Promise.all([getRankings(), atpElo()]);
+    return { source: 'espn', data: rows.map((r) => ({ ...r, elo: ratings.get(r.player.id)?.all ?? null })) };
+  },
+  '/api/tennis/player': async (url) => {
+    const id = param(url, 'id', RX.id, true);
+    const [p, rows, { ratings }] = await Promise.all([getPlayer(id), getRankings(), atpElo()]);
+    if (!p.player) throw espn.httpError(404, 'Jugador no encontrado');
+    return { source: 'espn', data: { ...p, points: rows.find((r) => r.player.id === id)?.points ?? null, elo: ratings.get(id) ?? null } };
+  },
 };
 
 // Caché compartida en la CDN de Vercel (la memoria de cada instancia no se comparte): los ratings piden un calendario por equipo.
-const EDGE_S = { '/api/markets': 1800, '/api/props': 1800, '/api/accuracy': 86400 };
+const EDGE_S = { '/api/markets': 1800, '/api/props': 1800, '/api/accuracy': 86400, '/api/tennis/rankings': 3600, '/api/tennis/player': 1800 };
 const json = (res, status, body, edge = 0) => res.writeHead(status, {
   'content-type': 'application/json; charset=utf-8',
   'cache-control': edge ? `public, max-age=0, s-maxage=${edge}, stale-while-revalidate=${edge * 4}` : 'no-store',

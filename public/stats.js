@@ -92,6 +92,12 @@ export const STATS = {
     { key: 'fs', label: 'FR', name: 'Faltas recibidas' },
     { key: 'yc', label: 'TA', name: 'Tarjetas amarillas', market: 'player_to_receive_card' },
   ],
+  // Por partido, desde el marcador en sets (sin props de mercado: el tenis se cotiza con matchDist).
+  tennis: [
+    { key: 'games_won', label: 'GAMES G', name: 'Games ganados' },
+    { key: 'sets_won', label: 'SETS', name: 'Sets ganados' },
+    { key: 'total_games', label: 'GAMES', name: 'Games totales' },
+  ],
 };
 
 const defOf = (sport, key) => STATS[sport]?.find((d) => d.key === key) ?? null;

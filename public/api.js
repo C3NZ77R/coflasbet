@@ -54,5 +54,7 @@ export const api = {
   injuries: (league) => get('/api/injuries', { league }),
   roster: (league, team) => get('/api/roster', { league, team }),
   search: (league, q) => get('/api/search', { league, q }),
+  tennisRankings: () => get('/api/tennis/rankings'),
+  tennisPlayer: (id) => get('/api/tennis/player', { id }),
 };
 export default api;

@@ -1,10 +1,13 @@
-// Partidos: lista por fecha (#/{liga}/games) y detalle (#/{liga}/games/{id}).
+// Partidos: lista por fecha (#/{liga}/games) y detalle (#/{liga}/games/{id}). Tenis (ATP): jugadores con bandera y rank,
+// sin tendencias ni récords de equipo; el detalle lleva ?date= para encontrar el partido.
 // Cuotas: solo las del modelo Coflas (/api/markets): probabilidad, cuota justa y cuota Coflas. Apuestas del público: sin fuente gratuita.
 import * as bm from '../betmath.js';
 import { leagueById } from '../leagues.js';
 import { statForMarket } from '../stats.js';
 
 const DAYS = 15; // hoy + 14
+const TENNIS_DAYS = 3; // ESPN solo publica el cuadro de los próximos días
+const SURF = { hard: 'Dura', clay: 'Arcilla', grass: 'Hierba' };
 const REFRESH_MS = 60_000;
 const REC_ORDER = ['overall', 'home', 'road', 'vsconf', 'vsdiv'];
 const REC_LABEL = { overall: 'Total', home: 'Local', road: 'Visita', vsconf: 'Conferencia', vsdiv: 'División' };
@@ -17,6 +20,7 @@ const esc = (s) => ui.esc(s ?? '');
 const pad = (n) => String(n).padStart(2, '0');
 export const ymd = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
 const signed = (x) => (x == null ? '' : x > 0 ? `+${x}` : x === 0 ? 'PK' : String(x));
+const lineTxt = (m, s) => (m.key.startsWith('ou') ? s.line : signed(s.line)); // totales sin signo
 // Mercado principal de la tarjeta: 1X2 en fútbol, ganador en el resto.
 export const mainMarket = (markets) => markets?.find((m) => m.key === '1x2') ?? markets?.find((m) => m.key === 'ml') ?? null;
 export const accText = (acc) => (acc?.brier != null
@@ -31,8 +35,10 @@ const selName = (g, s) => (s.name === 'Local' ? g.home.abbr || g.home.name : s.n
 
 // Botón de selección: nombre, línea, probabilidad, justa y Coflas. picks = índice → pick del boleto.
 function selBtn(g, m, s, ctx, compact = false) {
-  const name = `${selName(g, s)}${s.line != null ? ` ${m.key === 'ou' ? s.line : signed(s.line)}` : ''}`;
-  const pick = { id: `coflas:${ctx.league}:${g.id}:${m.key}:${m.label}:${s.name}`, label: `${name} (${m.label}) · ${g.away.abbr || g.away.name} @ ${g.home.abbr || g.home.name}`, price: s.coflas, book: 'coflas', league: ctx.league, gameId: g.id };
+  const name = `${selName(g, s)}${s.line != null ? ` ${lineTxt(m, s)}` : ''}`;
+  const short = (t) => t.abbr || t.name;
+  const matchup = ctx.tennis ? `${short(g.home)} vs ${short(g.away)}` : `${short(g.away)} @ ${short(g.home)}`;
+  const pick = { id: `coflas:${ctx.league}:${g.id}:${m.key}:${m.label}:${s.name}`, label: `${name} (${m.label}) · ${matchup}`, price: s.coflas, book: 'coflas', league: ctx.league, gameId: g.id };
   ctx.picks.push(pick);
   return `<button type="button" class="gm-sel${compact ? ' gm-sel-sm' : ''}" data-pick="${ctx.picks.length - 1}" aria-pressed="${ctx.store.hasPick(pick.id)}" aria-label="${esc(`${name}: probabilidad ${ui.fmtPct(s.p)}, justa ${ui.fmtOdds(s.fair)}, Coflas ${ui.fmtOdds(s.coflas)}. Agregar a Mis picks`)}">${compact ? `<b>${esc(ui.fmtOdds(s.coflas))}</b></button>` : `
     <b>${esc(name)}</b><small>${esc(ui.fmtPct(s.p))}</small><span>Justa ${esc(ui.fmtOdds(s.fair))} · Coflas <b>${esc(ui.fmtOdds(s.coflas))}</b></span></button>`}`;
@@ -67,11 +73,11 @@ function statusHtml(g) {
   return `<span>${esc(timeOf(g.start))}</span>`;
 }
 
-function teamRow(g, side) {
+function teamRow(g, side, tennis) {
   const t = g[side];
   const score = g.status?.state !== 'pre' && t.score != null ? `<b class="gm-score">${esc(t.score)}</b>` : '';
   return `<div class="gm-team">${ui.teamLogo(t)}<span class="gm-tname"><span class="gm-tl"><b>${esc(t.abbr || t.name)}</b> <small>${esc(t.name)}</small></span>
-      <span class="gm-tl">${t.record ? `<small class="gm-rec">${esc(t.record)}</small>` : ''}<span class="gm-tr" data-trend="${side}"><span class="gm-trend gm-na" aria-hidden="true">…</span></span></span></span>${score}</div>`;
+      <span class="gm-tl">${t.record ? `<small class="gm-rec">${esc(t.record)}</small>` : ''}${tennis ? '' : `<span class="gm-tr" data-trend="${side}"><span class="gm-trend gm-na" aria-hidden="true">…</span></span>`}</span></span>${score}</div>`;
 }
 
 // Mercado principal del partido (o el motivo por el que no hay).
@@ -85,14 +91,17 @@ function mainHtml(g, mk, ctx) {
 }
 
 function cardHtml(g, league, extra) {
+  const tennis = extra.ctx.tennis;
+  const sides = tennis ? ['home', 'away'] : ['away', 'home']; // en tenis home = jugador A, arriba
+  const query = tennis && extra.date ? `?date=${encodeURIComponent(extra.date)}` : '';
   return `<article class="gm-card" data-id="${esc(g.id)}">
-    <div class="gm-top"><span class="gm-status" data-status>${statusHtml(g)}</span></div>
-    <div class="gm-teams">${teamRow(g, 'away')}${teamRow(g, 'home')}</div>
+    <div class="gm-top"><span class="gm-status" data-status>${statusHtml(g)}</span>${g.tournament ? `<span class="gm-event">${esc([g.tournament, g.round].filter(Boolean).join(' · '))}</span>` : ''}</div>
+    <div class="gm-teams">${sides.map((side) => teamRow(g, side, tennis)).join('')}</div>
     <div data-main>${mainHtml(g, extra.mk, extra.ctx)}</div>
     <div class="gm-foot">
       <details class="gm-public" data-public="${esc(g.id)}"${extra.open ? ' open' : ''}><summary>Apuestas del público</summary>
         <p>No disponible: no existe una fuente gratuita del % de apuestas ni del % del dinero del público.</p></details>
-      <a class="gm-more" href="#/${esc(league)}/games/${encodeURIComponent(g.id)}">Detalles del partido →</a>
+      <a class="gm-more" href="#/${esc(league)}/games/${encodeURIComponent(g.id)}${query}">Detalles del partido →</a>
     </div>
   </article>`;
 }
@@ -118,13 +127,14 @@ function onTabClick(root, e, onOpen) {
 // ---------- lista ----------
 async function renderList(root, ctx, lg, state) {
   const { api } = ctx;
-  root.innerHTML = `<header class="gm-header"><h1>Partidos · ${esc(lg.title)}</h1><span class="gm-badges" data-badges></span></header>
+  const tennis = lg.sport === 'tennis';
+  root.innerHTML = `<header class="gm-header"><h1>Partidos · ${esc(lg.title)}</h1>${tennis ? '<a class="gm-more" href="#/tennis-rankings">Ranking ATP →</a>' : ''}<span class="gm-badges" data-badges></span></header>
     <nav class="gm-dates" aria-label="Fechas" data-dates></nav>
     <div class="gm-list" data-list>${ui.loading()}</div>
     <p class="gm-src" data-note hidden></p>`;
 
   const today = new Date();
-  const days = Array.from({ length: DAYS }, (_, i) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + i));
+  const days = Array.from({ length: tennis ? TENNIS_DAYS : DAYS }, (_, i) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + i));
   const res = await Promise.allSettled(days.map((d) => api.games(lg.id, ymd(d)).then(unwrap)));
   if (state.dead) return;
   const byDate = new Map();
@@ -135,12 +145,12 @@ async function renderList(root, ctx, lg, state) {
     const err = res.find((r) => r.status === 'rejected');
     root.querySelector('[data-list]').innerHTML = err && res.every((r) => r.status === 'rejected')
       ? ui.errorBox(err.reason)
-      : ui.empty(`No hay partidos de ${lg.title} programados entre hoy y los próximos 14 días.`);
+      : ui.empty(`No hay partidos de ${lg.title} programados entre hoy y los próximos ${days.length - 1} días.`);
     return;
   }
 
   root.querySelector('[data-badges]').innerHTML = ui.sourceBadge('espn') + ui.sourceBadge('coflas');
-  const pc = { league: lg.id, store: ctx.store, picks: [] };
+  const pc = { league: lg.id, store: ctx.store, picks: [], tennis };
   state.cleanups.push(syncPicks(root, pc));
   // Cuotas del modelo por fecha: se piden al elegir el día y quedan en caché.
   const marketsOf = (date) => {
@@ -169,7 +179,7 @@ async function renderList(root, ctx, lg, state) {
     root.querySelector('[data-dates]').innerHTML = dates.map((k) => `<button type="button" data-date="${k}" aria-pressed="${k === state.date}">${esc(label(k))} <small>${byDate.get(k).length}</small></button>`).join('');
   };
 
-  const io = 'IntersectionObserver' in window ? new IntersectionObserver((entries) => {
+  const io = tennis ? null : 'IntersectionObserver' in window ? new IntersectionObserver((entries) => {
     for (const en of entries) if (en.isIntersecting) { io.unobserve(en.target); loadTrend(en.target); }
   }, { rootMargin: '200px' }) : null;
   state.cleanups.push(() => io?.disconnect());
@@ -192,8 +202,8 @@ async function renderList(root, ctx, lg, state) {
     const date = state.date;
     io?.disconnect();
     pc.picks = [];
-    list.innerHTML = games.map((g) => cardHtml(g, lg.id, { mk: null, ctx: pc, open: state.open.has(g.id) })).join('');
-    for (const card of list.querySelectorAll('.gm-card')) io ? io.observe(card) : loadTrend(card);
+    list.innerHTML = games.map((g) => cardHtml(g, lg.id, { mk: null, ctx: pc, open: state.open.has(g.id), date })).join('');
+    if (!tennis) for (const card of list.querySelectorAll('.gm-card')) io ? io.observe(card) : loadTrend(card);
     const note = root.querySelector('[data-note]');
     marketsOf(date).then((mk) => {
       if (state.dead || date !== state.date) return;
@@ -263,20 +273,44 @@ function linesHtml(d, mk, ctx) {
   const ats = `<section class="gm-mk"><h3>Récords contra el hándicap (ATS)</h3>${d.ats ? recTable(d, d.ats) : ui.empty('ESPN no publica el récord ATS de este partido.')}</section>`;
   if (mk.error) return ui.errorBox(mk.error) + ats;
   if (mk.accuracy?.publish === false) return `<p class="gm-note">${NO_PUBLISH}.</p>${ats}`;
-  const markets = mk.data?.markets ?? [];
-  if (!markets.length) return ui.empty('El modelo no tiene cuotas para este partido.') + ats;
-  const head = '<thead><tr><th scope="col">Selección</th><th scope="col">Prob.</th><th scope="col">Justa</th><th scope="col">Coflas</th></tr></thead>';
-  const row = (m, s) => `<tr><th scope="row">${esc(selName(d, s))}${s.line != null ? ` <span class="gm-line">${esc(m.key === 'ou' ? s.line : signed(s.line))}</span>` : ''}</th>
-    <td>${esc(ui.fmtPct(s.p))}</td><td>${esc(ui.fmtOdds(s.fair))}</td><td>${selBtn(d, m, s, ctx, true)}</td></tr>`;
+  if (!mk.data?.markets?.length) return ui.empty('El modelo no tiene cuotas para este partido.') + ats;
   const trends = { ml: tr('result', 'W', 'L', 'ganó'), '1x2': tr('result', 'W', 'L', 'ganó'), spread: tr('ats', 'W', 'L', 'cubrió el hándicap'), ou: tr('ou', 'O', 'U', 'fue Over') };
-  const seen = new Set(); // la tendencia va solo en el primer mercado de cada tipo
+  return marketTables(d, mk, ctx, trends) + ats;
+}
+
+// Tablas de todos los mercados del modelo; trends = HTML de tendencia por clave de mercado (solo en el primero de cada tipo).
+function marketTables(d, mk, ctx, trends = {}) {
+  const head = '<thead><tr><th scope="col">Selección</th><th scope="col">Prob.</th><th scope="col">Justa</th><th scope="col">Coflas</th></tr></thead>';
+  const row = (m, s) => `<tr><th scope="row">${esc(selName(d, s))}${s.line != null ? ` <span class="gm-line">${esc(lineTxt(m, s))}</span>` : ''}</th>
+    <td>${esc(ui.fmtPct(s.p))}</td><td>${esc(ui.fmtOdds(s.fair))}</td><td>${selBtn(d, m, s, ctx, true)}</td></tr>`;
+  const seen = new Set();
   return `<p class="gm-src">${ui.sourceBadge('coflas')} Justa = 1/p · Coflas = justa con 5% de margen. Toca una cuota para agregarla a Mis picks.</p>`
-    + markets.map((m) => {
+    + mk.data.markets.map((m) => {
       const t = !seen.has(m.key) && trends[m.key];
       seen.add(m.key);
       return `<section class="gm-mk"><h3>${esc(m.label)}</h3><div class="scroll"><table class="gm-mt">${head}<tbody>${m.selections.map((s) => row(m, s)).join('')}</tbody></table></div>${t || ''}</section>`;
     }).join('')
-    + `<p class="gm-src">${esc(accText(mk.accuracy))}</p>${ats}`;
+    + `<p class="gm-src">${esc(accText(mk.accuracy))}</p>`;
+}
+
+// Detalle de un partido de tenis: jugadores (enlace a su ficha), torneo y todos los mercados del modelo.
+async function renderTennisDetail(root, ctx, lg, id, state) {
+  root.innerHTML = `<a class="gm-back" href="#/${esc(lg.id)}/games">← Partidos</a><div data-detail>${ui.loading()}</div>`;
+  const date = ctx.query?.get('date');
+  const mk = await ctx.api.markets(lg.id, id, /^\d{8}$/.test(date ?? '') ? date : null);
+  if (state.dead) return;
+  const g = mk.data.game;
+  const pc = { league: lg.id, store: ctx.store, picks: [], tennis: true };
+  state.cleanups.push(syncPicks(root, pc));
+  const player = (t, cls) => `<div class="gm-hteam ${cls}">${ui.teamLogo(t, { size: 40 })}<div><a class="tn-player" href="#/tennis-player/${encodeURIComponent(t.id)}"><b>${esc(t.name)}</b></a>
+      <small>${esc(t.record ? `Ranking ${t.record}` : 'Sin ranking')}</small></div>${g.status?.state !== 'pre' && t.score != null ? `<span class="gm-hscore">${esc(t.score)}</span>` : ''}</div>`;
+  const where = [g.tournament, g.round, SURF[g.surface], g.bestOf && `a ${g.bestOf} sets`].filter(Boolean).join(' · ');
+  const markets = mk.accuracy?.publish === false ? `<p class="gm-note">${NO_PUBLISH}.</p>`
+    : mk.data.markets.length ? marketTables(g, mk, pc) : ui.empty('El modelo no tiene cuotas para este partido.');
+  root.querySelector('[data-detail]').innerHTML = `<header class="gm-head"><div class="gm-hrow">${player(g.home, 'gm-away')}<span class="gm-at">vs</span>${player(g.away, 'gm-home')}</div>
+      <p class="gm-hstatus">${esc(where)}</p><p class="gm-hstatus">${g.status?.state === 'pre' ? esc(ui.when(g.start)) : statusHtml(g)}</p></header>
+    <section class="gm-main" aria-label="Mercados">${markets}</section>`;
+  root.addEventListener('click', (e) => onPickClick(e, pc));
 }
 
 function recTable(d, recs) {
@@ -466,7 +500,7 @@ export default {
     }
     const id = ctx.params?.id;
     try {
-      await (id ? renderDetail(root, ctx, lg, id, state) : renderList(root, ctx, lg, state));
+      await (!id ? renderList(root, ctx, lg, state) : lg.sport === 'tennis' ? renderTennisDetail(root, ctx, lg, id, state) : renderDetail(root, ctx, lg, id, state));
     } catch (err) {
       if (!state.dead) root.innerHTML = ui.errorBox(err);
     }
