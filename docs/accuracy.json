@@ -114,8 +114,8 @@
   "laliga": {
     "season": 2025,
     "n": 190,
-    "brier": 0.594,
-    "logloss": 1.0008,
+    "brier": 0.5941,
+    "logloss": 1.0007,
     "baseline": {
       "brier": 0.6208,
       "logloss": 1.0333
@@ -123,8 +123,8 @@
     "publish": true,
     "calibration": {
       "n": 190,
-      "brier": 0.5727,
-      "logloss": 0.9655,
+      "brier": 0.584,
+      "logloss": 0.9815,
       "baseline": {
         "brier": 0.6455,
         "logloss": 1.0683
@@ -134,8 +134,8 @@
   "epl": {
     "season": 2025,
     "n": 190,
-    "brier": 0.6463,
-    "logloss": 1.0684,
+    "brier": 0.6469,
+    "logloss": 1.069,
     "baseline": {
       "brier": 0.6671,
       "logloss": 1.1009
@@ -143,8 +143,8 @@
     "publish": true,
     "calibration": {
       "n": 190,
-      "brier": 0.5973,
-      "logloss": 1.0016,
+      "brier": 0.6045,
+      "logloss": 1.0109,
       "baseline": {
         "brier": 0.6465,
         "logloss": 1.0686
@@ -154,8 +154,8 @@
   "ucl": {
     "season": 2025,
     "n": 93,
-    "brier": 0.5575,
-    "logloss": 0.9405,
+    "brier": 0.5613,
+    "logloss": 0.9457,
     "baseline": {
       "brier": 0.6116,
       "logloss": 1.0113
@@ -163,8 +163,8 @@
     "publish": true,
     "calibration": {
       "n": 93,
-      "brier": 0.5414,
-      "logloss": 0.9268,
+      "brier": 0.5334,
+      "logloss": 0.9152,
       "baseline": {
         "brier": 0.6252,
         "logloss": 1.0408
@@ -174,8 +174,8 @@
   "libertadores": {
     "season": 2025,
     "n": 74,
-    "brier": 0.5613,
-    "logloss": 0.9426,
+    "brier": 0.57,
+    "logloss": 0.9555,
     "baseline": {
       "brier": 0.6074,
       "logloss": 1.0194
@@ -183,8 +183,8 @@
     "publish": true,
     "calibration": {
       "n": 74,
-      "brier": 0.6383,
-      "logloss": 1.056,
+      "brier": 0.6444,
+      "logloss": 1.0636,
       "baseline": {
         "brier": 0.6627,
         "logloss": 1.0944
@@ -202,5 +202,25 @@
     },
     "publish": true,
     "note": "La referencia (gana el mejor rankeado) usa el ranking ATP actual, que ya conoce los resultados de la temporada."
+  },
+  "colombia": {
+    "season": 2025,
+    "n": 226,
+    "brier": 0.6138,
+    "logloss": 1.0241,
+    "baseline": {
+      "brier": 0.6392,
+      "logloss": 1.0595
+    },
+    "publish": true,
+    "calibration": {
+      "n": 225,
+      "brier": 0.618,
+      "logloss": 1.0276,
+      "baseline": {
+        "brier": 0.6471,
+        "logloss": 1.0706
+      }
+    }
   }
 }
