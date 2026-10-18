@@ -51,6 +51,9 @@ export const expectedValue = (prob, odds) => prob * odds - 1;
 
 export const kelly = (prob, odds, fraction = 1) => Math.max(0, (prob * odds - 1) / (odds - 1)) * fraction;
 
+// Probabilidad del modelo Coflas contra la cuota de la casa del usuario (EV+ y Boosts).
+export const compareBook = (p, odds, fraction = 1) => ({ ev: expectedValue(p, odds), kelly: kelly(p, odds, fraction) });
+
 export const parlayOdds = (oddsList) => oddsList.reduce((p, o) => p * o, 1);
 
 // ---------- Devig ----------
@@ -348,6 +351,43 @@ export function poissonCdf(k, lambda) {
     if (i > lambda && term < 1e-17 * s) break;
   }
   return Math.min(1, s);
+}
+
+// ---------- Precios del modelo Coflas (lib/pricing.mjs los reexporta; el navegador cotiza líneas personalizadas) ----------
+export const MARGIN = 0.05;
+const clampOdds = (o) => Math.round(Math.min(101, Math.max(1.01, o)) * 100) / 100;
+export const price = (p) => ({ p, fair: clampOdds(1 / p), coflas: clampOdds(1 / (p * (1 + MARGIN))) });
+
+// Binomial negativa por recurrencia; sin sobredispersión cae a Poisson.
+export function negBinPmf(k, mean, variance) {
+  if (!(variance > mean)) return poissonPmf(k, mean);
+  const r = (mean * mean) / (variance - mean);
+  const q = variance > 0 ? mean / (r + mean) : 0;
+  let pk = Math.pow(1 - q, r);
+  for (let i = 1; i <= k; i++) pk *= ((i - 1 + r) / i) * q;
+  return pk;
+}
+
+// P(X > line); con línea entera usa P(X >= line + 0.5) (sin push).
+export function normalOver(mu, sigma, line) {
+  const cut = Number.isInteger(line) ? line + 0.5 : line;
+  return 1 - normCdf((cut - mu) / sigma);
+}
+
+// P(más de line) de un prop (lib/props.mjs): normal o binomial negativa con la media y la varianza del jugador. En una
+// línea entera el push se descuenta (la apuesta se devuelve); acotada a [0.01, 0.99].
+export function propOver(kind, mean, variance, line) {
+  let over, under;
+  if (kind === 'normal') {
+    const sd = Math.max(Math.sqrt(variance), 1);
+    over = normalOver(mean, sd, line);
+    under = Number.isInteger(line) ? normCdf((line - 0.5 - mean) / sd) : 1 - over;
+  } else {
+    const cdf = (k) => Array.from({ length: Math.floor(k) + 1 }, (_, i) => negBinPmf(i, mean, variance)).reduce((t, x) => t + x, 0);
+    over = 1 - cdf(line);
+    under = Number.isInteger(line) ? (line > 0 ? cdf(line - 1) : 0) : 1 - over;
+  }
+  return Math.min(0.99, Math.max(0.01, over / (over + under)));
 }
 
 // ---------- Calculadoras (docs/spec-calculators.json) ----------

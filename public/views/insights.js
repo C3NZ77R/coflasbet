@@ -1,5 +1,5 @@
 // Insights: frases de tendencia calculadas con game logs reales (ESPN) para los partidos de hoy a +3 días,
-// cruzadas con las cuotas propias de /api/props (modelo Coflas) y la línea de ESPN de cada partido.
+// cruzadas con las cuotas propias de /api/props (modelo Coflas). Las de equipo van sin cuota (ESPN solo trae líneas de casas).
 import { leagueById } from '../leagues.js';
 import { STATS, statForMarket } from '../stats.js';
 import { insightsFor, teamInsights, decimalToAmerican } from '../betmath.js';
@@ -92,8 +92,6 @@ function teamOf(gd, ins) {
   const id = ins.team?.id ?? ins.teamId ?? ins.team;
   return [gd.home, gd.away].find((t) => t && id != null && (t.id === id || t.abbr === id || t.abbr === ins.team?.abbr)) ?? null;
 }
-
-const signed = (x) => (x > 0 ? `+${x}` : `${x}`);
 
 const SORTS = {
   pct: (a, b) => b.pct - a.pct || b.n - a.n,
@@ -318,30 +316,16 @@ export default {
       } catch {
         return;
       }
-      const o = gd.odds;
+      // Sin cuota: ESPN solo trae líneas de casas y Coflas no muestra precios ajenos (Ruling 11).
       const gameLabel = matchup(gd);
       list.forEach((ins, i) => {
         const t = teamOf(gd, ins);
         const ou = ins.side === 'Over' || ins.side === 'Under';
         const cat = ou ? 'ou' : /ats|spread|hand/i.test(ins.type) ? 'ats' : 'ml';
-        const home = t && t.id === gd.home.id;
-        let price = null;
-        let outcome = ins.side ?? '';
-        if (ou) {
-          const line = ins.line ?? o?.total?.line;
-          price = o?.total?.[ins.side.toLowerCase()] ?? null;
-          outcome = `${SIDE[ins.side]} ${line ?? ''} · total del partido`;
-        } else if (t && cat === 'ats') {
-          const line = o?.spread ? (home ? o.spread.line : -o.spread.line) : null;
-          price = o?.spread?.[home ? 'home' : 'away'] ?? null;
-          outcome = line != null ? `${t.abbr} ${signed(line)} · hándicap` : `${t.abbr} · hándicap`;
-        } else if (t) {
-          price = o?.moneyline?.[home ? 'home' : 'away'] ?? null;
-          outcome = `${t.abbr} gana · moneyline`;
-        }
+        const outcome = ou ? `${ins.side === 'Over' ? 'Más' : 'Menos'} · total del partido` : t ? `${t.abbr} ${cat === 'ats' ? '· hándicap' : 'gana · moneyline'}` : ins.side ?? '';
         items.push({
           kind: 'team', cat, split: splitOf(ins), text: ins.text, side: ou ? ins.side : null, pct: pctOf(ins), k: ins.k, n: ins.n ?? 0,
-          price: price > 1 ? price : null, book: o?.provider ?? null, start: gd.start, gameId: gd.id, gameLabel,
+          price: null, book: null, start: gd.start, gameId: gd.id, gameLabel,
           player: null, teams: t ? [t.abbr] : [gd.away.abbr, gd.home.abbr], teamAbbr: '', statKey: null, statLabel: null,
           name: t?.name ?? gameLabel, img: t ? H(ui.teamLogo(t, { size: 40 })) : H(ui.teamLogo(gd.away, { size: 32 })) + H(ui.teamLogo(gd.home, { size: 32 })), href: `#/${league}/games/${encodeURIComponent(gd.id)}`,
           propKey: null, outcome, pickId: `${gd.id}|${ins.type}|${ins.side ?? ''}|${i}`, pickLabel: `${gameLabel}: ${outcome}`,

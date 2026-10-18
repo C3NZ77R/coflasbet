@@ -15,16 +15,7 @@ test('ligas: ids únicos y búsqueda', () => {
   for (const l of LEAGUES) assert.ok(STATS[l.sport], `STATS para ${l.sport}`);
 });
 
-test('cuota americana de ESPN → decimal', () => {
-  assert.equal(e.americanToDec('-110'), 1.9091);
-  assert.equal(e.americanToDec('+150'), 2.5);
-  assert.equal(e.americanToDec(120), 2.2);
-  assert.equal(e.americanToDec('EVEN'), 2);
-  assert.equal(e.americanToDec('OFF'), null);
-  assert.equal(e.americanToDec(null), null);
-});
-
-test('scoreboard NBA → Game con cuotas de DraftKings', () => {
+test('scoreboard NBA → Game sin cuotas de casas y con la sede', () => {
   const [g] = e.normScoreboard(fx('scoreboard-nba.json'), 'nba');
   assert.equal(g.id, '401909088');
   assert.equal(g.league, 'nba');
@@ -35,27 +26,26 @@ test('scoreboard NBA → Game con cuotas de DraftKings', () => {
   assert.equal(g.home.score, null);
   assert.equal(g.home.color, '#1d428a');
   assert.match(g.home.logo, /^https:\/\/a\.espncdn\.com\//);
-  assert.equal(g.odds.provider, 'DraftKings');
-  assert.deepEqual(g.odds.moneyline, { home: 1.9259, away: 1.8929 });
-  assert.deepEqual(g.odds.spread, { line: 1.5, home: 1.8475, away: 1.9804 }); // línea del local (+1.5)
-  assert.deepEqual(g.odds.total, { line: 222.5, over: 1.9524, under: 1.8696 });
+  assert.equal('odds' in g, false); // el fixture trae DraftKings: Coflas no muestra precios ajenos (Ruling 11)
+  assert.equal(g.neutral, false);
+  const json = fx('scoreboard-nba.json');
+  json.events[0].competitions[0].neutralSite = true;
+  assert.equal(e.normScoreboard(json, 'nba')[0].neutral, true);
 });
 
-test('scoreboard de fútbol: empate y cuotas en vivo ("current")', () => {
+test('scoreboard de fútbol: marcador en vivo y sin cuotas de casas', () => {
   const [live, pre] = e.normScoreboard(fx('scoreboard-laliga.json'), 'laliga');
   assert.equal(live.status.state, 'in');
   assert.equal(live.home.score, 2);
-  assert.equal(live.odds.moneyline.home, 1.005); // -20000 en vivo, no el cierre
-  assert.equal(live.odds.moneyline.draw, 20);
-  assert.equal(pre.odds.moneyline.draw, 3.65);
   assert.equal(pre.home.score, null);
+  assert.ok(!('odds' in live) && !('odds' in pre));
 });
 
 test('summary NFL + core API → GameDetail', () => {
   const d = e.normSummary(fx('summary-nfl.json'), 'nfl', { records: { home: fx('core-record-nfl.json') }, stats: { home: fx('core-stats-nfl.json') } });
   assert.equal(d.id, '401872999');
   assert.deepEqual([d.home.abbr, d.away.abbr], ['ATL', 'CHI']);
-  assert.equal(d.odds.spread.line, 1.5);
+  assert.equal('odds' in d, false); // ni pickcenter ni odds del summary
   assert.deepEqual(d.records.home.map((r) => `${r.key}:${r.summary}`), ['overall:2-3', 'home:0-2', 'road:2-1', 'vsdiv:1-1', 'vsconf:2-1']);
   assert.equal(d.records.away[0].key, 'overall'); // respaldo: récords del header del summary
   const pts = d.teamStats.home.find((s) => s.key === 'totalPointsPerGame');
@@ -89,7 +79,6 @@ test('summary de fútbol: alineaciones y plantilla desde rosters', () => {
   assert.deepEqual([d.starters.home.length, d.starters.away.length], [11, 11]);
   assert.equal(d.rosters.home.length, 13);
   assert.equal(d.starters.home[0].pos, 'G');
-  assert.ok(d.odds.moneyline.draw > 1);
   assert.deepEqual(d.injuries, []);
 });
 

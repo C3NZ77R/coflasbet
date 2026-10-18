@@ -351,3 +351,12 @@ test('normCdf, normInv, poissonPmf/Cdf: precisión y valores extremos', () => {
   assert.equal(m.poissonCdf(Infinity, 3), 1);
   near(m.poissonCdf(3, 2.5), 0.7576, 1e-4);
 });
+
+test('compareBook: EV y Kelly de la p del modelo contra la cuota de la casa', () => {
+  const a = m.compareBook(0.5, 2.2), b = m.compareBook(0.5, 1.8);
+  near(a.ev, 0.1, 1e-12);
+  near(a.kelly, 0.1 / 1.2, 1e-12); // 0.0833
+  near(b.ev, -0.1, 1e-12);
+  assert.equal(b.kelly, 0);
+  near(m.compareBook(0.5, 2.2, 0.25).kelly, 0.1 / 1.2 / 4, 1e-12);
+});

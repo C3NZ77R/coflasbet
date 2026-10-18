@@ -4,7 +4,7 @@
 // Los helpers exportados (selectionsOf, parseOdds, kellyOptions, …) los usa también boosts.js (mismo dueño).
 import { LEAGUES, leagueById } from '../leagues.js';
 import { STATS, statForMarket } from '../stats.js';
-import { americanToDecimal, expectedValue, kelly } from '../betmath.js';
+import { americanToDecimal, compareBook } from '../betmath.js';
 import { h, raw, fmtOdds, fmtPct, fmtMoney, when, empty, loading, sourceBadge } from '../ui.js';
 
 // ======================= compartido con boosts.js =======================
@@ -61,8 +61,8 @@ export async function selectionsOf(api, league) {
       for (const m of markets ?? []) {
         for (const s of m.selections ?? []) {
           if (!(s.p > 0 && s.p < 1)) continue;
-          // En spreads la línea va con el lado; en totales ya viene en la etiqueta del mercado.
-          const name = m.key === 'spread' && Number.isFinite(s.line) ? `${who(s.name)} ${signed(s.line)}` : who(s.name);
+          // En hándicaps (spread, run/puck line, asiático, games) la línea va con el lado; en totales ya está en la etiqueta.
+          const name = !m.key.startsWith('ou') && Number.isFinite(s.line) ? `${who(s.name)} ${signed(s.line)}` : who(s.name);
           list.push({ id: `mk:${gameId}:${m.key}:${s.name}:${s.line ?? ''}`, kind: 'line', league, gameId: String(gameId), matchup, start: g?.start ?? '',
             title: m.label, label: `${name} · ${m.label}`, p: s.p, fair: s.fair, coflas: s.coflas });
         }
@@ -138,8 +138,7 @@ export default {
     function calc(s) {
       const price = parseOdds(odds.get(s.id));
       if (!price) return null;
-      const ev = expectedValue(s.p, price);
-      return { price, ev, kelly: kelly(s.p, price, f.kellyMult) };
+      return { price, ...compareBook(s.p, price, f.kellyMult) };
     }
 
     const resHtml = (s) => {

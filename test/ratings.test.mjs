@@ -316,6 +316,27 @@ test('getSeasonResults: si ESPN falla en demasiados calendarios es un error 502,
   });
 });
 
+test('getSeasonResults: a lo sumo 6 calendarios en vuelo (lista universitaria del día con cientos de equipos)', async () => {
+  const real = globalThis.fetch;
+  let active = 0, peak = 0, calls = 0;
+  globalThis.fetch = async (url) => {
+    calls++;
+    peak = Math.max(peak, ++active);
+    await new Promise((r) => setTimeout(r, 2));
+    active--;
+    const id = /teams\/(\d+)\/schedule/.exec(url)[1];
+    return new Response(JSON.stringify({ requestedSeason: { year: 2026, type: 2 }, events: games(`c${id}-`, id, 12) }));
+  };
+  try {
+    const ids = Array.from({ length: 40 }, (_, i) => String(i + 1));
+    assert.equal((await getSeasonResults('ncaaf', { teamIds: ids })).length, 40 * 12);
+    assert.equal(calls, 40); // 12 partidos por equipo: sin la temporada anterior
+    assert.equal(peak, 6);
+  } finally {
+    globalThis.fetch = real;
+  }
+});
+
 // ---------- getPastSeason (backtest) con fetch simulado ----------
 test('getPastSeason: temporada anterior completa, con rivales que ya no están en la liga y sin ids inválidos', async () => {
   const d = (n) => new Date(Date.UTC(2025, 8, n)).toISOString();

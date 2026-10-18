@@ -12,7 +12,7 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { LEAGUES, leagueById } from '../public/leagues.js';
-import { getPastSeason, isCollege } from '../lib/espn.mjs';
+import { getPastSeason, isCollege, thinSeason } from '../lib/espn.mjs';
 import { ratingsFromResults, expected, SPORT_MODEL, SIGMA, SIGMA_T, MU_SHRINK } from '../lib/ratings.mjs';
 import { marketsFor } from '../lib/markets.mjs';
 import { finished, matchProb, getRankings } from '../lib/tennis.mjs';
@@ -47,6 +47,7 @@ export function politeFetch(inner, { dir, inFlight = 2, delayMs = 300, tries = 4
     await take();
     try {
       for (let k = 1; ; k++) {
+        if (self.blocked) return new Response('{}', { status: self.blocked }); // otro en vuelo o en cola agotó los intentos
         const res = await inner(url, { headers: init.headers, signal: AbortSignal.timeout(timeoutMs) });
         if (res.ok) {
           const text = await res.text();
@@ -84,9 +85,10 @@ const outcomeOf = (r) => (r.homeScore > r.awayScore ? 'H' : r.homeScore < r.away
 const binary = (sport) => sport !== 'soccer'; // en los demás deportes el ganador no tiene empate: se ignoran
 const sum = (xs, f) => xs.reduce((s, x) => s + f(x), 0);
 
-// Igual que en vivo: ratings de la temporada anterior más la evaluada hasta el corte, y expected() con la sede.
+// Igual que en vivo (getSeasonResults): la temporada evaluada hasta el corte, más la anterior solo mientras sea corta
+// (thinSeason, Ruling 6), y expected() con la sede.
 export function predict(sport, prev, games) {
-  const all = [...prev, ...games];
+  const teams = [...new Set(games.flatMap((g) => [g.homeId, g.awayId]))];
   const out = [];
   let cut = null;
   let ratings;
@@ -94,7 +96,10 @@ export function predict(sport, prev, games) {
     const outcome = outcomeOf(g);
     if (binary(sport) && outcome === 'D') continue;
     const c = cutOf(g.date);
-    if (c !== cut) [cut, ratings] = [c, ratingsFromResults(all, { sport, asOf: c })];
+    if (c !== cut) {
+      const done = games.filter((r) => Date.parse(r.date) < c);
+      [cut, ratings] = [c, ratingsFromResults(thinSeason(done, teams) ? [...prev, ...done] : done, { sport, asOf: c })];
+    }
     out.push({ id: g.id, outcome, margin: g.homeScore - g.awayScore, points: g.homeScore + g.awayScore,
       model: expected(sport, ratings, g.homeId, g.awayId, { neutral: g.neutral }) });
   }

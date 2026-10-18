@@ -432,7 +432,16 @@ async function renderDetail(el, ctx) {
   const cur = curSeason(games);
   const hasCur = Number.isFinite(cur);
   const statsHere = defs.filter((d) => d.key === k.stat || mine.some((p) => p.stat === d.key) || games.some((g) => Number.isFinite(S.statOf(sport, d.key, g.stats))));
-  const propFor = (stat, line, side) => mine.find((p) => p.stat === stat && p.line === line && p.side === side) ?? null;
+  // Línea Coflas: el prop del servidor. Línea personalizada: la misma cuenta (bm.propOver) con la media y la varianza del jugador.
+  const propFor = (stat, line, side) => {
+    const own = mine.find((p) => p.stat === stat && p.line === line && p.side === side);
+    if (own) return own;
+    const base = mine.find((p) => p.stat === stat && Number.isFinite(p.variance));
+    if (!base || !Number.isFinite(line)) return null;
+    const over = bm.propOver(base.kind, base.mean, base.variance, line);
+    const pr = bm.price(side === 'Over' ? over : 1 - over);
+    return { ...base, line, side, p: pr.p, fair: pr.fair, books: [{ key: 'coflas', title: 'Coflas', price: pr.coflas }] };
+  };
   const lineOf = (stat) => mine.find((p) => p.stat === stat)?.line ?? null;
   function defaultLine(stat) {
     if (lineOf(stat) != null) return lineOf(stat);
@@ -496,7 +505,7 @@ async function renderDetail(el, ctx) {
         : `<p class="pp-avg">Línea Coflas <b>${esc(fmtLine(ours))}</b>${ours !== s.line ? ` <button type="button" class="pp-link" data-act="ourline">Volver a la línea Coflas</button>` : ''}</p>`}
       ${sel ? `<p class="pp-avg">Prob. <b>${esc(ui.fmtPct(sel.p, 1))}</b> · Justa <b>${esc(ui.fmtOdds(sel.fair))}</b> · Coflas <b>${esc(ui.fmtOdds(coflas(sel).price))}</b> ${str(ui.sourceBadge('coflas'))}</p>
         <div class="pp-addbox"><button type="button" class="pp-btn" data-act="addbest" aria-pressed="${on}">${on ? '✓ En el boleto' : `+ Agregar ${esc(ui.fmtOdds(coflas(sel).price))}`}</button></div>`
-        : ours != null ? '<p class="pp-muted">Línea personalizada: análisis sin cuota.</p>' : ''}`;
+        : ''}`;
   }
 
   // Partidos que pasan los filtros, con su valor de la estadística (del más reciente al más antiguo).

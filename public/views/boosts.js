@@ -4,7 +4,7 @@
 // Probabilidad del combinado = producto de las patas (supone independencia y avisa si hay patas del mismo partido).
 import { LEAGUES, leagueById } from '../leagues.js';
 import { statOf } from '../stats.js';
-import { devig, expectedValue, kelly, hitRate } from '../betmath.js';
+import { devig, expectedValue, compareBook, hitRate } from '../betmath.js';
 import { h, raw, fmtOdds, fmtPct, fmtMoney, when, ago, bookChip, bookInfo, BOOKS, hitBar, empty, sourceBadge, dropdown, tabs } from '../ui.js';
 import { kellyOptions, optionsHtml, parseOdds, dataOf, num, pctSigned, selectionsOf } from './ev.js';
 
@@ -32,8 +32,7 @@ export function evaluateBoost(b, { method = 'multiplicative', kellyMult = 1, ban
   const boosted = b.boosted > 1 ? b.boosted : null, original = b.original > 1 ? b.original : null;
   const complete = probs.length > 0 && probs.every((x) => x.p > 0 && x.p < 1);
   const prob = complete ? probs.reduce((t, x) => t * x.p, 1) : null;
-  const ev = prob != null && boosted ? expectedValue(prob, boosted) : null;
-  const k = ev != null ? kelly(prob, boosted, kellyMult) : null;
+  const { ev = null, kelly: k = null } = prob != null && boosted ? compareBook(prob, boosted, kellyMult) : {};
   const cap = b.maxStake > 0 ? b.maxStake : Infinity;
   const full = k != null && bankroll > 0 ? k * bankroll : null;
   const games = legs.map((l) => norm(l.event)).filter(Boolean);

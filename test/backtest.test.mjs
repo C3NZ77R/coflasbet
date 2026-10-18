@@ -36,6 +36,20 @@ test('backtest: cada partido se predice con prev + partidos ya terminados de la 
   }
 });
 
+test('backtest: como en vivo (Ruling 6), la temporada anterior deja de contar cuando la mediana llega a 10 partidos', () => {
+  // 4 equipos y 20 partidos (10 por equipo) del día 10 al 29; f20 se juega el día 40.
+  const pairs = [['1', '2'], ['3', '4'], ['1', '3'], ['2', '4'], ['1', '4'], ['2', '3']];
+  const full = Array.from({ length: 21 }, (_, i) => R(`f${i}`, day(i < 20 ? i + 10 : 40), ...pairs[i % 6], 100 + (i % 7), 95 + (i % 5)));
+  const preds = predict('basketball', prev, full);
+  const at = (id, rs) => {
+    const g = full.find((r) => r.id === id);
+    return expected('basketball', ratingsFromResults(rs, { sport: 'basketball', asOf: cutOf(g.date) }), g.homeId, g.awayId);
+  };
+  assert.deepEqual(preds.find((p) => p.id === 'f1').model, at('f1', [...prev, ...full])); // corta: suma la anterior
+  assert.deepEqual(preds.find((p) => p.id === 'f20').model, at('f20', full)); // 10 por equipo: solo la evaluada
+  assert.notDeepEqual(at('f20', full), at('f20', [...prev, ...full]));
+});
+
 test('backtest: sin fuga, cambiar un resultado no cambia su propia predicción ni las del mismo corte', () => {
   const before = predict('basketball', prev, season);
   const changed = season.map((r) => (r.id === 't1' ? { ...r, homeScore: 60 } : r));
@@ -180,6 +194,23 @@ test('politeFetch: 403/429 reintenta con espera exponencial; tras 4 intentos se 
     assert.equal(calls, 4);
     assert.equal((await blocked('https://x/a')).status, 200); // lo que ya está en disco sigue sirviendo
     assert.ok(!(await readdir(dir)).some((f) => f.endsWith('.tmp')));
+  } finally {
+    await rm(dir, { recursive: true });
+  }
+});
+
+test('politeFetch: un bloqueo corta también los reintentos de lo que estaba en vuelo o en cola', async () => {
+  const dir = await tmpDir();
+  try {
+    for (const [inFlight, max] of [[1, 4], [2, 2 * 4 - 1]]) {
+      let calls = 0;
+      const f = politeFetch(async () => (calls++, resp(403)), { dir, inFlight, delayMs: 1, backoffMs: 1 }); // sleep real
+      const got = await Promise.all(Array.from({ length: 10 }, (_, i) => f(`https://x/q${inFlight}-${i}`)));
+      assert.ok(got.every((r) => r.status === 403));
+      assert.equal(f.blocked, 403);
+      assert.ok(calls <= max, `${calls} peticiones con ${inFlight} en vuelo (sin el corte serían 40)`);
+      if (inFlight === 1) assert.equal(calls, 4);
+    }
   } finally {
     await rm(dir, { recursive: true });
   }

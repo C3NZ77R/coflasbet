@@ -4,6 +4,7 @@
 import * as bm from '../betmath.js';
 import { leagueById } from '../leagues.js';
 import { statForMarket } from '../stats.js';
+import { ui as baseUi } from '../ui.js';
 
 const DAYS = 15; // hoy + 14
 const TENNIS_DAYS = 3; // ESPN solo publica el cuadro de los próximos días
@@ -13,7 +14,7 @@ const REC_ORDER = ['overall', 'home', 'road', 'vsconf', 'vsdiv'];
 const REC_LABEL = { overall: 'Total', home: 'Local', road: 'Visita', vsconf: 'Conferencia', vsdiv: 'División' };
 const NO_PUBLISH = 'Cuotas no publicadas: el modelo aún no supera la referencia';
 
-let ui; // ctx.ui de la vista montada (solo hay una a la vez)
+let ui = baseUi; // ctx.ui de la vista montada (solo hay una a la vez)
 const esc = (s) => ui.esc(s ?? '');
 
 // ---------- utilidades puras (exportadas para pruebas) ----------
@@ -279,7 +280,7 @@ function linesHtml(d, mk, ctx) {
 }
 
 // Tablas de todos los mercados del modelo; trends = HTML de tendencia por clave de mercado (solo en el primero de cada tipo).
-function marketTables(d, mk, ctx, trends = {}) {
+export function marketTables(d, mk, ctx, trends = {}) {
   const head = '<thead><tr><th scope="col">Selección</th><th scope="col">Prob.</th><th scope="col">Justa</th><th scope="col">Coflas</th></tr></thead>';
   const row = (m, s) => `<tr><th scope="row">${esc(selName(d, s))}${s.line != null ? ` <span class="gm-line">${esc(lineTxt(m, s))}</span>` : ''}</th>
     <td>${esc(ui.fmtPct(s.p))}</td><td>${esc(ui.fmtOdds(s.fair))}</td><td>${selBtn(d, m, s, ctx, true)}</td></tr>`;
