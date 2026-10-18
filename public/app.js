@@ -8,7 +8,7 @@ import { parlayOdds } from './betmath.js';
 const $ = (s) => document.querySelector(s);
 const LEAGUE_VIEWS = ['props', 'games', 'insights', 'popular'];
 const DETAIL_VIEWS = ['props', 'games'];
-const NAMES = { props: 'Props', games: 'Partidos', insights: 'Insights', popular: 'Populares', odds: 'Comparador', 'tennis-rankings': 'Ranking ATP', 'tennis-player': 'Jugador ATP' };
+const NAMES = { props: 'Props', games: 'Partidos', insights: 'Insights', popular: 'Populares', 'tennis-rankings': 'Ranking ATP', 'tennis-player': 'Jugador ATP' };
 const lastLeague = () => leagueById(store.get('league')) ?? LEAGUES[0];
 // El tenis solo tiene Partidos (sin props, insights ni populares).
 const viewsOf = (lg) => (lg.sport === 'tennis' ? ['games'] : LEAGUE_VIEWS);
@@ -22,7 +22,6 @@ function parse(hash) {
   const query = new URLSearchParams(qs);
   const r = (name, league = null, id) => ({ name, league, params: id != null ? { id } : {}, query });
   if (seg[0] === 'share' && seg.length === 1) return r('share');
-  if (seg[0] === 'comparador' && seg.length === 1) return r('odds');
   if (seg[0] === 'tennis-rankings' && seg.length === 1) return r('tennis-rankings');
   if (seg[0] === 'tennis-player' && seg.length === 2) return r('tennis-player', null, seg[1]);
   const lg = leagueById(seg[0]);
@@ -102,8 +101,6 @@ function updateChrome(r, league) {
     if (v === r.name) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   }
-  $('.nav-more').classList.toggle('has-current', !LEAGUE_VIEWS.includes(r.name));
-  setMore(false);
   $('.brand').href = home(league);
   const chips = $('#leagues');
   chips.hidden = !r.league;
@@ -150,7 +147,7 @@ function renderSlip() {
   $('#fabCount').textContent = picks.length;
   const body = $('#slipBody'), foot = $('#slipFoot');
   if (!picks.length) {
-    body.innerHTML = empty('Tu boleto está vacío. Agrega picks con el botón + en Props, Partidos, Insights o el Comparador.');
+    body.innerHTML = empty('Tu boleto está vacío. Agrega picks con el botón + en Props, Partidos o Insights.');
     foot.innerHTML = '';
     return;
   }
@@ -246,20 +243,12 @@ function toast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 4000);
 }
 
-function setMore(open) {
-  $('.nav-more').setAttribute('aria-expanded', String(open));
-  $('#nav').classList.toggle('more-open', open);
-}
-
 // ---------- eventos ----------
 $('#view').addEventListener('click', (e) => { if (e.target.closest('[data-retry]')) route(); });
 $('[data-skip]').addEventListener('click', (e) => { e.preventDefault(); $('#view').focus(); });
-$('.nav-more').addEventListener('click', () => setMore($('.nav-more').getAttribute('aria-expanded') !== 'true'));
-document.addEventListener('click', (e) => { if (!e.target.closest('#nav')) setMore(false); });
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || document.querySelector('dialog[open]')) return;
-  if ($('#nav').classList.contains('more-open')) { setMore(false); $('.nav-more').focus(); }
-  else if (slipOpen && !wide.matches) closeSlip(true);
+  if (slipOpen && !wide.matches) closeSlip(true);
 });
 
 for (const b of document.querySelectorAll('[data-odds]')) {
