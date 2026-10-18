@@ -1,0 +1,577 @@
+{
+ "season": {
+  "year": 2027
+ },
+ "requestedSeason": {
+  "year": 2026,
+  "type": 2,
+  "name": "Regular Season",
+  "displayName": "2025-26"
+ },
+ "team": {
+  "id": "18",
+  "displayName": "New York Knicks"
+ },
+ "events": [
+  {
+   "id": "401809234",
+   "date": "2025-10-22T23:00Z",
+   "season": {
+    "year": 2026,
+    "displayName": "2025-26"
+   },
+   "competitions": [
+    {
+     "id": "401809234",
+     "date": "2025-10-22T23:00Z",
+     "neutralSite": false,
+     "status": {
+      "type": {
+       "id": "3",
+       "name": "STATUS_FINAL",
+       "state": "post",
+       "completed": true,
+       "description": "Final",
+       "detail": "Final",
+       "shortDetail": "Final"
+      }
+     },
+     "competitors": [
+      {
+       "id": "18",
+       "homeAway": "home",
+       "winner": true,
+       "team": {
+        "id": "18",
+        "abbreviation": "NY",
+        "displayName": "New York Knicks"
+       },
+       "score": {
+        "value": 119,
+        "displayValue": "119"
+       }
+      },
+      {
+       "id": "5",
+       "homeAway": "away",
+       "winner": false,
+       "team": {
+        "id": "5",
+        "abbreviation": "CLE",
+        "displayName": "Cleveland Cavaliers"
+       },
+       "score": {
+        "value": 111,
+        "displayValue": "111"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401809945",
+   "date": "2025-10-24T23:30Z",
+   "season": {
+    "year": 2026,
+    "displayName": "2025-26"
+   },
+   "competitions": [
+    {
+     "id": "401809945",
+     "date": "2025-10-24T23:30Z",
+     "neutralSite": false,
+     "status": {
+      "type": {
+       "id": "3",
+       "name": "STATUS_FINAL",
+       "state": "post",
+       "completed": true,
+       "description": "Final",
+       "detail": "Final",
+       "shortDetail": "Final"
+      }
+     },
+     "competitors": [
+      {
+       "id": "18",
+       "homeAway": "home",
+       "winner": true,
+       "team": {
+        "id": "18",
+        "abbreviation": "NY",
+        "displayName": "New York Knicks"
+       },
+       "score": {
+        "value": 105,
+        "displayValue": "105"
+       }
+      },
+      {
+       "id": "2",
+       "homeAway": "away",
+       "winner": false,
+       "team": {
+        "id": "2",
+        "abbreviation": "BOS",
+        "displayName": "Boston Celtics"
+       },
+       "score": {
+        "value": 95,
+        "displayValue": "95"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401809963",
+   "date": "2025-10-26T22:00Z",
+   "season": {
+    "year": 2026,
+    "displayName": "2025-26"
+   },
+   "competitions": [
+    {
+     "id": "401809963",
+     "date": "2025-10-26T22:00Z",
+     "neutralSite": false,
+     "status": {
+      "type": {
+       "id": "3",
+       "name": "STATUS_FINAL",
+       "state": "post",
+       "completed": true,
+       "description": "Final",
+       "detail": "Final",
+       "shortDetail": "Final"
+      }
+     },
+     "competitors": [
+      {
+       "id": "14",
+       "homeAway": "home",
+       "winner": true,
+       "team": {
+        "id": "14",
+        "abbreviation": "MIA",
+        "displayName": "Miami Heat"
+       },
+       "score": {
+        "value": 115,
+        "displayValue": "115"
+       }
+      },
+      {
+       "id": "18",
+       "homeAway": "away",
+       "winner": false,
+       "team": {
+        "id": "18",
+        "abbreviation": "NY",
+        "displayName": "New York Knicks"
+       },
+       "score": {
+        "value": 107,
+        "displayValue": "107"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401809980",
+   "date": "2025-10-29T00:00Z",
+   "season": {
+    "year": 2026,
+    "displayName": "2025-26"
+   },
+   "competitions": [
+    {
+     "id": "401809980",
+     "date": "2025-10-29T00:00Z",
+     "neutralSite": false,
+     "status": {
+      "type": {
+       "id": "3",
+       "name": "STATUS_FINAL",
+       "state": "post",
+       "completed": true,
+       "description": "Final",
+       "detail": "Final",
+       "shortDetail": "Final"
+      }
+     },
+     "competitors": [
+      {
+       "id": "15",
+       "homeAway": "home",
+       "winner": true,
+       "team": {
+        "id": "15",
+        "abbreviation": "MIL",
+        "displayName": "Milwaukee Bucks"
+       },
+       "score": {
+        "value": 121,
+        "displayValue": "121"
+       }
+      },
+      {
+       "id": "18",
+       "homeAway": "away",
+       "winner": false,
+       "team": {
+        "id": "18",
+        "abbreviation": "NY",
+        "displayName": "New York Knicks"
+       },
+       "score": {
+        "value": 111,
+        "displayValue": "111"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401809505",
+   "date": "2025-11-01T00:00Z",
+   "season": {
+    "year": 2026,
+    "displayName": "2025-26"
+   },
+   "competitions": [
+    {
+     "id": "401809505",
+     "date": "2025-11-01T00:00Z",
+     "neutralSite": false,
+     "status": {
+      "type": {
+       "id": "3",
+       "name": "STATUS_FINAL",
+       "state": "post",
+       "completed": true,
+       "description": "Final",
+       "detail": "Final",
+       "shortDetail": "Final"
+      }
+     },
+     "competitors": [
+      {
+       "id": "4",
+       "homeAway": "home",
+       "winner": true,
+       "team": {
+        "id": "4",
+        "abbreviation": "CHI",
+        "displayName": "Chicago Bulls"
+       },
+       "score": {
+        "value": 135,
+        "displayValue": "135"
+       }
+      },
+      {
+       "id": "18",
+       "homeAway": "away",
+       "winner": false,
+       "team": {
+        "id": "18",
+        "abbreviation": "NY",
+        "displayName": "New York Knicks"
+       },
+       "score": {
+        "value": 125,
+        "displayValue": "125"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401810008",
+   "date": "2025-11-03T00:00Z",
+   "season": {
+    "year": 2026,
+    "displayName": "2025-26"
+   },
+   "competitions": [
+    {
+     "id": "401810008",
+     "date": "2025-11-03T00:00Z",
+     "neutralSite": false,
+     "status": {
+      "type": {
+       "id": "3",
+       "name": "STATUS_FINAL",
+       "state": "post",
+       "completed": true,
+       "description": "Final",
+       "detail": "Final",
+       "shortDetail": "Final"
+      }
+     },
+     "competitors": [
+      {
+       "id": "18",
+       "homeAway": "home",
+       "winner": true,
+       "team": {
+        "id": "18",
+        "abbreviation": "NY",
+        "displayName": "New York Knicks"
+       },
+       "score": {
+        "value": 128,
+        "displayValue": "128"
+       }
+      },
+      {
+       "id": "4",
+       "homeAway": "away",
+       "winner": false,
+       "team": {
+        "id": "4",
+        "abbreviation": "CHI",
+        "displayName": "Chicago Bulls"
+       },
+       "score": {
+        "value": 116,
+        "displayValue": "116"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401810014",
+   "date": "2025-11-04T00:30Z",
+   "season": {
+    "year": 2026,
+    "displayName": "2025-26"
+   },
+   "competitions": [
+    {
+     "id": "401810014",
+     "date": "2025-11-04T00:30Z",
+     "neutralSite": false,
+     "status": {
+      "type": {
+       "id": "3",
+       "name": "STATUS_FINAL",
+       "state": "post",
+       "completed": true,
+       "description": "Final",
+       "detail": "Final",
+       "shortDetail": "Final"
+      }
+     },
+     "competitors": [
+      {
+       "id": "18",
+       "homeAway": "home",
+       "winner": true,
+       "team": {
+        "id": "18",
+        "abbreviation": "NY",
+        "displayName": "New York Knicks"
+       },
+       "score": {
+        "value": 119,
+        "displayValue": "119"
+       }
+      },
+      {
+       "id": "27",
+       "homeAway": "away",
+       "winner": false,
+       "team": {
+        "id": "27",
+        "abbreviation": "WSH",
+        "displayName": "Washington Wizards"
+       },
+       "score": {
+        "value": 102,
+        "displayValue": "102"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401810030",
+   "date": "2025-11-06T00:30Z",
+   "season": {
+    "year": 2026,
+    "displayName": "2025-26"
+   },
+   "competitions": [
+    {
+     "id": "401810030",
+     "date": "2025-11-06T00:30Z",
+     "neutralSite": false,
+     "status": {
+      "type": {
+       "id": "3",
+       "name": "STATUS_FINAL",
+       "state": "post",
+       "completed": true,
+       "description": "Final",
+       "detail": "Final",
+       "shortDetail": "Final"
+      }
+     },
+     "competitors": [
+      {
+       "id": "18",
+       "homeAway": "home",
+       "winner": true,
+       "team": {
+        "id": "18",
+        "abbreviation": "NY",
+        "displayName": "New York Knicks"
+       },
+       "score": {
+        "value": 137,
+        "displayValue": "137"
+       }
+      },
+      {
+       "id": "16",
+       "homeAway": "away",
+       "winner": false,
+       "team": {
+        "id": "16",
+        "abbreviation": "MIN",
+        "displayName": "Minnesota Timberwolves"
+       },
+       "score": {
+        "value": 114,
+        "displayValue": "114"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401810047",
+   "date": "2025-11-09T23:00Z",
+   "season": {
+    "year": 2026,
+    "displayName": "2025-26"
+   },
+   "competitions": [
+    {
+     "id": "401810047",
+     "date": "2025-11-09T23:00Z",
+     "neutralSite": false,
+     "status": {
+      "type": {
+       "id": "3",
+       "name": "STATUS_FINAL",
+       "state": "post",
+       "completed": true,
+       "description": "Final",
+       "detail": "Final",
+       "shortDetail": "Final"
+      }
+     },
+     "competitors": [
+      {
+       "id": "18",
+       "homeAway": "home",
+       "winner": true,
+       "team": {
+        "id": "18",
+        "abbreviation": "NY",
+        "displayName": "New York Knicks"
+       },
+       "score": {
+        "value": 134,
+        "displayValue": "134"
+       }
+      },
+      {
+       "id": "17",
+       "homeAway": "away",
+       "winner": false,
+       "team": {
+        "id": "17",
+        "abbreviation": "BKN",
+        "displayName": "Brooklyn Nets"
+       },
+       "score": {
+        "value": 98,
+        "displayValue": "98"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401810063",
+   "date": "2025-11-12T00:30Z",
+   "season": {
+    "year": 2026,
+    "displayName": "2025-26"
+   },
+   "competitions": [
+    {
+     "id": "401810063",
+     "date": "2025-11-12T00:30Z",
+     "neutralSite": false,
+     "status": {
+      "type": {
+       "id": "3",
+       "name": "STATUS_FINAL",
+       "state": "post",
+       "completed": true,
+       "description": "Final",
+       "detail": "Final",
+       "shortDetail": "Final"
+      }
+     },
+     "competitors": [
+      {
+       "id": "18",
+       "homeAway": "home",
+       "winner": true,
+       "team": {
+        "id": "18",
+        "abbreviation": "NY",
+        "displayName": "New York Knicks"
+       },
+       "score": {
+        "value": 133,
+        "displayValue": "133"
+       }
+      },
+      {
+       "id": "29",
+       "homeAway": "away",
+       "winner": false,
+       "team": {
+        "id": "29",
+        "abbreviation": "MEM",
+        "displayName": "Memphis Grizzlies"
+       },
+       "score": {
+        "value": 120,
+        "displayValue": "120"
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
