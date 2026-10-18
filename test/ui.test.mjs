@@ -139,18 +139,3 @@ test('Partidos: la tabla de mercados muestra probabilidad, Justa y Oddsy de cada
   assert.equal(ctx.picks.length, markets.flatMap((m) => m.selections).length);
   assert.ok(ctx.picks.every((p) => p.book === 'oddsy'));
 });
-
-test('EV+: en run line y hándicaps la línea va con el lado; en totales, en la etiqueta', async () => {
-  const { selectionsOf } = await import('../public/views/ev.js');
-  const { marketsFor } = await import('../lib/markets.mjs');
-  const start = new Date(Date.now() + 864e5).toISOString();
-  const api = {
-    markets: async () => ({ source: 'oddsy', accuracy: { publish: true }, data: [{ gameId: '1', markets: marketsFor('baseball', { kind: 'poisson', lh: 4.8, la: 4.2 }) }] }),
-    games: async () => ({ source: 'espn', data: [{ id: '1', start, home: { abbr: 'HOM' }, away: { abbr: 'AWY' } }] }),
-    props: async () => ({ source: 'oddsy', data: [] }),
-  };
-  const { list } = await selectionsOf(api, 'mlb');
-  assert.deepEqual(list.filter((s) => s.id.includes(':rl:')).map((s) => s.label), ['HOM -1.5 · Run line', 'AWY +1.5 · Run line']);
-  assert.ok(list.some((s) => s.label === 'Más · Total de carreras 9.5'));
-  assert.ok(list.some((s) => s.label === 'HOM · Ganador'));
-});

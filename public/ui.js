@@ -59,7 +59,7 @@ export function ago(iso) {
 }
 
 // ---------- casas ----------
-// Colores aproximados de marca + iniciales (para elegir tu casa en Compara tu casa); oddsy = nuestro modelo.
+// Colores aproximados de marca + iniciales; oddsy = nuestro modelo.
 export const BOOKS = {
   oddsy: { name: 'Oddsy', color: '#22c55e', ini: 'CF' },
   pinnacle: { name: 'Pinnacle', color: '#f47a20', ini: 'PIN' },

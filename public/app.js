@@ -8,8 +8,7 @@ import { parlayOdds } from './betmath.js';
 const $ = (s) => document.querySelector(s);
 const LEAGUE_VIEWS = ['props', 'games', 'insights', 'popular'];
 const DETAIL_VIEWS = ['props', 'games'];
-const PRO_VIEWS = ['ev', 'boosts'];
-const NAMES = { props: 'Props', games: 'Partidos', insights: 'Insights', popular: 'Populares', ev: 'EV+', boosts: 'Boosts', odds: 'Comparador', calculators: 'Calculadoras', 'tennis-rankings': 'Ranking ATP', 'tennis-player': 'Jugador ATP' };
+const NAMES = { props: 'Props', games: 'Partidos', insights: 'Insights', popular: 'Populares', odds: 'Comparador', 'tennis-rankings': 'Ranking ATP', 'tennis-player': 'Jugador ATP' };
 const lastLeague = () => leagueById(store.get('league')) ?? LEAGUES[0];
 // El tenis solo tiene Partidos (sin props, insights ni populares).
 const viewsOf = (lg) => (lg.sport === 'tennis' ? ['games'] : LEAGUE_VIEWS);
@@ -23,9 +22,7 @@ function parse(hash) {
   const query = new URLSearchParams(qs);
   const r = (name, league = null, id) => ({ name, league, params: id != null ? { id } : {}, query });
   if (seg[0] === 'share' && seg.length === 1) return r('share');
-  if (seg[0] === 'pro' && seg.length === 2 && PRO_VIEWS.includes(seg[1])) return r(seg[1]);
   if (seg[0] === 'comparador' && seg.length === 1) return r('odds');
-  if (seg[0] === 'calculadoras' && seg.length === 1) return r('calculators');
   if (seg[0] === 'tennis-rankings' && seg.length === 1) return r('tennis-rankings');
   if (seg[0] === 'tennis-player' && seg.length === 2) return r('tennis-player', null, seg[1]);
   const lg = leagueById(seg[0]);

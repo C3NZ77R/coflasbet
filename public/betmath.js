@@ -51,7 +51,7 @@ export const expectedValue = (prob, odds) => prob * odds - 1;
 
 export const kelly = (prob, odds, fraction = 1) => Math.max(0, (prob * odds - 1) / (odds - 1)) * fraction;
 
-// Probabilidad del modelo Oddsy contra la cuota de la casa del usuario (EV+ y Boosts).
+// Probabilidad del modelo Oddsy contra la cuota de la casa del usuario.
 export const compareBook = (p, odds, fraction = 1) => ({ ev: expectedValue(p, odds), kelly: kelly(p, odds, fraction) });
 
 export const parlayOdds = (oddsList) => oddsList.reduce((p, o) => p * o, 1);
