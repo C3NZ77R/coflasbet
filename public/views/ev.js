@@ -1,5 +1,5 @@
 // EV+ (/pro/ev) · "Compara tu casa": el usuario escribe la cuota de SU casa en cada selección y se compara con la
-// probabilidad del modelo Coflas: EV = p · cuota − 1, Kelly con multiplicador y etiqueta EV+ si EV > 0.
+// probabilidad del modelo Oddsy: EV = p · cuota − 1, Kelly con multiplicador y etiqueta EV+ si EV > 0.
 // Fuentes: mercados de partido de /api/markets (+ /api/games para nombres y hora) y props de jugador de /api/props.
 // Los helpers exportados (selectionsOf, parseOdds, kellyOptions, …) los usa también boosts.js (mismo dueño).
 import { LEAGUES, leagueById } from '../leagues.js';
@@ -42,7 +42,7 @@ export const propKey = (p) => encodeURIComponent(JSON.stringify({ a: p.athleteId
 const signed = (x) => (x > 0 ? `+${x}` : String(x));
 
 // Selecciones con probabilidad del modelo de una liga (partidos de hoy y props de los próximos partidos).
-// Sel = { id, kind:'line'|'prop', league, gameId, matchup, start, title, label, p, fair, coflas, prop? }.
+// Sel = { id, kind:'line'|'prop', league, gameId, matchup, start, title, label, p, fair, oddsy, prop? }.
 export async function selectionsOf(api, league) {
   const lg = leagueById(league);
   const [mk, gm, pr] = await Promise.allSettled([api.markets(league), api.games(league), api.props(league)]);
@@ -64,7 +64,7 @@ export async function selectionsOf(api, league) {
           // En hándicaps (spread, run/puck line, asiático, games) la línea va con el lado; en totales ya está en la etiqueta.
           const name = !m.key.startsWith('ou') && Number.isFinite(s.line) ? `${who(s.name)} ${signed(s.line)}` : who(s.name);
           list.push({ id: `mk:${gameId}:${m.key}:${s.name}:${s.line ?? ''}`, kind: 'line', league, gameId: String(gameId), matchup, start: g?.start ?? '',
-            title: m.label, label: `${name} · ${m.label}`, p: s.p, fair: s.fair, coflas: s.coflas });
+            title: m.label, label: `${name} · ${m.label}`, p: s.p, fair: s.fair, oddsy: s.oddsy });
         }
       }
     }
@@ -77,7 +77,7 @@ export async function selectionsOf(api, league) {
       const stat = statLabel(lg?.sport, p.stat, p.market);
       list.push({ id: `pr:${p.id}`, kind: 'prop', league, gameId: p.gameId ?? null, matchup: [p.team, p.opp].filter(Boolean).join(' vs '), start: p.start ?? '',
         title: stat, label: `${p.player} ${p.side === 'Under' ? 'Menos de' : 'Más de'} ${p.line ?? ''} ${stat}`.replace(/\s+/g, ' ').trim(),
-        p: p.p, fair: p.fair, coflas: p.books?.find((b) => b?.key === 'coflas')?.price ?? null, prop: p });
+        p: p.p, fair: p.fair, oddsy: p.books?.find((b) => b?.key === 'oddsy')?.price ?? null, prop: p });
     }
   }
   return { list, notes, srcs };
@@ -103,7 +103,7 @@ export default {
 
     el.innerHTML = h`<section class="ev">
       <div class="view-head">
-        <div><h1>EV+ · Compara tu casa</h1><p class="hint">Escribe la cuota que te da tu casa y la comparamos con la probabilidad del modelo Coflas: EV = probabilidad × cuota − 1.</p></div>
+        <div><h1>EV+ · Compara tu casa</h1><p class="hint">Escribe la cuota que te da tu casa y la comparamos con la probabilidad del modelo Oddsy: EV = probabilidad × cuota − 1.</p></div>
         <p class="ev-count" role="status" aria-live="polite"></p>
       </div>
       <form class="toolbar ev-bar" aria-label="Filtros de EV+">
@@ -114,7 +114,7 @@ export default {
         <label>Kelly <select data-f="kellyMult">${optionsHtml(kellyOptions(f.kellyMult), f.kellyMult)}</select></label>
         <label class="ev-chk"><input type="checkbox" data-f="onlyEv"> Solo EV+</label>
       </form>
-      <p class="hint">Cuotas americanas (+150, −110) o decimales (2.50). Justa = 1 / probabilidad; Coflas = la cuota justa con nuestro margen.</p>
+      <p class="hint">Cuotas americanas (+150, −110) o decimales (2.50). Justa = 1 / probabilidad; Oddsy = la cuota justa con nuestro margen.</p>
       <div class="ev-sources"></div>
       <div class="ev-notes"></div>
       <div class="ev-results"></div>
@@ -191,11 +191,11 @@ export default {
       // Se repinta sin perder el foco ni el cursor del input que se estaba editando.
       const a = results.contains(document.activeElement) ? document.activeElement : null;
       const focus = a && (a.dataset.odds ?? a.dataset.add), caret = a?.dataset.odds != null ? a.selectionStart : null;
-      results.innerHTML = h`<div class="table-wrap"><table class="tbl ev-tbl"><caption class="sr-only">Selecciones del modelo Coflas con la cuota de tu casa</caption>
-        <thead><tr><th scope="col">Selección</th><th scope="col">Prob.</th><th scope="col">Justa</th><th scope="col">Coflas</th><th scope="col">Cuota de tu casa</th><th scope="col">EV · Kelly</th><th scope="col"><span class="sr-only">Boleto</span></th></tr></thead>
+      results.innerHTML = h`<div class="table-wrap"><table class="tbl ev-tbl"><caption class="sr-only">Selecciones del modelo Oddsy con la cuota de tu casa</caption>
+        <thead><tr><th scope="col">Selección</th><th scope="col">Prob.</th><th scope="col">Justa</th><th scope="col">Oddsy</th><th scope="col">Cuota de tu casa</th><th scope="col">EV · Kelly</th><th scope="col"><span class="sr-only">Boleto</span></th></tr></thead>
         <tbody>${list.slice(0, MAX_ROWS).map((s) => h`<tr data-row="${s.id}">
           <td class="ev-c-pick"><div class="ev-pick"><span class="ev-lbl">${s.label}</span><small>${[s.matchup, when(s.start)].filter(Boolean).join(' · ')}</small></div></td>
-          <td data-l="Prob.">${fmtPct(s.p, 1)}</td><td data-l="Justa">${fmtOdds(s.fair)}</td><td data-l="Coflas">${fmtOdds(s.coflas)}</td>
+          <td data-l="Prob.">${fmtPct(s.p, 1)}</td><td data-l="Justa">${fmtOdds(s.fair)}</td><td data-l="Oddsy">${fmtOdds(s.oddsy)}</td>
           <td class="ev-c-in"><input class="ev-in" data-odds="${s.id}" value="${odds.get(s.id) ?? ''}" maxlength="10" inputmode="decimal" autocomplete="off" placeholder="−110 o 1.91" aria-label="Cuota de tu casa: ${s.label}"${odds.get(s.id) && !calc(s) ? raw(' aria-invalid="true"') : ''}></td>
           <td class="ev-c-res" aria-live="polite">${resHtml(s)}</td>
           <td>${addHtml(s)}</td></tr>`)}</tbody></table></div>

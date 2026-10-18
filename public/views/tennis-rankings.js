@@ -1,4 +1,4 @@
-// Ranking ATP (#/tennis-rankings): top 100 de ESPN con puntos, tendencia semanal y Elo de Coflas. Cada fila abre la ficha.
+// Ranking ATP (#/tennis-rankings): top 100 de ESPN con puntos, tendencia semanal y Elo de Oddsy. Cada fila abre la ficha.
 import { h, sortableTable, teamLogo, sourceBadge } from '../ui.js';
 
 const trend = (r) => (r.prev == null || r.rank == null ? null : r.prev - r.rank); // > 0: subió
@@ -19,7 +19,7 @@ export default {
   async render(el, { api, navigate }) {
     const { data } = await api.tennisRankings();
     el.innerHTML = h`<header class="view-head"><div><h1>Ranking ATP</h1>
-      <p class="hint">Top 100 de singles. Elo de Coflas sobre los últimos 24 meses; toca un jugador para ver su ficha.</p></div>${sourceBadge('espn')}</header>
+      <p class="hint">Top 100 de singles. Elo de Oddsy sobre los últimos 24 meses; toca un jugador para ver su ficha.</p></div>${sourceBadge('espn')}</header>
       <p><a class="gm-more" href="#/atp/games">Partidos ATP →</a></p>`;
     el.append(sortableTable({ columns: COLUMNS, rows: data, sortKey: 'rank', sortDir: 'asc', caption: 'Ranking ATP', onRowClick: (r) => navigate(`#/tennis-player/${encodeURIComponent(r.player.id)}`) }));
   },

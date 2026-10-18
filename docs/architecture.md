@@ -1,4 +1,4 @@
-# Coflas Bet — arquitectura y contratos
+# Oddsy Bet — arquitectura y contratos
 
 Vanilla JS sin build (ES modules en el navegador), Node >= 22 sin dependencias. UI en español. Lo que existe hoy: server.mjs (proxy de ESPN, cuotas propias + estáticos), public/betmath.js (matemática), public/app.js (UI de 4 pestañas), tests con `node --test`.
 Funcionalidad objetivo: todo lo de `docs/outlier-spec.md`.
@@ -11,7 +11,7 @@ Funcionalidad objetivo: todo lo de `docs/outlier-spec.md`.
   - `https://site.api.espn.com/apis/site/v2/sports/{sport}/{league}/teams/{id}/roster`
   - `https://site.api.espn.com/apis/site/v2/sports/{sport}/{league}/injuries`
   - `https://site.api.espn.com/apis/site/v2/sports/{sport}/{league}/teams/{id}` y `sports.core.api.espn.com/v2/sports/{sport}/leagues/{league}/seasons/{y}/types/2/teams/{id}/statistics`
-- **Cuotas propias** (sin casas): `lib/markets.mjs` (partidos: ratings desde los calendarios de ESPN → Dixon-Coles / Poisson / normal) y `lib/props.mjs` (props: game logs de ESPN → binomial negativa / normal). Cuota justa = 1/p; cuota Coflas = 1/(p·1.05). Precisión medida en `docs/accuracy.json` (`scripts/backtest.mjs`).
+- **Cuotas propias** (sin casas): `lib/markets.mjs` (partidos: ratings desde los calendarios de ESPN → Dixon-Coles / Poisson / normal) y `lib/props.mjs` (props: game logs de ESPN → binomial negativa / normal). Cuota justa = 1/p; cuota Oddsy = 1/(p·1.05). Precisión medida en `docs/accuracy.json` (`scripts/backtest.mjs`).
 - **Mercados de predicción sin clave** (opcional, como "casas" adicionales en líneas de partido): Kalshi `https://api.elections.kalshi.com/trade-api/v2/markets?series_ticker=...` / Polymarket gamma `https://gamma-api.polymarket.com/events?tag_slug=...`. Solo si se emparejan bien con los partidos de ESPN.
 - Nunca se llama a la API de Outlier.
 
@@ -21,7 +21,7 @@ Todas las llamadas externas pasan por server.mjs, con una caché en memoria por 
 `export const LEAGUES = [{ id:'nba', title:'NBA', sport:'basketball', espn:'nba' }, { id:'nfl', ... espn:'nfl' }, { id:'mlb', sport:'baseball', espn:'mlb' }, { id:'nhl', sport:'hockey', espn:'nhl' }, { id:'ncaaf', title:'NCAAF', sport:'football', espn:'college-football' }, { id:'ncaab', title:'NCAAB', sport:'basketball', espn:'mens-college-basketball' }, { id:'wnba', sport:'basketball', espn:'wnba' }, { id:'laliga', title:'LaLiga', sport:'soccer', espn:'esp.1' }, { id:'epl', title:'Premier League', sport:'soccer', espn:'eng.1' }, { id:'ucl', title:'Champions', sport:'soccer', espn:'uefa.champions' }, { id:'libertadores', title:'Libertadores', sport:'soccer', espn:'conmebol.libertadores' }, { id:'colombia', title:'Liga BetPlay', sport:'soccer', espn:'col.1' }]`
 `export const leagueById = (id) => ...`
 
-## API HTTP (server.mjs) — todas devuelven `{ source: 'coflas'|'espn', data }`
+## API HTTP (server.mjs) — todas devuelven `{ source: 'oddsy'|'espn', data }`
 - `GET /api/leagues` → LEAGUES
 - `GET /api/markets?league=nba&game=ID` → `{ gameId, markets: Market[] }` (sin game: todos los partidos de `date`, por defecto hoy) + `accuracy`
 - `GET /api/accuracy` → `docs/accuracy.json`
@@ -30,7 +30,7 @@ Todas las llamadas externas pasan por server.mjs, con una caché en memoria por 
 - `GET /api/gamelog?league=nba&athlete=ID[&season=YYYY]` → `GameLog` (temporada actual + anterior combinadas si no se pasa season)
 - `GET /api/roster?league=nba&team=ID` → `Athlete[]`
 - `GET /api/injuries?league=nba` → `Injury[]`
-- `GET /api/props?league=nba[&game=ESPN_EVENT_ID]` → `Prop[]` con línea propia y `books: [{ key:'coflas' }]` (sin game: los próximos 3 partidos de hoy)
+- `GET /api/props?league=nba[&game=ESPN_EVENT_ID]` → `Prop[]` con línea propia y `books: [{ key:'oddsy' }]` (sin game: los próximos 3 partidos de hoy)
 - `GET /api/search?league=nba&q=texto` → `Athlete[]`
 
 Tipos (JSON). Las cuotas SIEMPRE en decimal (la UI convierte a americano):

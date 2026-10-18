@@ -1,4 +1,4 @@
-// Shell de Coflas Bet: router por hash, montaje de vistas, chips de liga, ajustes y boleto "Mis picks".
+// Shell de Oddsy Bet: router por hash, montaje de vistas, chips de liga, ajustes y boleto "Mis picks".
 import { api } from './api.js';
 import { store, encodePicks, decodePicks } from './store.js';
 import { ui, h, empty, fmtOdds, fmtPct, bookInfo, bookChip, BOOKS, modal, raw } from './ui.js';
@@ -95,7 +95,7 @@ async function route() {
 }
 
 function setTitle(title, league) {
-  document.title = `${title}${league ? ` · ${league.title}` : ''} | Coflas Bet`;
+  document.title = `${title}${league ? ` · ${league.title}` : ''} | Oddsy Bet`;
 }
 
 function updateChrome(r, league) {

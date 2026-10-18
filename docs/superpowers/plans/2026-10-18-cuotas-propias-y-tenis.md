@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Reemplazar las cuotas de The Odds API por cuotas propias (justa + Coflas con 5% de margen) calculadas con modelos por deporte sobre datos de ESPN, y agregar tenis ATP (top 100) al estilo Outlier.
+**Goal:** Reemplazar las cuotas de The Odds API por cuotas propias (justa + Oddsy con 5% de margen) calculadas con modelos por deporte sobre datos de ESPN, y agregar tenis ATP (top 100) al estilo Outlier.
 
 **Architecture:**
 - Funciones puras de probabilidad (`lib/pricing.mjs`), reusando `normCdf`/`poissonPmf` de `public/betmath.js`.
@@ -18,8 +18,8 @@
 ## Global Constraints
 - Sin dependencias nuevas ni paso de build. La UI va en español.
 - Cuotas siempre en **decimal** internamente; la UI convierte con `fmtOdds`.
-- `fair = 1/p`; `coflas = 1/(p·1.05)`, es decir `MARGIN = 0.05`.
-- Solo fuentes públicas de ESPN. Nunca la API de Outlier ni de casas. `COFLAS_ODDS_API_KEY` desaparece.
+- `fair = 1/p`; `oddsy = 1/(p·1.05)`, es decir `MARGIN = 0.05`.
+- Solo fuentes públicas de ESPN. Nunca la API de Outlier ni de casas. `ODDSY_ODDS_API_KEY` desaparece.
 - Toda llamada externa pasa por `espn.fetchJson` (caché + timeout de 8 s). Todo error devuelve `{ error }` con un status HTTP.
 - Tenis: solo singles masculino ATP (`grouping.slug === 'mens-singles'`); el ranking se recorta al top 100.
 - Cada task termina con `npm test` en verde, commit y `git push origin main` (Vercel `coflasbet` despliega solo).
@@ -44,7 +44,7 @@
 - Consumes: `normCdf(x)`, `poissonPmf(k, λ)` de `public/betmath.js`.
 - Produces:
   - `MARGIN = 0.05`
-  - `price(p) → { p, fair, coflas }`: cuotas acotadas a [1.01, 101], con 2 decimales.
+  - `price(p) → { p, fair, oddsy }`: cuotas acotadas a [1.01, 101], con 2 decimales.
   - `halfLine(x) → number`: redondea a la línea .5 más cercana (`7.2 → 7.5`, `6.9 → 6.5`).
   - `negBinPmf(k, mean, variance) → number`: si `variance <= mean`, usa Poisson.
   - `scoreGrid(lh, la, { rho = -0.1, max = 10 }) → number[][]`: matriz Dixon-Coles normalizada para que sume 1.
@@ -52,7 +52,7 @@
   - `countOver(pmf, line) → number`: `pmf` es un array de probabilidades por k.
 
 - [ ] **Step 1: Write the failing tests** en `test/pricing.test.mjs`:
-  - `price(0.5)` → `{ fair: 2, coflas: 1.9 }` (`1/(0.5·1.05) = 1.9047` → 1.9).
+  - `price(0.5)` → `{ fair: 2, oddsy: 1.9 }` (`1/(0.5·1.05) = 1.9047` → 1.9).
   - `price(0.999).fair === 1.01` y `price(0.001).fair === 101`.
   - `halfLine(7.2) === 7.5`, `halfLine(6.9) === 6.5`, `halfLine(7) === 7.5`.
   - La suma de `scoreGrid(1.4, 1.1)` difiere de 1 en menos de 1e-9.
@@ -101,7 +101,7 @@
 **Interfaces:**
 - Consumes: Task 1 (`price`, `scoreGrid`, `normalOver`, `halfLine`) y Task 2 (`expected`).
 - Produces:
-  - `Market = { key, label, selections: [{ name, line?, p, fair, coflas }] }`. Las `p` de un mercado suman 1, salvo cuando hay push en líneas enteras.
+  - `Market = { key, label, selections: [{ name, line?, p, fair, oddsy }] }`. Las `p` de un mercado suman 1, salvo cuando hay push en líneas enteras.
   - `marketsFor(sport, model) → Market[]`:
     - poisson + fútbol: `1x2`, `dc` (doble oportunidad), `dnb`, `ou` en 0.5, 1.5, 2.5, 3.5 y 4.5, `btts`, `ah` (hándicap asiático −1.5, −0.5, +0.5 y +1.5 del local) y `cs` (los 10 marcadores más probables), todos desde `scoreGrid`.
     - poisson + hockey/béisbol: `ml` (sin empate; el empate se reparte según `lh/(lh+la)`), `rl` ±1.5 y `ou` en `halfLine(lh+la)`.
@@ -112,7 +112,7 @@
   - `btts.Sí` con `lh = la = 0` es 0.
   - Con mu = 0 y línea 0, el ml normal da 0.5.
   - El ml de hockey no tiene selección "Empate".
-  - Cada `selection` trae `fair` y `coflas`, y `coflas < fair`.
+  - Cada `selection` trae `fair` y `oddsy`, y `oddsy < fair`.
 - [ ] **Step 2–4:** FAIL → implementar → PASS.
 - [ ] **Step 5:** Run `node --env-file-if-exists=.env scripts/backtest.mjs nba nfl epl laliga nhl mlb`. Expected: `docs/accuracy.json` existe y cada liga tiene un `brier` menor que su `baseline.brier`. Si una liga no lo cumple, se anota en el JSON (`"publish": false`) y la UI esconde sus cuotas.
 - [ ] **Step 6:** Copiar el σ calibrado de basketball a `SIGMA` en `lib/ratings.mjs`. Commit y push.
@@ -126,7 +126,7 @@
 
 **Interfaces:**
 - Produces (HTTP):
-  - `GET /api/markets?league=&game=` → `{ source:'coflas', data: { gameId, model, markets: Market[], accuracy } }`
+  - `GET /api/markets?league=&game=` → `{ source:'oddsy', data: { gameId, model, markets: Market[], accuracy } }`
   - `GET /api/accuracy` → contenido de `docs/accuracy.json`
   - Se borran `/api/sports` y `/api/odds`.
   - `api.js` pierde `sports` y `odds`, y gana `markets(league, gameId)` y `accuracy()`.
@@ -137,7 +137,7 @@
   - `GET /api/markets?league=xx` → 400.
   - `GET /api/markets?league=nba&game=1` con `fetchJson` simulado (fixtures de Task 2) → 200 con `markets.length > 0`.
 - [ ] **Step 2–4:** FAIL → implementar → PASS.
-- [ ] **Step 5:** Run `grep -rn "the-odds-api\|COFLAS_ODDS\|demo-odds\|demo-props" --exclude-dir=docs .`. Expected: sin resultados.
+- [ ] **Step 5:** Run `grep -rn "the-odds-api\|ODDSY_ODDS\|demo-odds\|demo-props" --exclude-dir=docs .`. Expected: sin resultados.
 - [ ] **Step 6:** Commit y push.
 
 ### Task 5: Vistas de partidos y cuotas con modelo propio; Compara tu casa
@@ -150,13 +150,13 @@
 **Interfaces:**
 - Consumes: `api.markets`, `api.accuracy`, `price` y la forma `Market`.
 - Produces:
-  - En la tarjeta de cada partido: por selección, "Justa X · Coflas Y" y la probabilidad.
+  - En la tarjeta de cada partido: por selección, "Justa X · Oddsy Y" y la probabilidad.
   - Debajo, "Precisión del modelo: Brier Z en N partidos".
   - Si `accuracy[league].publish === false`: "Cuotas no publicadas: el modelo aún no supera la referencia".
   - **Compara tu casa** (`ev.js`): al elegir una selección aparece un campo "Cuota de tu casa". Muestra `EV = p·cuota − 1` (`betmath.expectedValue`), Kelly (`betmath.kelly`) y una etiqueta: verde si EV > 0.
   - **Boosts:** la cuota boosteada que entra el usuario se compara contra la `p` del modelo. `evaluateBoost` usa `p` del modelo en vez de `legProb` desvigado.
 - [ ] **Step 1:** Tests de UI:
-  - El render de un `Market` de fixture contiene "Justa" y "Coflas".
+  - El render de un `Market` de fixture contiene "Justa" y "Oddsy".
   - `compareBook(p=0.5, odds=2.2)` → EV 0.10.
   - `compareBook(p=0.5, odds=1.8)` → EV −0.10.
 - [ ] **Step 2–4:** FAIL → implementar → PASS.
@@ -174,12 +174,12 @@
 - Produces:
   - `propLine(values: number[], kind: 'count'|'normal') → { line, mean, pOver } | null`: devuelve `null` si `values.length < 8`. `mean = 0.5·media(últimos 10) + 0.3·media(todos) + 0.2·media(últimos 5)`; `line = halfLine(mediana)`.
   - `kind` sale de un campo nuevo `dist` en cada stat de `STATS` (`'count'` por defecto; `'normal'` para pts, pra, pass_yds, rush_yds y rec_yds).
-  - `getProps(league, gameId) → { source:'coflas', data: Prop[] }`: por equipo, los 8 jugadores con más minutos promedio en el gamelog. Un `Prop` por jugador × stat × lado, con `books: [{ key:'coflas', title:'Coflas', price: coflas }]` y además `p` y `fair`. Sin `gameId` → `[]`, porque el costo serían 16 gamelogs por partido.
+  - `getProps(league, gameId) → { source:'oddsy', data: Prop[] }`: por equipo, los 8 jugadores con más minutos promedio en el gamelog. Un `Prop` por jugador × stat × lado, con `books: [{ key:'oddsy', title:'Oddsy', price: oddsy }]` y además `p` y `fair`. Sin `gameId` → `[]`, porque el costo serían 16 gamelogs por partido.
 - [ ] **Step 1:** Tests:
   - `propLine([...7 valores])` → `null`.
   - Con 20 valores iguales a 10, `line = 10.5` y `pOver` menor que 0.5.
   - Con `dist: 'normal'` se usa `normalOver`.
-  - `getProps` sobre fixtures (`roster-nba.json`, `gamelog-nba.json`) devuelve props con `books[0].key === 'coflas'`.
+  - `getProps` sobre fixtures (`roster-nba.json`, `gamelog-nba.json`) devuelve props con `books[0].key === 'oddsy'`.
 - [ ] **Step 2–4:** FAIL → implementar → PASS.
 - [ ] **Step 5:** En `props.js`, cuando no hay línea, mostrar "Muestra insuficiente (menos de 8 partidos)". Verificar en la preview. Commit y push.
 

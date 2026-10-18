@@ -2,7 +2,7 @@
 // gratis de popularidad global; sin actividad se muestran las mejores rachas L10 de los props disponibles.
 import { leagueById } from '../leagues.js';
 import { statOf } from '../stats.js';
-import { SIDE, H, propKey, statDef, statName, matchup, coflasOf, oddsHtml, pool, logFor, loadUpcoming } from './insights.js';
+import { SIDE, H, propKey, statDef, statName, matchup, oddsyOf, oddsHtml, pool, logFor, loadUpcoming } from './insights.js';
 
 const TABS = { view: 'Más investigados', add: 'Más agregados' };
 const TOP = 20;
@@ -127,7 +127,7 @@ export default {
       const a = gl?.athlete ?? { id: p.athleteId, name: p.player, short: p.player, headshot: null, teamAbbr: p.team };
       const abbr = a.teamAbbr ?? p.team;
       const team = [g?.home, g?.away].find((t) => t && t.abbr === abbr);
-      const top = coflasOf(r.same ?? [p]);
+      const top = oddsyOf(r.same ?? [p]);
       const hit = r.hit;
       return `<article class="pop-card">
         <a class="pop-link" href="#/${esc(league)}/props/${esc(propKey(p))}">

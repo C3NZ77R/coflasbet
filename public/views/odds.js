@@ -1,5 +1,5 @@
-// Comparador (#/comparador): tablero de cuotas propias del modelo Coflas por liga y mercado, próximos 3 días (hoy incluido).
-// Por selección: probabilidad, cuota justa (1/p) y cuota Coflas (con margen). Toca la cuota Coflas para agregarla a Mis picks.
+// Comparador (#/comparador): tablero de cuotas propias del modelo Oddsy por liga y mercado, próximos 3 días (hoy incluido).
+// Por selección: probabilidad, cuota justa (1/p) y cuota Oddsy (con margen). Toca la cuota Oddsy para agregarla a Mis picks.
 import { LEAGUES } from '../leagues.js';
 
 const KEYS = { '1x2': 'Resultado (1X2)', ml: 'Ganador', spread: 'Spread', rl: 'Run/Puck line', ah: 'Hándicap asiático', ou: 'Totales', ou_home: 'Goles local', ou_away: 'Goles visitante', dc: 'Doble oportunidad', dnb: 'Empate no válido', btts: 'Ambos marcan', cs: 'Marcador exacto',
@@ -20,7 +20,7 @@ export default {
     let alive = true, token = 0;
 
     el.innerHTML = h`<header class="view-head"><div><h1>Comparador de cuotas</h1>
-        <p class="hint">Cuotas propias del modelo Coflas para los próximos 3 días: probabilidad, cuota justa (sin margen) y cuota Coflas (con 5% de margen). Toca una cuota Coflas para agregarla a Mis picks.</p></div></header>
+        <p class="hint">Cuotas propias del modelo Oddsy para los próximos 3 días: probabilidad, cuota justa (sin margen) y cuota Oddsy (con 5% de margen). Toca una cuota Oddsy para agregarla a Mis picks.</p></div></header>
       <nav class="chips" data-leagues aria-label="Liga">${LEAGUES.map((l, i) => h`<button type="button" data-league="${l.id}" aria-pressed="${i === 0}">${l.title}</button>`)}</nav>
       <div class="toolbar">
         <label>Mercado <select data-market></select></label>
@@ -70,13 +70,13 @@ export default {
         ? `Precisión del modelo: Brier ${acc.brier.toFixed(3)} en ${acc.n} partidos (referencia ${acc.baseline?.brier?.toFixed(3) ?? '—'})`
         : 'Precisión del modelo: sin backtest para esta liga.';
       if (acc?.publish === false) {
-        $('[data-status]').innerHTML = ui.sourceBadge('coflas');
+        $('[data-status]').innerHTML = ui.sourceBadge('oddsy');
         $('[data-list]').innerHTML = ui.empty('Cuotas no publicadas: el modelo aún no supera la referencia');
         return;
       }
       const q = state.q.trim().toLowerCase();
       const shown = state.games.filter(({ g }) => !q || [g.home.name, g.away.name, g.home.abbr, g.away.abbr].some((t) => String(t ?? '').toLowerCase().includes(q)));
-      $('[data-status]').innerHTML = h`${ui.sourceBadge('coflas')} ${shown.length} ${shown.length === 1 ? 'partido' : 'partidos'}`;
+      $('[data-status]').innerHTML = h`${ui.sourceBadge('oddsy')} ${shown.length} ${shown.length === 1 ? 'partido' : 'partidos'}`;
       picks = [];
       const inSlip = new Set(store.get('picks').map((p) => p.id));
       const name = (g, s) => (s.name === 'Local' ? abbr(g.home) : s.name === 'Visitante' ? abbr(g.away) : s.name);
@@ -86,12 +86,12 @@ export default {
           <tbody>
             <tr><th scope="row">Prob.</th>${m.selections.map((s) => h`<td>${ui.fmtPct(s.p)}</td>`)}</tr>
             <tr><th scope="row">Justa</th>${m.selections.map((s) => h`<td>${ui.fmtOdds(s.fair)}</td>`)}</tr>
-            <tr><th scope="row">Coflas</th>${m.selections.map((s) => {
+            <tr><th scope="row">Oddsy</th>${m.selections.map((s) => {
               const n = `${name(g, s)}${s.line != null ? ` ${m.key.startsWith('ou') ? s.line : signed(s.line)}` : ''}`;
               // Mismo id que en Partidos: el pick se reconoce en ambas vistas.
-              const pick = { id: `coflas:${state.league}:${g.id}:${m.key}:${m.label}:${s.name}`, label: `${n} (${m.label}) · ${abbr(g.away)} @ ${abbr(g.home)}`, price: s.coflas, book: 'coflas', league: state.league, gameId: g.id };
+              const pick = { id: `oddsy:${state.league}:${g.id}:${m.key}:${m.label}:${s.name}`, label: `${n} (${m.label}) · ${abbr(g.away)} @ ${abbr(g.home)}`, price: s.oddsy, book: 'oddsy', league: state.league, gameId: g.id };
               picks.push(pick);
-              return h`<td><button type="button" class="odds-btn" data-pick="${picks.length - 1}" aria-pressed="${String(inSlip.has(pick.id))}" aria-label="${n} a ${ui.fmtOdds(s.coflas)} (Coflas)">${ui.fmtOdds(s.coflas)}</button></td>`;
+              return h`<td><button type="button" class="odds-btn" data-pick="${picks.length - 1}" aria-pressed="${String(inSlip.has(pick.id))}" aria-label="${n} a ${ui.fmtOdds(s.oddsy)} (Oddsy)">${ui.fmtOdds(s.oddsy)}</button></td>`;
             })}</tr>
           </tbody></table></div>`;
       $('[data-list]').innerHTML = shown.length

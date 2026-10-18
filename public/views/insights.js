@@ -1,5 +1,5 @@
 // Insights: frases de tendencia calculadas con game logs reales (ESPN) para los partidos de hoy a +3 días,
-// cruzadas con las cuotas propias de /api/props (modelo Coflas). Las de equipo van sin cuota (ESPN solo trae líneas de casas).
+// cruzadas con las cuotas propias de /api/props (modelo Oddsy). Las de equipo van sin cuota (ESPN solo trae líneas de casas).
 import { leagueById } from '../leagues.js';
 import { STATS, statForMarket } from '../stats.js';
 import { insightsFor, teamInsights, decimalToAmerican } from '../betmath.js';
@@ -17,13 +17,13 @@ export const statName = (def, p) => def?.name ?? def?.label ?? p.stat;
 export const matchup = (g, p) => (g ? `${g.away.abbr} @ ${g.home.abbr}` : [p?.team, p?.opp].filter(Boolean).join(' vs '));
 const ymd = (d) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 
-// Cuota Coflas (con margen) y justa (1/p) del prop; hay una sola por jugador, estadística, línea y lado.
-export function coflasOf(props) {
+// Cuota Oddsy (con margen) y justa (1/p) del prop; hay una sola por jugador, estadística, línea y lado.
+export function oddsyOf(props) {
   const p = props.find((q) => q.books?.[0]?.price > 1);
-  return p ? { price: p.books[0].price, fair: p.fair, p: p.p, book: 'coflas' } : null;
+  return p ? { price: p.books[0].price, fair: p.fair, p: p.p, book: 'oddsy' } : null;
 }
-// Cuota Coflas y justa en una celda.
-export const oddsHtml = (ui, o) => (o?.price ? `<b title="Cuota Coflas (con margen)">${ui.esc(ui.fmtOdds(o.price))}</b>${o.fair ? `<small title="Cuota justa (1/p)">Justa ${ui.esc(ui.fmtOdds(o.fair))}</small>` : ''}` : '<small>sin cuota</small>');
+// Cuota Oddsy y justa en una celda.
+export const oddsHtml = (ui, o) => (o?.price ? `<b title="Cuota Oddsy (con margen)">${ui.esc(ui.fmtOdds(o.price))}</b>${o.fair ? `<small title="Cuota justa (1/p)">Justa ${ui.esc(ui.fmtOdds(o.fair))}</small>` : ''}` : '<small>sin cuota</small>');
 
 // Ejecuta run(item) con a lo sumo `limit` en paralelo; run no debe lanzar.
 export async function pool(items, limit, run, alive) {
@@ -293,7 +293,7 @@ export default {
           seen.add(id);
           const same = ps.filter((q) => q.stat === p.stat && q.line === line && q.side === side);
           const kp = same[0] ?? { ...p, side, line };
-          const top = coflasOf(same);
+          const top = oddsyOf(same);
           const g = games.get(p.gameId);
           const split = splitOf(ins);
           const sName = statName(def, p);
@@ -316,7 +316,7 @@ export default {
       } catch {
         return;
       }
-      // Sin cuota: ESPN solo trae líneas de casas y Coflas no muestra precios ajenos (Ruling 11).
+      // Sin cuota: ESPN solo trae líneas de casas y Oddsy no muestra precios ajenos (Ruling 11).
       const gameLabel = matchup(gd);
       list.forEach((ins, i) => {
         const t = teamOf(gd, ins);

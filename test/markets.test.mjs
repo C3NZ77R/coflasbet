@@ -28,13 +28,13 @@ test('markets: cada mercado suma 1 (doble oportunidad suma 2: cada selección cu
   }
 });
 
-test('markets: cada selección trae p, fair y coflas, con coflas < fair', () => {
+test('markets: cada selección trae p, fair y oddsy, con oddsy < fair', () => {
   for (const [sport, model] of CASES) {
     for (const m of marketsFor(sport, model)) {
       assert.ok(m.key && m.label && m.selections.length >= 2, `${sport} ${m.key}`);
       for (const s of m.selections) {
         assert.ok(s.name && s.p >= 0 && s.p <= 1, `${sport} ${m.key} ${s.name}`);
-        assert.ok(s.coflas < s.fair, `${sport} ${m.key} ${s.name}: ${s.coflas} ≥ ${s.fair}`);
+        assert.ok(s.oddsy < s.fair, `${sport} ${m.key} ${s.name}: ${s.oddsy} ≥ ${s.fair}`);
       }
     }
   }
@@ -50,7 +50,7 @@ test('markets: fútbol trae todos los mercados y líneas del brief', () => {
 test('markets: btts.Sí con lh = la = 0 es 0 y nada sale NaN', () => {
   const ms = marketsFor('soccer', { kind: 'poisson', lh: 0, la: 0 });
   assert.equal(sel(pick(ms, 'btts'), 'Sí').p, 0);
-  for (const m of ms) for (const s of m.selections) assert.ok(Number.isFinite(s.p) && Number.isFinite(s.fair) && Number.isFinite(s.coflas), `${m.key} ${s.name}`);
+  for (const m of ms) for (const s of m.selections) assert.ok(Number.isFinite(s.p) && Number.isFinite(s.fair) && Number.isFinite(s.oddsy), `${m.key} ${s.name}`);
   assert.equal(sel(pick(ms, 'dnb'), 'Local').p, 0.5); // sin goles no hay ganador: reparto parejo
 });
 

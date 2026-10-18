@@ -52,7 +52,7 @@ test('córners y tarjetas: mercados con forma Market y probabilidades coherentes
     assert.ok(ms.length === 4);
     for (const m of ms) {
       assert.ok(m.key && m.label && m.selections.length);
-      for (const s of m.selections) assert.ok(s.p > 0 && s.p < 1 && s.coflas < s.fair, `${m.key} ${s.name}`);
+      for (const s of m.selections) assert.ok(s.p > 0 && s.p < 1 && s.oddsy < s.fair, `${m.key} ${s.name}`);
     }
     const x12 = ms.find((m) => m.key.endsWith('_1x2'));
     close(sum(x12.selections.map((s) => s.p)), 1);

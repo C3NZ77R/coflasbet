@@ -32,7 +32,7 @@ const defOf = (sport, stat, market) => defsOf(sport).find((d) => d.key === stat)
 const statName = (def, stat) => def?.name ?? def?.label ?? stat;
 const propText = (side, line, def, stat) => `${SIDE[side] ?? side} ${fmtLine(line)} ${statName(def, stat)}`;
 const who = (p) => (p.athleteId != null ? String(p.athleteId) : `n:${norm(p.player)}`);
-const coflas = (p) => p.books[0]; // única cuota: la del modelo Coflas (con margen)
+const oddsy = (p) => p.books[0]; // única cuota: la del modelo Oddsy (con margen)
 const MIN_GAMES = 8; // mismo mínimo que lib/props.mjs
 const THIN = 'Muestra insuficiente (menos de 8 partidos)';
 const skel = '<span class="pp-skel" aria-label="Cargando"></span>';
@@ -186,7 +186,7 @@ async function renderList(el, ctx) {
   const rowMap = new Map();
   for (const p of props) {
     const key = propKey(p);
-    if (!rowMap.has(key)) rowMap.set(key, { p, key, who: who(p), def: defOf(sport, p.stat, p.market), price: coflas(p).price });
+    if (!rowMap.has(key)) rowMap.set(key, { p, key, who: who(p), def: defOf(sport, p.stat, p.market), price: oddsy(p).price });
   }
   const rows = [...rowMap.values()];
   const f = (memory[league] ??= defaults());
@@ -259,7 +259,7 @@ async function renderList(el, ctx) {
   }
   const rowHtml = (r) => `<tr data-k="${esc(r.key)}" data-a="${esc(r.p.athleteId ?? '')}" data-g="${esc(r.p.gameId ?? '')}">${rowInner(r)}</tr>`;
   function head() {
-    const cols = [['player', 'Proposición'], ['line', 'Línea', 'Línea Coflas: mediana de los últimos 20 partidos'], ['p', 'Prob.', 'Probabilidad del modelo Coflas'], ['fair', 'Justa', 'Cuota justa (1/p), sin margen'], ['odds', 'Coflas', 'Cuota Coflas (con margen del 5 %)'], ['opp', 'Rango rival', 'Ranking de la defensa rival en esa estadística'], ...WINS.map((w) => [w, ...WIN_HEAD[w]])];
+    const cols = [['player', 'Proposición'], ['line', 'Línea', 'Línea Oddsy: mediana de los últimos 20 partidos'], ['p', 'Prob.', 'Probabilidad del modelo Oddsy'], ['fair', 'Justa', 'Cuota justa (1/p), sin margen'], ['odds', 'Oddsy', 'Cuota Oddsy (con margen del 5 %)'], ['opp', 'Rango rival', 'Ranking de la defensa rival en esa estadística'], ...WINS.map((w) => [w, ...WIN_HEAD[w]])];
     return `<tr><th scope="col"><span class="sr-only">Boleto</span></th>${cols.map(([k, label, title]) => {
       const on = f.sort === k;
       return `<th scope="col" aria-sort="${on ? (f.dir === 'asc' ? 'ascending' : 'descending') : 'none'}"><button type="button" class="pp-sort" data-act="sort" data-sort="${k}"${title ? ` title="${esc(title)}"` : ''}>${esc(label)}${on ? (f.dir === 'asc' ? ' ▲' : ' ▼') : ''}</button></th>`;
@@ -372,7 +372,7 @@ async function renderList(el, ctx) {
     else if (act === 'reset') { Object.assign(f, defaults()); paintBar(); refresh(); }
     else if (act === 'add') {
       const r = rowMap.get(t.dataset.k);
-      if (r) togglePick(ctx, r.key, `${r.p.player} · ${propText(r.p.side, r.p.line, r.def, r.p.stat)}`, coflas(r.p), r.p.gameId);
+      if (r) togglePick(ctx, r.key, `${r.p.player} · ${propText(r.p.side, r.p.line, r.def, r.p.stat)}`, oddsy(r.p), r.p.gameId);
     } else if (act === 'save') {
       const name = root.querySelector('[data-pname]').value.trim() || `Filtro ${presets().length + 1}`;
       savePresets([...presets().filter((x) => x.name !== name), { name, f: { ...f } }]);
@@ -416,7 +416,7 @@ async function renderDetail(el, ctx) {
   const athlete = log?.athlete ?? { id: athleteId, name: k.player };
   // Sin partido en la clave: el próximo partido de su equipo en la cartelera de hoy.
   const gameId = k.gameId ?? (dataOf(gr) ?? []).find((g) => sameId(g.home?.id, athlete.teamId) || sameId(g.away?.id, athlete.teamId))?.id ?? null;
-  // Las props se piden por partido: sin partido no hay línea Coflas.
+  // Las props se piden por partido: sin partido no hay línea Oddsy.
   const [pr, gd] = gameId != null ? await Promise.all([api.props(league, gameId).catch(() => null), loadGame(api, league, gameId)]) : [null, null];
   const pk = { athleteId, player: athlete.name ?? k.player };
   const mine = (dataOf(pr) ?? []).filter((p) => p?.books?.length && Number.isFinite(p.line) && (sameId(p.athleteId, athleteId) || norm(p.player) === norm(pk.player)));
@@ -432,7 +432,7 @@ async function renderDetail(el, ctx) {
   const cur = curSeason(games);
   const hasCur = Number.isFinite(cur);
   const statsHere = defs.filter((d) => d.key === k.stat || mine.some((p) => p.stat === d.key) || games.some((g) => Number.isFinite(S.statOf(sport, d.key, g.stats))));
-  // Línea Coflas: el prop del servidor. Línea personalizada: la misma cuenta (bm.propOver) con la media y la varianza del jugador.
+  // Línea Oddsy: el prop del servidor. Línea personalizada: la misma cuenta (bm.propOver) con la media y la varianza del jugador.
   const propFor = (stat, line, side) => {
     const own = mine.find((p) => p.stat === stat && p.line === line && p.side === side);
     if (own) return own;
@@ -440,7 +440,7 @@ async function renderDetail(el, ctx) {
     if (!base || !Number.isFinite(line)) return null;
     const over = bm.propOver(base.kind, base.mean, base.variance, line);
     const pr = bm.price(side === 'Over' ? over : 1 - over);
-    return { ...base, line, side, p: pr.p, fair: pr.fair, books: [{ key: 'coflas', title: 'Coflas', price: pr.coflas }] };
+    return { ...base, line, side, p: pr.p, fair: pr.fair, books: [{ key: 'oddsy', title: 'Oddsy', price: pr.oddsy }] };
   };
   const lineOf = (stat) => mine.find((p) => p.stat === stat)?.line ?? null;
   function defaultLine(stat) {
@@ -495,16 +495,16 @@ async function renderDetail(el, ctx) {
   function hctl() {
     const d = def(), over = propFor(s.stat, s.line, 'Over'), under = propFor(s.stat, s.line, 'Under');
     const sel = s.side === 'Over' ? over : under, on = inSlip(store, keyNow()), ours = lineOf(s.stat);
-    const sideBtn = (side, p) => `<button type="button" data-sv="side:${side}" aria-pressed="${s.side === side}">${SIDE[side]} ${esc(fmtLine(s.line))} <b>${p ? esc(ui.fmtOdds(coflas(p).price)) : '—'}</b></button>`;
+    const sideBtn = (side, p) => `<button type="button" data-sv="side:${side}" aria-pressed="${s.side === side}">${SIDE[side]} ${esc(fmtLine(s.line))} <b>${p ? esc(ui.fmtOdds(oddsy(p).price)) : '—'}</b></button>`;
     // Sin línea pero con historial de esa estadística: menos de MIN_GAMES partidos.
     const thin = ours == null && log && valsOf(games, sport, s.stat).length < MIN_GAMES;
-    const why = thin ? THIN : gameId == null ? 'Sin partido próximo: no hay línea Coflas.' : 'Sin línea Coflas para esta estadística.';
+    const why = thin ? THIN : gameId == null ? 'Sin partido próximo: no hay línea Oddsy.' : 'Sin línea Oddsy para esta estadística.';
     return `<p class="pp-market">${esc(propText(s.side, s.line, d, s.stat))}</p>
       <div class="pp-seg pp-sides" role="group" aria-label="Lado">${sideBtn('Over', over)}${sideBtn('Under', under)}</div>
       ${ours == null ? `<p class="pp-muted">${esc(why)}</p>`
-        : `<p class="pp-avg">Línea Coflas <b>${esc(fmtLine(ours))}</b>${ours !== s.line ? ` <button type="button" class="pp-link" data-act="ourline">Volver a la línea Coflas</button>` : ''}</p>`}
-      ${sel ? `<p class="pp-avg">Prob. <b>${esc(ui.fmtPct(sel.p, 1))}</b> · Justa <b>${esc(ui.fmtOdds(sel.fair))}</b> · Coflas <b>${esc(ui.fmtOdds(coflas(sel).price))}</b> ${str(ui.sourceBadge('coflas'))}</p>
-        <div class="pp-addbox"><button type="button" class="pp-btn" data-act="addbest" aria-pressed="${on}">${on ? '✓ En el boleto' : `+ Agregar ${esc(ui.fmtOdds(coflas(sel).price))}`}</button></div>`
+        : `<p class="pp-avg">Línea Oddsy <b>${esc(fmtLine(ours))}</b>${ours !== s.line ? ` <button type="button" class="pp-link" data-act="ourline">Volver a la línea Oddsy</button>` : ''}</p>`}
+      ${sel ? `<p class="pp-avg">Prob. <b>${esc(ui.fmtPct(sel.p, 1))}</b> · Justa <b>${esc(ui.fmtOdds(sel.fair))}</b> · Oddsy <b>${esc(ui.fmtOdds(oddsy(sel).price))}</b> ${str(ui.sourceBadge('oddsy'))}</p>
+        <div class="pp-addbox"><button type="button" class="pp-btn" data-act="addbest" aria-pressed="${on}">${on ? '✓ En el boleto' : `+ Agregar ${esc(ui.fmtOdds(oddsy(sel).price))}`}</button></div>`
         : ''}`;
   }
 
@@ -613,7 +613,7 @@ async function renderDetail(el, ctx) {
     } else if (t.dataset.act === 'addbest') {
       const p = propFor(s.stat, s.line, s.side);
       if (!p) return;
-      togglePick(ctx, keyNow(), `${pk.player} · ${propText(s.side, s.line, def(), s.stat)}`, coflas(p), gameId);
+      togglePick(ctx, keyNow(), `${pk.player} · ${propText(s.side, s.line, def(), s.stat)}`, oddsy(p), gameId);
     } else if (t.dataset.act === 'ourline') {
       if (lineOf(s.stat) == null) return;
       s.line = lineOf(s.stat);

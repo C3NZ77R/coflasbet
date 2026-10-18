@@ -23,8 +23,8 @@
     "Implied chance = product(1/di) = 1/D",
     "Round only for display"
    ],
-   "worked_example": "Two legs at -110 each with $100: each leg is 1 + 100/110 = 1.9091, D = 1.9091^2 = 3.6446, profit = 100*2.6446 = $264.46, total back $364.46. Coflas: has a parlay form (decimal list, combined odds, payout, implied prob) but no explicit profit line, no American/fractional entry and no 2-15 leg bounds.",
-   "exists_in_coflas": "partial"
+   "worked_example": "Two legs at -110 each with $100: each leg is 1 + 100/110 = 1.9091, D = 1.9091^2 = 3.6446, profit = 100*2.6446 = $264.46, total back $364.46. Oddsy: has a parlay form (decimal list, combined odds, payout, implied prob) but no explicit profit line, no American/fractional entry and no 2-15 leg bounds.",
+   "exists_in_oddsy": "partial"
   },
   {
    "name": "PrizePicks EV Calculator (/betting-calculators/prizepicks-ev/)",
@@ -58,8 +58,8 @@
     "Kelly (Power, binary): f* = (P_all*M - 1)/(M - 1), floored at 0",
     "Kelly (Flex, multi-outcome): f* = argmax_f sum_k P(k) * ln(1 + f*(mult_k - 1)), f in [0,1]; stake = bankroll * f* * share; 0 when EV <= 0"
    ],
-   "worked_example": "Two independent picks at 60% each, $100 Power at 3x: both hit with 0.6*0.6 = 0.36, which nets +$200; the other 0.64 loses $100. EV = 0.36*200 - 0.64*100 = +$8 (8% ROI), 64% chance of losing everything. Kelly = (0.36*3 - 1)/(3 - 1) = 4%; quarter Kelly on $1,000 = $10. Cross-check: picks -153/-125/-125/-125 give Power 10x ROI 3.69% and Flex 6x/1.5x ROI 9.71%. Coflas: nothing for DFS pick'em.",
-   "exists_in_coflas": "no"
+   "worked_example": "Two independent picks at 60% each, $100 Power at 3x: both hit with 0.6*0.6 = 0.36, which nets +$200; the other 0.64 loses $100. EV = 0.36*200 - 0.64*100 = +$8 (8% ROI), 64% chance of losing everything. Kelly = (0.36*3 - 1)/(3 - 1) = 4%; quarter Kelly on $1,000 = $10. Cross-check: picks -153/-125/-125/-125 give Power 10x ROI 3.69% and Flex 6x/1.5x ROI 9.71%. Oddsy: nothing for DFS pick'em.",
+   "exists_in_oddsy": "no"
   },
   {
    "name": "Round Robin Calculator (/betting-calculators/round-robin/)",
@@ -90,8 +90,8 @@
     "Max payout = sum over all combinations of stake * product(d_i)",
     "Net profit = settled payout - total stake"
    ],
-   "worked_example": "Five legs at +100 (2.00), every 4-leg parlay, $1 each: C(5,4) = 5 bets, $5 at risk; each parlay is 2^4 = 16.00 so pays $16; all winning returns 5*16 = $80, profit $75. Ten picks by 3s would be C(10,3) = 120 bets. Coflas: no round robin.",
-   "exists_in_coflas": "no"
+   "worked_example": "Five legs at +100 (2.00), every 4-leg parlay, $1 each: C(5,4) = 5 bets, $5 at risk; each parlay is 2^4 = 16.00 so pays $16; all winning returns 5*16 = $80, profit $75. Ten picks by 3s would be C(10,3) = 120 bets. Oddsy: no round robin.",
+   "exists_in_oddsy": "no"
   },
   {
    "name": "Expected Value Calculator (/betting-calculators/expected-value/)",
@@ -121,8 +121,8 @@
     "Profit if won = stake * (d - 1); payout = stake * d",
     "Fair-odds mode: p = 1 / fair decimal"
    ],
-   "worked_example": "$100 at +110 (d = 2.10) with a 50% estimate: win nets $110, loss costs $100, EV = 0.5*110 - 0.5*100 = +$5 (5%); break-even 1/2.10 = 47.62%, edge +2.38 pp, +$500 per 100 bets. Table: 45% -> -$5.50, 48% -> +$0.80, 52% -> +$9.20, 55% -> +$15.50. Coflas: the 'Valor esperado y Kelly' form shows EV% only (no $ EV, break-even, edge, fair-odds input or table).",
-   "exists_in_coflas": "partial"
+   "worked_example": "$100 at +110 (d = 2.10) with a 50% estimate: win nets $110, loss costs $100, EV = 0.5*110 - 0.5*100 = +$5 (5%); break-even 1/2.10 = 47.62%, edge +2.38 pp, +$500 per 100 bets. Table: 45% -> -$5.50, 48% -> +$0.80, 52% -> +$9.20, 55% -> +$15.50. Oddsy: the 'Valor esperado y Kelly' form shows EV% only (no $ EV, break-even, edge, fair-odds input or table).",
+   "exists_in_oddsy": "partial"
   },
   {
    "name": "Kelly Criterion Calculator (/betting-calculators/kelly-criterion/)",
@@ -148,8 +148,8 @@
     "Bet EV = p * d - 1",
     "Break-even = 1 / d"
    ],
-   "worked_example": "$1,000 bankroll, +100 (d = 2.00), 55%: f = (0.55*2 - 1)/(2 - 1) = 10% -> $100 full; quarter Kelly = $25 (2.5% of bankroll), EV 10%, break-even 50%. Table: 50% -> $0, 53% -> $15, 57% -> $35, 60% -> $50. Coflas: betmath.kelly matches exactly (with fraction and bankroll); only the break-even and table are missing.",
-   "exists_in_coflas": "yes"
+   "worked_example": "$1,000 bankroll, +100 (d = 2.00), 55%: f = (0.55*2 - 1)/(2 - 1) = 10% -> $100 full; quarter Kelly = $25 (2.5% of bankroll), EV 10%, break-even 50%. Table: 50% -> $0, 53% -> $15, 57% -> $35, 60% -> $50. Oddsy: betmath.kelly matches exactly (with fraction and bankroll); only the break-even and table are missing.",
+   "exists_in_oddsy": "yes"
   },
   {
    "name": "Arbitrage & Hedge Calculator (/betting-calculators/arbitrage-hedge/)",
@@ -176,8 +176,8 @@
     "Stakes rounded to cents before profits; headline = min of both; return = min profit / (s1 + s2)",
     "Arbitrage when 1/d1 + 1/d2 < 1"
    ],
-   "worked_example": "$100 budget, +110 on both sides: stakes $50/$50, either winner returns $105, so +$5 (5%). At -110/-110 the same split loses about $4.55. Hedge mode: $100 already on +150 (2.50), hedge at -200 (1.50) needs 100*2.5/1.5 = $166.67, locking -$16.67 either way. Coflas: betmath.arbitrage does the N-way budget split and the Arb tab uses it for scanned arbs, but there is no manual calculator, no hedge-existing-bet mode and no cent rounding/min-profit view.",
-   "exists_in_coflas": "partial"
+   "worked_example": "$100 budget, +110 on both sides: stakes $50/$50, either winner returns $105, so +$5 (5%). At -110/-110 the same split loses about $4.55. Hedge mode: $100 already on +150 (2.50), hedge at -200 (1.50) needs 100*2.5/1.5 = $166.67, locking -$16.67 either way. Oddsy: betmath.arbitrage does the N-way budget split and the Arb tab uses it for scanned arbs, but there is no manual calculator, no hedge-existing-bet mode and no cent rounding/min-profit view.",
+   "exists_in_oddsy": "partial"
   },
   {
    "name": "Bonus Bet Conversion Calculator (/betting-calculators/bonus-bet-conversion/)",
@@ -202,8 +202,8 @@
     "Profit if hedge wins = H * (h - 1)",
     "Conversion rate = min(both profits, after rounding) / B"
    ],
-   "worked_example": "$100 standard bonus at +300 (d = 4.00) hedged at -300 (h = 1.3333): bonus would pay $300, hedge stake = 300/1.3333 = $225; bonus wins -> 300 - 225 = $75; hedge wins -> 225*0.3333 = $75; conversion 75%. Coflas: none.",
-   "exists_in_coflas": "no"
+   "worked_example": "$100 standard bonus at +300 (d = 4.00) hedged at -300 (h = 1.3333): bonus would pay $300, hedge stake = 300/1.3333 = $225; bonus wins -> 300 - 225 = $75; hedge wins -> 225*0.3333 = $75; conversion 75%. Oddsy: none.",
+   "exists_in_oddsy": "no"
   },
   {
    "name": "Odds Converter (/betting-calculators/odds-converter/)",
@@ -227,8 +227,8 @@
     "Break-even = 1 / d",
     "Profit = stake * (d - 1); payout = stake * d"
    ],
-   "worked_example": "+150 = 2.50 = 3/2. A winning $100 nets $150 and returns $250; break-even 1/2.5 = 40%. -110 -> 1.9091 -> 10/11. Coflas: 'Conversor de cuotas' does decimal<->American, fractional output (denominator capped at 100) and implied prob, but has no fractional input and no stake/profit/payout.",
-   "exists_in_coflas": "partial"
+   "worked_example": "+150 = 2.50 = 3/2. A winning $100 nets $150 and returns $250; break-even 1/2.5 = 40%. -110 -> 1.9091 -> 10/11. Oddsy: 'Conversor de cuotas' does decimal<->American, fractional output (denominator capped at 100) and implied prob, but has no fractional input and no stake/profit/payout.",
+   "exists_in_oddsy": "partial"
   },
   {
    "name": "Implied Probability Calculator (/betting-calculators/implied-probability/)",
@@ -254,8 +254,8 @@
     "Edge (pp) = your estimate - p",
     "Profit = stake * (d - 1); payout = stake * d"
    ],
-   "worked_example": "-110: p = 110/210 = 52.38%; an estimate of 55% is +2.62 pp over it; a $100 win nets $90.91 and returns $190.91 (d = 1.9091, 10/11). Coflas: implied prob only appears as a line in the converter; no estimate/edge input.",
-   "exists_in_coflas": "partial"
+   "worked_example": "-110: p = 110/210 = 52.38%; an estimate of 55% is +2.62 pp over it; a $100 win nets $90.91 and returns $190.91 (d = 1.9091, 10/11). Oddsy: implied prob only appears as a line in the converter; no estimate/edge input.",
+   "exists_in_oddsy": "partial"
   },
   {
    "name": "No-Vig Fair Odds Calculator (/betting-calculators/no-vig-fair-odds/)",
@@ -277,8 +277,8 @@
     "Overround = S - 1",
     "Margin share (pp) = q_i - p_i"
    ],
-   "worked_example": "-110/-110: each q = 52.38%, S = 104.76%, so each p = 50% -> fair +100; overround 4.76%, each side carries +2.38 pp of margin. Coflas: 'Cuota justa sin margen' does the same proportional method for any number of outcomes (fair decimal + %, margin); only fair American and per-outcome margin pp are missing.",
-   "exists_in_coflas": "yes"
+   "worked_example": "-110/-110: each q = 52.38%, S = 104.76%, so each p = 50% -> fair +100; overround 4.76%, each side carries +2.38 pp of margin. Oddsy: 'Cuota justa sin margen' does the same proportional method for any number of outcomes (fair decimal + %, margin); only fair American and per-outcome margin pp are missing.",
+   "exists_in_oddsy": "yes"
   },
   {
    "name": "Hold Calculator (/betting-calculators/hold/)",
@@ -300,8 +300,8 @@
     "Theoretical hold = (S - 1) / S",
     "No-vig p_i = q_i / S"
    ],
-   "worked_example": "+120 / -125: q = 45.45% and 55.56%, S = 101.01%, overround 1.01%, hold 0.0101/1.0101 = 1.00%; fair odds +122 / -122. Reference: -110/-110 gives overround 4.76% and hold 4.55%. Coflas: overround shows as 'Margen de la casa' inside the no-vig form; theoretical hold (S-1)/S is not computed.",
-   "exists_in_coflas": "partial"
+   "worked_example": "+120 / -125: q = 45.45% and 55.56%, S = 101.01%, overround 1.01%, hold 0.0101/1.0101 = 1.00%; fair odds +122 / -122. Reference: -110/-110 gives overround 4.76% and hold 4.55%. Oddsy: overround shows as 'Margen de la casa' inside the no-vig form; theoretical hold (S-1)/S is not computed.",
+   "exists_in_oddsy": "partial"
   },
   {
    "name": "Vig Calculator (/betting-calculators/vig/)",
@@ -326,8 +326,8 @@
     "Vig cost = stake * (1 - p_sel * d_sel) (negative = favorable price)",
     "Overround = S - 1; hold = (S - 1)/S"
    ],
-   "worked_example": "-110/-110, $100 on side 1: fair p = 50%; a win nets $90.91, a loss costs $100; EV = 0.5*90.91 - 0.5*100 = -$4.55, so vig cost $4.55 (overround 4.76%, hold 4.55%). Coflas: no dollar vig cost; only the overround in the no-vig form.",
-   "exists_in_coflas": "no"
+   "worked_example": "-110/-110, $100 on side 1: fair p = 50%; a win nets $90.91, a loss costs $100; EV = 0.5*90.91 - 0.5*100 = -$4.55, so vig cost $4.55 (overround 4.76%, hold 4.55%). Oddsy: no dollar vig cost; only the overround in the no-vig form.",
+   "exists_in_oddsy": "no"
   },
   {
    "name": "Prediction Markets Converter (/betting-calculators/prediction-markets/)",
@@ -357,8 +357,8 @@
     "Break-even after fees = (c + fee) / 100",
     "Complement = 100 - c"
    ],
-   "worked_example": "65 cents -> 65% -> 1.5385 decimal, -186 American, 7/13; 100 contracts cost $65 with no fee, settle to $100, so +$35; complement 35 cents. With a 2 cent fee: cost $67, profit $33, break-even 67%. Coflas: none.",
-   "exists_in_coflas": "no"
+   "worked_example": "65 cents -> 65% -> 1.5385 decimal, -186 American, 7/13; 100 contracts cost $65 with no fee, settle to $100, so +$35; complement 35 cents. With a 2 cent fee: cost $67, profit $33, break-even 67%. Oddsy: none.",
+   "exists_in_oddsy": "no"
   },
   {
    "name": "Half Point Calculator (/betting-calculators/half-point/)",
@@ -385,8 +385,8 @@
     "Half baseline (derived the same way; exact client code not fetched): moving toward you turns the adjacent losing number m into a push (win = p, push = m); moving against you turns the adjacent winning number m' into a push (win = p - m', push = m')",
     "Fair decimal = (1 - push) / win; opposite side uses its own win = loss of selected"
    ],
-   "worked_example": "Team -3, -110 both sides, 8% chance of exactly 3: p = 0.5, so at -3 win 46%, push 8%, loss 46% -> fair (0.92/0.46) = 2.00 = +100. At -2.5 the 3 becomes a win: 54% -> about -117. At -3.5 it becomes a loss: 46% -> about +117 (opposite side -117). Coflas: none.",
-   "exists_in_coflas": "no"
+   "worked_example": "Team -3, -110 both sides, 8% chance of exactly 3: p = 0.5, so at -3 win 46%, push 8%, loss 46% -> fair (0.92/0.46) = 2.00 = +100. At -2.5 the 3 becomes a win: 54% -> about -117. At -3.5 it becomes a loss: 46% -> about +117 (opposite side -117). Oddsy: none.",
+   "exists_in_oddsy": "no"
   },
   {
    "name": "Point Spread Calculator (/betting-calculators/point-spread/)",
@@ -408,8 +408,8 @@
     "Opponent = 1 - P(win)",
     "Fair decimal = 1 / P; convert to American (d>=2: +(d-1)*100; d<2: -100/(d-1))"
    ],
-   "worked_example": "-3 spread, sigma 13.5: mu = 3, z = 3/13.5 = 0.2222, Phi(z) = 58.79% -> fair -143; opponent 41.21% -> +143. Sigma 10.8 gives 60.94% (-156), 16.2 gives 57.35% (-134). Coflas: none (needs a normal CDF / erf helper).",
-   "exists_in_coflas": "no"
+   "worked_example": "-3 spread, sigma 13.5: mu = 3, z = 3/13.5 = 0.2222, Phi(z) = 58.79% -> fair -143; opponent 41.21% -> +143. Sigma 10.8 gives 60.94% (-156), 16.2 gives 57.35% (-134). Oddsy: none (needs a normal CDF / erf helper).",
+   "exists_in_oddsy": "no"
   },
   {
    "name": "Poisson Calculator (/betting-calculators/poisson/)",
@@ -429,8 +429,8 @@
     "Over line L: half line -> win = P(X >= ceil(L)); whole line -> win = P(X > L), push = P(X = L), under win = P(X < L)",
     "Fair decimal = (1 - push) / win (no margin)"
    ],
-   "worked_example": "lambda = 2.5, k = 3: exactly 3 = e^-2.5 * 2.5^3 / 6 = 21.38% (+368), at least 3 = 45.62% (+119), at most 3 = 75.76% (-313). Over 2.5 needs 3 or more, so it also wins 45.62% of the time. Coflas: none.",
-   "exists_in_coflas": "no"
+   "worked_example": "lambda = 2.5, k = 3: exactly 3 = e^-2.5 * 2.5^3 / 6 = 21.38% (+368), at least 3 = 45.62% (+119), at most 3 = 75.76% (-313). Over 2.5 needs 3 or more, so it also wins 45.62% of the time. Oddsy: none.",
+   "exists_in_oddsy": "no"
   }
  ]
 }

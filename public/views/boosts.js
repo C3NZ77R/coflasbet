@@ -1,5 +1,5 @@
 // Boosts (/pro/boosts): evaluador de boosts de cuota. Ninguna fuente gratuita publica los boosts de las casas,
-// así que el usuario escribe la cuota con boost y sus patas. Cada pata se toma del modelo Coflas (mercados de
+// así que el usuario escribe la cuota con boost y sus patas. Cada pata se toma del modelo Oddsy (mercados de
 // /api/markets y props de /api/props, con su probabilidad p) o se ingresa a mano.
 // Probabilidad del combinado = producto de las patas (supone independencia y avisa si hay patas del mismo partido).
 import { LEAGUES, leagueById } from '../leagues.js';
@@ -16,9 +16,9 @@ const blank = () => ({ id: newId(), desc: '', boosted: '', original: '', maxStak
 
 // ---------- cálculo (puro) ----------
 
-// Probabilidad de una pata: { p, how, withVig }. Las patas del mercado traen la p del modelo Coflas.
+// Probabilidad de una pata: { p, how, withVig }. Las patas del mercado traen la p del modelo Oddsy.
 export function legProb(leg, method = 'multiplicative') {
-  if (leg.prob > 0 && leg.prob < 1) return { p: leg.prob, how: leg.kind === 'manual' ? 'Probabilidad fija (manual)' : 'Probabilidad del modelo Coflas' };
+  if (leg.prob > 0 && leg.prob < 1) return { p: leg.prob, how: leg.kind === 'manual' ? 'Probabilidad fija (manual)' : 'Probabilidad del modelo Oddsy' };
   if (leg.kind !== 'manual') return { p: null, how: 'Sin probabilidad del modelo: vuelve a buscar la pata' };
   if (leg.price > 1 && leg.opp > 1) return { p: devig([leg.price, leg.opp], method)?.[0] ?? null, how: 'Devig de tus dos cuotas' };
   if (leg.price > 1) return { p: 1 / leg.price, how: 'Una sola cuota: incluye el vig', withVig: true };
@@ -122,8 +122,8 @@ export default {
     const persist = () => store.set('boostDraft', draft);
 
     el.innerHTML = h`<section class="bst">
-      <div class="view-head"><div><h1>Boosts</h1><p class="hint">Escribe la cuota con boost de tu casa y la comparamos con la probabilidad del modelo Coflas para cada pata.</p></div></div>
-      <p class="bst-limit" role="note"><b>No hay lista automática de boosts:</b> las casas no publican sus promociones en una fuente gratuita. Escribe el boost que ves en tu casa y agrega sus patas: buscándolas en los mercados y props del modelo Coflas o a mano. El combinado supone patas independientes.</p>
+      <div class="view-head"><div><h1>Boosts</h1><p class="hint">Escribe la cuota con boost de tu casa y la comparamos con la probabilidad del modelo Oddsy para cada pata.</p></div></div>
+      <p class="bst-limit" role="note"><b>No hay lista automática de boosts:</b> las casas no publican sus promociones en una fuente gratuita. Escribe el boost que ves en tu casa y agrega sus patas: buscándolas en los mercados y props del modelo Oddsy o a mano. El combinado supone patas independientes.</p>
       <div class="toolbar bst-bar">
         <label>Kelly <select data-o="kellyMult">${optionsHtml(kellyOptions(o.kellyMult), o.kellyMult)}</select></label>
         <span class="status">Bankroll ${fmtMoney(bankroll())} · se cambia en Ajustes</span>
@@ -326,7 +326,7 @@ export default {
           const added = inDraft.has(`${c.gameId}|${c.label}`);
           return h`<li><button type="button" class="bst-cand" data-cand="${i}"${added ? raw(' aria-disabled="true"') : ''}>
             <span class="bst-cand-l"><span class="sr-only">${added ? 'Ya agregada: ' : 'Agregar pata: '}</span><b>${c.label}</b><small>${[c.matchup, when(c.start)].filter(Boolean).join(' · ')}</small></span>
-            <span class="bst-cand-r"><b>${fmtPct(c.p, 1)}</b><small>justa ${fmtOdds(c.fair)} · Coflas ${fmtOdds(c.coflas)}</small></span>
+            <span class="bst-cand-r"><b>${fmtPct(c.p, 1)}</b><small>justa ${fmtOdds(c.fair)} · Oddsy ${fmtOdds(c.oddsy)}</small></span>
             ${added ? h`<span class="bst-cand-ok" aria-hidden="true">✓</span>` : ''}</button></li>`;
         })}`;
       });

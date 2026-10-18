@@ -42,10 +42,10 @@ async function withNba(fn) {
   try { await fn(); } finally { globalThis.fetch = real; }
 }
 
-test('server: /api/markets?league=nba&game= trae los mercados Coflas del partido con caché de CDN', () => withNba(async () => {
+test('server: /api/markets?league=nba&game= trae los mercados Oddsy del partido con caché de CDN', () => withNba(async () => {
   const { status, body, headers } = await call('/api/markets?league=nba&game=1');
   assert.equal(status, 200);
-  assert.equal(body.source, 'coflas');
+  assert.equal(body.source, 'oddsy');
   assert.equal(body.data.gameId, '401871339');
   assert.ok(body.data.markets.length > 0);
   assert.match(headers['cache-control'], /s-maxage=1800/);
@@ -63,7 +63,7 @@ test('server: un partido en sede neutral se cotiza sin ventaja local', () => wit
 test('server: /api/accuracy sirve el backtest', async () => {
   const { status, body } = await call('/api/accuracy');
   assert.equal(status, 200);
-  assert.equal(body.source, 'coflas');
+  assert.equal(body.source, 'oddsy');
   assert.ok(body.data.nba.brier < body.data.nba.baseline.brier);
 });
 
@@ -116,7 +116,7 @@ test('server: /api/games?league=atp mapea Match a Game (home = a, bandera, rank)
 test('server: /api/markets?league=atp con Elo, Markov y nombres de jugador', () => withAtp(async () => {
   const { status, body } = await call('/api/markets?league=atp&game=182677&date=20260913');
   assert.equal(status, 200);
-  assert.equal(body.source, 'coflas');
+  assert.equal(body.source, 'oddsy');
   assert.equal(body.data.game.home.name, 'Alexander Zverev');
   const ml = body.data.markets.find((m) => m.key === 'ml');
   assert.deepEqual(ml.selections.map((s) => s.name), ['A. Zverev', 'B. Shelton']);

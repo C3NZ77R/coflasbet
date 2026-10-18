@@ -1,6 +1,6 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "coflas-bet", "runtimeExecutable": "npm", "runtimeArgs": ["start"], "port": 5173 }
+    { "name": "oddsy-bet", "runtimeExecutable": "npm", "runtimeArgs": ["start"], "port": 5173 }
   ]
 }

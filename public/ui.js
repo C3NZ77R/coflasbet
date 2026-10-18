@@ -9,7 +9,7 @@
 import { decimalToAmerican } from './betmath.js';
 import { store } from './store.js';
 
-const SAFE = Symbol.for('coflas.safe');
+const SAFE = Symbol.for('oddsy.safe');
 class Safe {
   constructor(s) { this.s = s; this[SAFE] = true; }
   toString() { return this.s; }
@@ -59,9 +59,9 @@ export function ago(iso) {
 }
 
 // ---------- casas ----------
-// Colores aproximados de marca + iniciales (para elegir tu casa en Compara tu casa); coflas = nuestro modelo.
+// Colores aproximados de marca + iniciales (para elegir tu casa en Compara tu casa); oddsy = nuestro modelo.
 export const BOOKS = {
-  coflas: { name: 'Coflas', color: '#22c55e', ini: 'CF' },
+  oddsy: { name: 'Oddsy', color: '#22c55e', ini: 'CF' },
   pinnacle: { name: 'Pinnacle', color: '#f47a20', ini: 'PIN' },
   draftkings: { name: 'DraftKings', color: '#53d337', ini: 'DK' },
   fanduel: { name: 'FanDuel', color: '#1493ff', ini: 'FD' },
@@ -167,7 +167,7 @@ export const errorBox = (err) => h`<div class="error-box" role="alert"><b>No se 
 
 export function sourceBadge(source, remaining) {
   if (source && typeof source === 'object') ({ source, remaining } = source);
-  const M = { coflas: ['Modelo Coflas', 'Cuotas propias calculadas con el modelo de Coflas sobre datos de ESPN'], espn: ['ESPN', 'Datos públicos de ESPN'] };
+  const M = { oddsy: ['Modelo Oddsy', 'Cuotas propias calculadas con el modelo de Oddsy sobre datos de ESPN'], espn: ['ESPN', 'Datos públicos de ESPN'] };
   const [txt, tip] = M[source] ?? ['Fuente desconocida', ''];
   const extra = remaining != null && remaining !== '' ? ` · ${remaining} créditos` : '';
   return h`<span class="src-badge src-${M[source] ? source : 'na'}" title="${tip}">${txt}${extra}</span>`;

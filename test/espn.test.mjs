@@ -26,7 +26,7 @@ test('scoreboard NBA → Game sin cuotas de casas y con la sede', () => {
   assert.equal(g.home.score, null);
   assert.equal(g.home.color, '#1d428a');
   assert.match(g.home.logo, /^https:\/\/a\.espncdn\.com\//);
-  assert.equal('odds' in g, false); // el fixture trae DraftKings: Coflas no muestra precios ajenos (Ruling 11)
+  assert.equal('odds' in g, false); // el fixture trae DraftKings: Oddsy no muestra precios ajenos (Ruling 11)
   assert.equal(g.neutral, false);
   const json = fx('scoreboard-nba.json');
   json.events[0].competitions[0].neutralSite = true;

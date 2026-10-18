@@ -710,7 +710,7 @@ export default {
       out = panel.querySelector('[data-out]');
       detail = panel.querySelector('[data-detail]');
       rebuild();
-      document.title = `Calculadora: ${cur.name} | Coflas Bet`;
+      document.title = `Calculadora: ${cur.name} | Oddsy Bet`;
       if (focus) panel.querySelector('#calcTitle').focus({ preventScroll: !window.matchMedia('(max-width: 1023px)').matches });
     }
 

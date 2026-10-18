@@ -135,7 +135,7 @@ test('backtest: σ de basketball = menor log-loss de la grilla tras aplicar k; f
 });
 
 // ---------- politeFetch: caché en disco, ≤ 2 en vuelo y reintentos ante 403/429 (Ruling 18) ----------
-const tmpDir = () => mkdtemp(join(tmpdir(), 'coflas-cache-'));
+const tmpDir = () => mkdtemp(join(tmpdir(), 'oddsy-cache-'));
 const noSleep = () => Promise.resolve();
 const resp = (status, body = { ok: status }) => new Response(JSON.stringify(body), { status });
 

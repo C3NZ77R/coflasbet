@@ -1,6 +1,6 @@
 // Estado del usuario en localStorage (con respaldo en memoria si el navegador lo bloquea).
 // Claves: picks, settings, views, presets, league (última liga), heroSeen.
-const PREFIX = 'coflas.';
+const PREFIX = 'oddsy.';
 const DEFAULTS = {
   picks: [], // [{ id, label, price (decimal), book, league, gameId, addedAt }]
   settings: { oddsFormat: 'decimal', books: [], bankroll: 100, kellyMult: 0.25, devigMethod: 'multiplicative' },

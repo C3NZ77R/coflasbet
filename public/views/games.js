@@ -1,6 +1,6 @@
 // Partidos: lista por fecha (#/{liga}/games) y detalle (#/{liga}/games/{id}). Tenis (ATP): jugadores con bandera y rank,
 // sin tendencias ni récords de equipo; el detalle lleva ?date= para encontrar el partido.
-// Cuotas: solo las del modelo Coflas (/api/markets): probabilidad, cuota justa y cuota Coflas. Apuestas del público: sin fuente gratuita.
+// Cuotas: solo las del modelo Oddsy (/api/markets): probabilidad, cuota justa y cuota Oddsy. Apuestas del público: sin fuente gratuita.
 import * as bm from '../betmath.js';
 import { leagueById } from '../leagues.js';
 import { statForMarket } from '../stats.js';
@@ -34,15 +34,15 @@ const timeOf = (iso) => new Date(iso).toLocaleTimeString('es-CO', { hour: 'numer
 const isLive = (g) => g.status?.state === 'in' || (g.status?.state === 'pre' && Date.parse(g.start) <= Date.now());
 const selName = (g, s) => (s.name === 'Local' ? g.home.abbr || g.home.name : s.name === 'Visitante' ? g.away.abbr || g.away.name : s.name);
 
-// Botón de selección: nombre, línea, probabilidad, justa y Coflas. picks = índice → pick del boleto.
+// Botón de selección: nombre, línea, probabilidad, justa y Oddsy. picks = índice → pick del boleto.
 function selBtn(g, m, s, ctx, compact = false) {
   const name = `${selName(g, s)}${s.line != null ? ` ${lineTxt(m, s)}` : ''}`;
   const short = (t) => t.abbr || t.name;
   const matchup = ctx.tennis ? `${short(g.home)} vs ${short(g.away)}` : `${short(g.away)} @ ${short(g.home)}`;
-  const pick = { id: `coflas:${ctx.league}:${g.id}:${m.key}:${m.label}:${s.name}`, label: `${name} (${m.label}) · ${matchup}`, price: s.coflas, book: 'coflas', league: ctx.league, gameId: g.id };
+  const pick = { id: `oddsy:${ctx.league}:${g.id}:${m.key}:${m.label}:${s.name}`, label: `${name} (${m.label}) · ${matchup}`, price: s.oddsy, book: 'oddsy', league: ctx.league, gameId: g.id };
   ctx.picks.push(pick);
-  return `<button type="button" class="gm-sel${compact ? ' gm-sel-sm' : ''}" data-pick="${ctx.picks.length - 1}" aria-pressed="${ctx.store.hasPick(pick.id)}" aria-label="${esc(`${name}: probabilidad ${ui.fmtPct(s.p)}, justa ${ui.fmtOdds(s.fair)}, Coflas ${ui.fmtOdds(s.coflas)}. Agregar a Mis picks`)}">${compact ? `<b>${esc(ui.fmtOdds(s.coflas))}</b></button>` : `
-    <b>${esc(name)}</b><small>${esc(ui.fmtPct(s.p))}</small><span>Justa ${esc(ui.fmtOdds(s.fair))} · Coflas <b>${esc(ui.fmtOdds(s.coflas))}</b></span></button>`}`;
+  return `<button type="button" class="gm-sel${compact ? ' gm-sel-sm' : ''}" data-pick="${ctx.picks.length - 1}" aria-pressed="${ctx.store.hasPick(pick.id)}" aria-label="${esc(`${name}: probabilidad ${ui.fmtPct(s.p)}, justa ${ui.fmtOdds(s.fair)}, Oddsy ${ui.fmtOdds(s.oddsy)}. Agregar a Mis picks`)}">${compact ? `<b>${esc(ui.fmtOdds(s.oddsy))}</b></button>` : `
+    <b>${esc(name)}</b><small>${esc(ui.fmtPct(s.p))}</small><span>Justa ${esc(ui.fmtOdds(s.fair))} · Oddsy <b>${esc(ui.fmtOdds(s.oddsy))}</b></span></button>`}`;
 }
 // Clic en una selección: alterna el pick en el boleto.
 function onPickClick(e, ctx) {
@@ -150,7 +150,7 @@ async function renderList(root, ctx, lg, state) {
     return;
   }
 
-  root.querySelector('[data-badges]').innerHTML = ui.sourceBadge('espn') + ui.sourceBadge('coflas');
+  root.querySelector('[data-badges]').innerHTML = ui.sourceBadge('espn') + ui.sourceBadge('oddsy');
   const pc = { league: lg.id, store: ctx.store, picks: [], tennis };
   state.cleanups.push(syncPicks(root, pc));
   // Cuotas del modelo por fecha: se piden al elegir el día y quedan en caché.
@@ -281,11 +281,11 @@ function linesHtml(d, mk, ctx) {
 
 // Tablas de todos los mercados del modelo; trends = HTML de tendencia por clave de mercado (solo en el primero de cada tipo).
 export function marketTables(d, mk, ctx, trends = {}) {
-  const head = '<thead><tr><th scope="col">Selección</th><th scope="col">Prob.</th><th scope="col">Justa</th><th scope="col">Coflas</th></tr></thead>';
+  const head = '<thead><tr><th scope="col">Selección</th><th scope="col">Prob.</th><th scope="col">Justa</th><th scope="col">Oddsy</th></tr></thead>';
   const row = (m, s) => `<tr><th scope="row">${esc(selName(d, s))}${s.line != null ? ` <span class="gm-line">${esc(lineTxt(m, s))}</span>` : ''}</th>
     <td>${esc(ui.fmtPct(s.p))}</td><td>${esc(ui.fmtOdds(s.fair))}</td><td>${selBtn(d, m, s, ctx, true)}</td></tr>`;
   const seen = new Set();
-  return `<p class="gm-src">${ui.sourceBadge('coflas')} Justa = 1/p · Coflas = justa con 5% de margen. Toca una cuota para agregarla a Mis picks.</p>`
+  return `<p class="gm-src">${ui.sourceBadge('oddsy')} Justa = 1/p · Oddsy = justa con 5% de margen. Toca una cuota para agregarla a Mis picks.</p>`
     + mk.data.markets.map((m) => {
       const t = !seen.has(m.key) && trends[m.key];
       seen.add(m.key);

@@ -1,9 +1,9 @@
-# Cuotas propias (modelo Coflas) + tenis ATP — diseño y plan
+# Cuotas propias (modelo Oddsy) + tenis ATP — diseño y plan
 
 Fecha: 2026-10-18. Estado: **aprobado** (decisiones abajo).
 
 ## Intención
-1. **Quitar las cuotas de casas** (The Odds API, `COFLAS_ODDS_API_KEY`, `demo-odds.json`, `demo-props.json`). Coflas deja de mostrar precios ajenos.
+1. **Quitar las cuotas de casas** (The Odds API, `ODDSY_ODDS_API_KEY`, `demo-odds.json`, `demo-props.json`). Oddsy deja de mostrar precios ajenos.
 2. **Calcular nuestras propias cuotas** para cada mercado, a partir de datos reales de ESPN y de un modelo por deporte. Cada cuota sale de una probabilidad: `cuota justa = 1 / p`.
 3. **Agregar tenis ATP** (Outlier no lo tiene; es un servicio nuevo nuestro) con el estilo de Outlier: partidos, ficha de jugador con historial y tasas de acierto, ranking top 100 y cuotas propias.
 
@@ -59,7 +59,7 @@ La regla común es estimar la distribución del resultado, sumar la probabilidad
 - **Tenis**, "props" posibles con datos reales: games ganados por el jugador, sets ganados y tasas de acierto de total de games en sus últimos partidos.
 
 ### Margen
-Mostramos la **cuota justa** (sin margen) y, al lado, la **cuota Coflas** con margen del 5%.
+Mostramos la **cuota justa** (sin margen) y, al lado, la **cuota Oddsy** con margen del 5%.
 
 ## Arquitectura (cambios)
 - **Nuevo `lib/pricing.mjs`:** funciones puras para normal CDF, Poisson pmf, binomial negativa, matriz Dixon-Coles, `fairOdds(p)`, `withMargin(p, m)` y redondeo de líneas. Sin dependencias.
@@ -77,7 +77,7 @@ Mostramos la **cuota justa** (sin margen) y, al lado, la **cuota Coflas** con ma
   - Vistas nuevas: `tennis-player` (estilo ficha de Outlier) y `tennis-rankings` (top 100).
   - `ev.js`, `boosts.js`, `arbitrage.js` y `middles.js`: pendientes de tu decisión (ver Decisiones).
 - **`api/[...path].mjs`, `vercel.json`:** revisar TTL de la CDN para las rutas nuevas.
-- Se borran `demo-odds.json` y `demo-props.json`, y la variable `COFLAS_ODDS_API_KEY` de `.env.example`.
+- Se borran `demo-odds.json` y `demo-props.json`, y la variable `ODDSY_ODDS_API_KEY` de `.env.example`.
 
 ## Plan de implementación por fases
 Cada fase termina con `node --test` en verde y push a `main`, que despliega en Vercel.
@@ -97,7 +97,7 @@ Cada fase termina con `node --test` en verde y push a `main`, que despliega en V
 ## Decisiones tomadas (por ti, 2026-10-18)
 1. **Se borran arbitraje y middles** (`arbitrage.js`, `middles.js` y su lógica en `betmath.js`).
 2. **EV+ y boosts pasan a "Compara tu casa":** el usuario escribe la cuota de su casa y le mostramos el EV contra nuestra cuota justa. En boosts, la cuota es la que ya trae el boost.
-3. **Cada mercado muestra dos cuotas:** la **justa** (`1/p`) y la **cuota Coflas** con margen del 5% (`1/(p·1.05)`).
+3. **Cada mercado muestra dos cuotas:** la **justa** (`1/p`) y la **cuota Oddsy** con margen del 5% (`1/(p·1.05)`).
 
 ## Decisiones que tomé yo (revísalas)
 - Superficie de tenis por mapa fijo de torneos (atajo: ESPN no la da; se reemplaza si encontramos una fuente).

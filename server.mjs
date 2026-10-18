@@ -1,4 +1,4 @@
-// Servidor de Coflas Bet: sirve public/ y hace de proxy a ESPN (partidos, game logs, lesiones, plantillas; sin clave).
+// Servidor de Oddsy Bet: sirve public/ y hace de proxy a ESPN (partidos, game logs, lesiones, plantillas; sin clave).
 // Las cuotas son propias (lib/markets.mjs y lib/props.mjs). Caché en memoria por URL en lib/espn.mjs.
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -48,7 +48,7 @@ function teamLeague(url) {
 const ROUTES = {
   '/api/leagues': async () => ({ source: 'espn', data: LEAGUES }),
   '/api/markets': async (url) => getMarkets(leagueParam(url), { game: param(url, 'game', RX.id), date: param(url, 'date', RX.date) }),
-  '/api/accuracy': async () => ({ source: 'coflas', data: getAccuracy() }),
+  '/api/accuracy': async () => ({ source: 'oddsy', data: getAccuracy() }),
   '/api/games': async (url) => {
     const lg = leagueParam(url);
     const date = param(url, 'date', RX.date);
@@ -65,7 +65,7 @@ const ROUTES = {
   '/api/props': async (url) => {
     const lg = leagueParam(url);
     const game = param(url, 'game', RX.id);
-    return isTennis(lg) ? { source: 'coflas', data: [] } : getProps(lg, game); // sin modelo de props de tenis
+    return isTennis(lg) ? { source: 'oddsy', data: [] } : getProps(lg, game); // sin modelo de props de tenis
   },
   '/api/tennis/rankings': async () => {
     const [rows, { ratings }] = await Promise.all([getRankings(), atpElo()]);
@@ -111,5 +111,5 @@ export async function handler(req, res) {
 
 // En Vercel solo se importa el handler (api/[...path].mjs); en local se levanta el servidor.
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) http.createServer(handler).listen(PORT, '127.0.0.1', () => {
-  console.log(`Coflas Bet en http://localhost:${PORT} — partidos y estadísticas: ESPN · cuotas y props: modelo propio`);
+  console.log(`Oddsy Bet en http://localhost:${PORT} — partidos y estadísticas: ESPN · cuotas y props: modelo propio`);
 });

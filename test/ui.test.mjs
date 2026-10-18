@@ -124,7 +124,7 @@ test('ficha de tenis: encabezado con nombre y Elo; marcador, games y % de más d
   }
 });
 
-test('Partidos: la tabla de mercados muestra probabilidad, Justa y Coflas de cada selección', async () => {
+test('Partidos: la tabla de mercados muestra probabilidad, Justa y Oddsy de cada selección', async () => {
   const { marketTables } = await import('../public/views/games.js');
   const { marketsFor } = await import('../lib/markets.mjs');
   const markets = marketsFor('basketball', { kind: 'normal', mu: 3, sigma: 14, total: 220, sigmaT: 19.4 });
@@ -132,12 +132,12 @@ test('Partidos: la tabla de mercados muestra probabilidad, Justa y Coflas de cad
   const ctx = { picks: [], store, league: 'nba' };
   const html = marketTables(d, { data: { markets }, accuracy: { n: 616, brier: 0.2159, baseline: { brier: 0.2475 } } }, ctx);
   assert.match(html, /Justa/);
-  assert.match(html, /Coflas/);
+  assert.match(html, /Oddsy/);
   const [home] = markets.find((m) => m.key === 'ml').selections;
-  assert.ok(html.includes(`DET`) && html.includes(fmtOdds(home.fair)) && html.includes(fmtOdds(home.coflas)));
+  assert.ok(html.includes(`DET`) && html.includes(fmtOdds(home.fair)) && html.includes(fmtOdds(home.oddsy)));
   assert.match(html, /Brier 0\.216 en 616 partidos/);
   assert.equal(ctx.picks.length, markets.flatMap((m) => m.selections).length);
-  assert.ok(ctx.picks.every((p) => p.book === 'coflas'));
+  assert.ok(ctx.picks.every((p) => p.book === 'oddsy'));
 });
 
 test('EV+: en run line y hándicaps la línea va con el lado; en totales, en la etiqueta', async () => {
@@ -145,9 +145,9 @@ test('EV+: en run line y hándicaps la línea va con el lado; en totales, en la 
   const { marketsFor } = await import('../lib/markets.mjs');
   const start = new Date(Date.now() + 864e5).toISOString();
   const api = {
-    markets: async () => ({ source: 'coflas', accuracy: { publish: true }, data: [{ gameId: '1', markets: marketsFor('baseball', { kind: 'poisson', lh: 4.8, la: 4.2 }) }] }),
+    markets: async () => ({ source: 'oddsy', accuracy: { publish: true }, data: [{ gameId: '1', markets: marketsFor('baseball', { kind: 'poisson', lh: 4.8, la: 4.2 }) }] }),
     games: async () => ({ source: 'espn', data: [{ id: '1', start, home: { abbr: 'HOM' }, away: { abbr: 'AWY' } }] }),
-    props: async () => ({ source: 'coflas', data: [] }),
+    props: async () => ({ source: 'oddsy', data: [] }),
   };
   const { list } = await selectionsOf(api, 'mlb');
   assert.deepEqual(list.filter((s) => s.id.includes(':rl:')).map((s) => s.label), ['HOM -1.5 · Run line', 'AWY +1.5 · Run line']);

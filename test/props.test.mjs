@@ -1,4 +1,4 @@
-// Props con línea y cuotas propias (modelo Coflas) sobre game logs de ESPN. Sin red: fixtures y fetch simulado.
+// Props con línea y cuotas propias (modelo Oddsy) sobre game logs de ESPN. Sin red: fixtures y fetch simulado.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -38,19 +38,19 @@ test('pts usa la normal; los conteos, la binomial negativa', () => {
 });
 const avg = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
 
-test('playerProps: Over y Under a la línea propia con cuota Coflas < justa', () => {
+test('playerProps: Over y Under a la línea propia con cuota Oddsy < justa', () => {
   const props = playerProps(nbaLog(), 'basketball', ctx);
   assert.ok(props.length >= 2);
   for (const p of props) {
     assert.equal(p.books.length, 1);
-    assert.equal(p.books[0].key, 'coflas');
+    assert.equal(p.books[0].key, 'oddsy');
     assert.ok(p.books[0].price < p.fair, `${p.id}: ${p.books[0].price} >= ${p.fair}`);
     assert.ok(Math.abs(p.fair - 1 / p.p) <= 0.005 + 1e-9); // redondeada a 2 decimales
     assert.equal(p.n, 12);
     assert.deepEqual([p.gameId, p.eventId, p.team, p.opp, p.athleteId, p.player], ['401871339', '401871339', 'BOS', 'DET', '4433188', 'Devin Carter']);
     const twin = props.find((q) => q.stat === p.stat && q.line === p.line && q.side !== p.side);
     assert.ok(Math.abs(p.p + twin.p - 1) < 1e-12);
-    // El navegador cotiza otras líneas con kind, mean y variance: en la línea Coflas da la misma p.
+    // El navegador cotiza otras líneas con kind, mean y variance: en la línea Oddsy da la misma p.
     const over = propOver(p.kind, p.mean, p.variance, p.line);
     assert.ok(Math.abs((p.side === 'Over' ? over : 1 - over) - p.p) < 1e-12, `${p.id}`);
   }
@@ -58,7 +58,7 @@ test('playerProps: Over y Under a la línea propia con cuota Coflas < justa', ()
   assert.deepEqual(playerProps(nbaLog([fx('gamelog-nba.json')]), 'basketball', ctx), []); // 6 partidos: sin props
 });
 
-test('getProps(liga, partido) con fetch simulado: plantillas + game logs → props Coflas', async (t) => {
+test('getProps(liga, partido) con fetch simulado: plantillas + game logs → props Oddsy', async (t) => {
   const reply = (body) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
   t.mock.method(globalThis, 'fetch', async (url) => {
     const u = new URL(url);
@@ -68,9 +68,9 @@ test('getProps(liga, partido) con fetch simulado: plantillas + game logs → pro
     return new Response('{}', { status: 404 });
   });
   const res = await getProps('nba', '401871339');
-  assert.equal(res.source, 'coflas');
+  assert.equal(res.source, 'oddsy');
   assert.ok(res.data.length > 0);
-  assert.ok(res.data.every((p) => p.books[0].key === 'coflas' && p.gameId === '401871339' && ['DET', 'CLE'].includes(p.team)));
+  assert.ok(res.data.every((p) => p.books[0].key === 'oddsy' && p.gameId === '401871339' && ['DET', 'CLE'].includes(p.team)));
   assert.ok(res.data.some((p) => p.player === 'Mike Conley'), 'el nombre sale de la plantilla si el perfil falla');
   await assert.rejects(getProps('xx'), { status: 400 });
 });

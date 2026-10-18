@@ -31,7 +31,7 @@
 .gm-tl .gm-rec { flex: none; font-size: 11px; }
 .gm-score { flex: none; font-size: 17px; font-variant-numeric: tabular-nums; }
 .gm-line { color: var(--muted); font-size: 12px; }
-/* Cuotas del modelo: selección con probabilidad, justa y Coflas (botón que agrega al boleto) */
+/* Cuotas del modelo: selección con probabilidad, justa y Oddsy (botón que agrega al boleto) */
 .gm-teams { display: grid; gap: 8px; }
 .gm-mkh { color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
 .gm-sels { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 6px; }

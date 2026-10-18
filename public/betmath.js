@@ -51,7 +51,7 @@ export const expectedValue = (prob, odds) => prob * odds - 1;
 
 export const kelly = (prob, odds, fraction = 1) => Math.max(0, (prob * odds - 1) / (odds - 1)) * fraction;
 
-// Probabilidad del modelo Coflas contra la cuota de la casa del usuario (EV+ y Boosts).
+// Probabilidad del modelo Oddsy contra la cuota de la casa del usuario (EV+ y Boosts).
 export const compareBook = (p, odds, fraction = 1) => ({ ev: expectedValue(p, odds), kelly: kelly(p, odds, fraction) });
 
 export const parlayOdds = (oddsList) => oddsList.reduce((p, o) => p * o, 1);
@@ -353,10 +353,10 @@ export function poissonCdf(k, lambda) {
   return Math.min(1, s);
 }
 
-// ---------- Precios del modelo Coflas (lib/pricing.mjs los reexporta; el navegador cotiza líneas personalizadas) ----------
+// ---------- Precios del modelo Oddsy (lib/pricing.mjs los reexporta; el navegador cotiza líneas personalizadas) ----------
 export const MARGIN = 0.05;
 const clampOdds = (o) => Math.round(Math.min(101, Math.max(1.01, o)) * 100) / 100;
-export const price = (p) => ({ p, fair: clampOdds(1 / p), coflas: clampOdds(1 / (p * (1 + MARGIN))) });
+export const price = (p) => ({ p, fair: clampOdds(1 / p), oddsy: clampOdds(1 / (p * (1 + MARGIN))) });
 
 // Binomial negativa por recurrencia; sin sobredispersión cae a Poisson.
 export function negBinPmf(k, mean, variance) {

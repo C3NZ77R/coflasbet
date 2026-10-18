@@ -9,7 +9,7 @@ const sum = (xs) => xs.reduce((s, x) => s + x, 0);
 test('price: cuota justa y con margen, acotadas', () => {
   const r = price(0.5);
   assert.equal(r.fair, 2);
-  assert.equal(r.coflas, 1.9);
+  assert.equal(r.oddsy, 1.9);
   assert.equal(price(0.999).fair, 1.01);
   assert.equal(price(0.001).fair, 101);
 });
