@@ -60,6 +60,6 @@ test('córners y tarjetas: mercados con forma Market y probabilidades coherentes
     for (let i = 0; i < ou.selections.length; i += 2) close(ou.selections[i].p + ou.selections[i + 1].p, 1);
   }
   const ou = cornersMarkets(exp).find((m) => m.key === 'corners_ou');
-  assert.deepEqual([...new Set(ou.selections.map((s) => s.line))], [8.5, 9.5, 10.5]);
+  assert.deepEqual([...new Set(ou.selections.map((s) => s.line))], [7.5, 8.5, 9.5, 10.5, 11.5]); // cinco líneas, como Betano.co
   assert.ok(cornersMarkets(exp).find((m) => m.key === 'corners_1x2').selections[0].p > 0.5); // el local saca más
 });
