@@ -41,6 +41,7 @@ Conclusiones: el modelo ya le gana a la referencia por ~5% de Brier y calibra bi
 4. **Localía por equipo** con shrink a la de la liga (altura). Se queda solo si baja el Brier.
    - Resultado: **descartado**. Con k = (casa/visita)^(1/4) y shrink de 5 a 80 goles ficticios, en 2025 empeora el Brier en todos los casos (0.6090 sin k → 0.6093 en el mejor) y en 2026 apenas mejora (0.6168 → 0.6157). Los k no siguen la altura (Santa Fe 0.95, Boyacá Chicó 1.17): es ruido.
 5. **Recién ascendidos**: equipo sin partidos en la liga arranca bajo la media (cuartil bajo), no en la media.
+   - Resultado: **prior 0.8× goles a favor y 1.1× en contra** para equipos con menos de la mitad de los partidos medianos (o sin partidos). Medido: 6 ascendidos de 2024–2026 hicieron 0.74× y recibieron 1.09× en sus primeros 10. Brier 2025: 0.6090 → 0.6085; 2026: 0.6168 → 0.6162. Aplica a todo el fútbol (en copas marca a quien no jugó la edición anterior).
 6. **Rutas y vistas** (Tasks 4–5): Partidos → Liga BetPlay → detalle con 1X2, doble oportunidad, más/menos, ambos marcan, hándicap y marcador exacto; precisión medida visible.
 7. **Córners y tarjetas** desde el `summary` (medias por equipo, binomial negativa). Mercado muy pedido en Colombia.
 8. **Props de jugadores** (Task 6): goles y remates con game logs de `col.1`.

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { normSchedule, getSeasonResults, getPastSeason } from '../lib/espn.mjs';
-import { ratingsFromResults, expected, SPORT_MODEL, SIGMA, SIGMA_T, MU_SHRINK, HALF_LIFE } from '../lib/ratings.mjs';
+import { ratingsFromResults, expected, SPORT_MODEL, SIGMA, SIGMA_T, MU_SHRINK, HALF_LIFE, NEWCOMER } from '../lib/ratings.mjs';
 
 const fx = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const R = (id, date, homeId, awayId, homeScore, awayScore, neutral = false) => ({ id, date, homeId, awayId, homeScore, awayScore, neutral });
@@ -93,12 +93,13 @@ test('ratings: NHL con ot cuenta como empate de tiempo regular; sin ot o fuera d
   assert.equal(withOt[3].awayScore, 4); // no muta la entrada
 });
 
-test('ratings: equipo sin partidos = media de liga', () => {
+test('ratings: equipo sin partidos = media de liga (en fútbol, con el prior de recién llegado)', () => {
   const rs = [R('1', '2026-01-01', 'A', 'B', 2, 1), R('2', '2026-01-02', 'B', 'A', 3, 0)];
   const ra = ratingsFromResults(rs, { sport: 'soccer' });
   const e = expected('soccer', ra, 'X', 'Y');
-  close(e.lh, ra.avgHome);
-  close(e.la, ra.avgAway);
+  const { gf, ga } = NEWCOMER.soccer;
+  close(e.lh, ra.avgHome * gf * ga);
+  close(e.la, ra.avgAway * gf * ga);
 });
 
 test('ratings: sin resultados todo es finito', () => {
@@ -210,6 +211,29 @@ test('ratings: halfLife pesa más lo reciente; el valor por defecto sale de HALF
   // '1' goleó a comienzos de año y empató 0-0 al final: con decaimiento su ataque cae hacia lo reciente.
   assert.ok(decayed.teams.get('1').gf < flat.teams.get('1').gf);
   for (const t of decayed.teams.values()) assert.ok(Number.isFinite(t.gf) && Number.isFinite(t.ga));
+});
+
+test('ratings: equipo nuevo (recién ascendido o sin partidos) arranca bajo la media en fútbol', () => {
+  const d = (n) => new Date(Date.UTC(2026, 0, n)).toISOString();
+  // A, B y C llevan muchos partidos parejos; N (ascendido) jugó uno solo, 1-1.
+  const rs = [];
+  for (let i = 0; i < 30; i++) {
+    const [h, a] = [['A', 'B'], ['B', 'C'], ['C', 'A']][i % 3];
+    rs.push(R(`g${i}`, d(1 + i), h, a, 1, 1));
+  }
+  rs.push(R('n1', d(40), 'N', 'A', 1, 1));
+  const opts = { sport: 'soccer', prior: 5, halfLife: Infinity };
+  const plain = ratingsFromResults(rs, { ...opts, newcomer: null });
+  const ra = ratingsFromResults(rs, opts);
+  assert.ok(ra.teams.get('N').gf < plain.teams.get('N').gf);
+  assert.ok(ra.teams.get('N').ga > plain.teams.get('N').ga);
+  close(ra.teams.get('A').gf, plain.teams.get('A').gf, 0.02); // los establecidos casi no cambian
+  // sin partidos: expected usa el prior de NEWCOMER
+  const e = expected('soccer', ra, 'Z', 'A');
+  const e0 = expected('soccer', ra, 'B', 'A');
+  assert.ok(e.lh < e0.lh);
+  // otros deportes: sin prior de nuevo
+  assert.equal(NEWCOMER.basketball, undefined);
 });
 
 test('ratings: expected con ratings a mano (normal y poisson, con y sin sede)', () => {
