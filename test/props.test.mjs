@@ -102,3 +102,15 @@ test('con clave: eventos gratis → odds del partido elegido, enlazado con ESPN 
   assert.deepEqual([tatum.gameId, tatum.athleteId, tatum.team, tatum.opp], ['401909088', '4065648', 'BOS', 'DET']);
   assert.deepEqual((await getProps('nba', '999', { key: 'test-key', regions: 'us' })).data, []); // partido sin evento en The Odds API
 });
+
+test('con clave y sin partido no gasta créditos: devuelve demo con aviso', async () => {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = () => { throw new Error('no debería llamar a la red'); };
+  try {
+    const r = await getProps('nba', null, { key: 'x' });
+    assert.equal(r.source, 'demo');
+    assert.match(r.warning, /abrir un partido/);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

@@ -13,7 +13,6 @@ const PUBLIC = path.join(ROOT, 'public');
 const KEY = process.env.COFLAS_ODDS_API_KEY;
 const REGIONS = process.env.COFLAS_REGIONS || 'eu,us';
 const PROP_REGIONS = process.env.COFLAS_PROP_REGIONS || 'us'; // cada región multiplica el costo de los props
-const PROP_EVENTS = Math.min(20, Math.max(1, Number(process.env.COFLAS_PROPS_MAX_EVENTS) || 4));
 const PORT = Number(process.env.PORT || 5173);
 const demo = JSON.parse(await readFile(path.join(ROOT, 'demo-odds.json'), 'utf8'));
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.ico': 'image/x-icon' };
@@ -80,12 +79,12 @@ const ROUTES = {
   '/api/search': async (url) => ({ source: 'espn', data: await espn.searchAthletes(leagueParam(url), param(url, 'q', RX.q, true).trim()) }),
   '/api/props': async (url) => {
     const args = [leagueParam(url), param(url, 'game', RX.id)];
-    return getProps(...args, { key: KEY, regions: PROP_REGIONS, maxEvents: PROP_EVENTS }).catch(async (err) => fallback(err, await getProps(...args, {})));
+    return getProps(...args, { key: KEY, regions: PROP_REGIONS }).catch(async (err) => fallback(err, await getProps(...args, {})));
   },
 };
 
 // Caché compartida en la CDN de Vercel (la memoria de cada instancia no se comparte): el plan gratis de The Odds API son 500 créditos/mes.
-const EDGE_S = { '/api/sports': 86400, '/api/odds': 3600, '/api/props': 21600 };
+const EDGE_S = { '/api/sports': 86400, '/api/odds': 10800, '/api/props': 21600 };
 const json = (res, status, body, edge = 0) => res.writeHead(status, {
   'content-type': 'application/json; charset=utf-8',
   'cache-control': edge ? `public, max-age=0, s-maxage=${edge}, stale-while-revalidate=${edge * 4}` : 'no-store',
@@ -116,5 +115,5 @@ export async function handler(req, res) {
 
 // En Vercel solo se importa el handler (api/[...path].mjs); en local se levanta el servidor.
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) http.createServer(handler).listen(PORT, '127.0.0.1', () => {
-  console.log(`Coflas Bet en http://localhost:${PORT} — partidos y estadísticas: ESPN · cuotas y props: ${KEY ? `The Odds API (regiones ${REGIONS}; props ${PROP_REGIONS}, ${PROP_EVENTS} partidos)` : 'DEMO (falta COFLAS_ODDS_API_KEY en .env)'}`);
+  console.log(`Coflas Bet en http://localhost:${PORT} — partidos y estadísticas: ESPN · cuotas y props: ${KEY ? `The Odds API (regiones ${REGIONS}; props ${PROP_REGIONS}, solo al abrir un partido)` : 'DEMO (falta COFLAS_ODDS_API_KEY en .env)'}`);
 });

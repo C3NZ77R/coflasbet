@@ -384,7 +384,7 @@ async function renderList(el, ctx) {
   const refresh = () => { shown = PAGE; badges(); paintTable(); };
 
   el.innerHTML = `<div class="pp">
-    <header class="pp-top"><h1>Props</h1>${pr.source ? str(ui.sourceBadge(pr.source, pr.remaining)) : ''}<p class="pp-muted" data-progress aria-live="polite"></p></header>
+    <header class="pp-top"><h1>Props</h1>${pr.source ? str(ui.sourceBadge(pr.source, pr.remaining)) : ''}${pr.warning ? `<p class="pp-muted">${ui.esc(pr.warning)}</p>` : ''}<p class="pp-muted" data-progress aria-live="polite"></p></header>
     <div data-bar></div><div data-table></div></div>`;
   const root = el.firstElementChild;
   paintBar();
