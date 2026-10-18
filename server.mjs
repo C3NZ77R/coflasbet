@@ -12,7 +12,7 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
 const KEY = process.env.COFLAS_ODDS_API_KEY;
 const REGIONS = process.env.COFLAS_REGIONS || 'eu,us';
-const PROP_REGIONS = process.env.COFLAS_PROP_REGIONS || 'us,us2,eu';
+const PROP_REGIONS = process.env.COFLAS_PROP_REGIONS || 'us'; // cada región multiplica el costo de los props
 const PROP_EVENTS = Math.min(20, Math.max(1, Number(process.env.COFLAS_PROPS_MAX_EVENTS) || 4));
 const PORT = Number(process.env.PORT || 5173);
 const demo = JSON.parse(await readFile(path.join(ROOT, 'demo-odds.json'), 'utf8'));
@@ -50,6 +50,12 @@ function leagueParam(url) {
   return lg.id;
 }
 
+// Si The Odds API falla (p. ej. créditos agotados), se muestran los datos demo en vez de un error.
+function fallback(err, demoBody) {
+  console.error('The Odds API:', err.message);
+  return { ...demoBody, warning: 'The Odds API no respondió (¿créditos agotados?): se muestran datos demo.' };
+}
+
 const ROUTES = {
   '/api/leagues': async () => ({ source: 'espn', data: LEAGUES }),
   '/api/sports': async () => {
@@ -59,8 +65,9 @@ const ROUTES = {
   },
   '/api/odds': async (url) => {
     const sport = param(url, 'sport', RX.sport) || 'upcoming';
-    if (!KEY) return { source: 'demo', data: sport === 'upcoming' ? demo.events : demo.events.filter((e) => e.sport_key === sport) };
-    return oddsApi(`/sports/${sport}/odds`, { regions: REGIONS, markets: 'h2h,spreads,totals', oddsFormat: 'decimal' });
+    const demoOdds = { source: 'demo', data: sport === 'upcoming' ? demo.events : demo.events.filter((e) => e.sport_key === sport) };
+    if (!KEY) return demoOdds;
+    return oddsApi(`/sports/${sport}/odds`, { regions: REGIONS, markets: 'h2h,spreads,totals', oddsFormat: 'decimal' }).catch((err) => fallback(err, demoOdds));
   },
   '/api/games': async (url) => ({ source: 'espn', data: await espn.getGames(leagueParam(url), param(url, 'date', RX.date)) }),
   '/api/game': async (url) => ({ source: 'espn', data: await espn.getGame(leagueParam(url), param(url, 'id', RX.id, true)) }),
@@ -71,10 +78,18 @@ const ROUTES = {
   '/api/roster': async (url) => ({ source: 'espn', data: await espn.getRoster(leagueParam(url), param(url, 'team', RX.id, true)) }),
   '/api/injuries': async (url) => ({ source: 'espn', data: await espn.getInjuries(leagueParam(url)) }),
   '/api/search': async (url) => ({ source: 'espn', data: await espn.searchAthletes(leagueParam(url), param(url, 'q', RX.q, true).trim()) }),
-  '/api/props': async (url) => getProps(leagueParam(url), param(url, 'game', RX.id), { key: KEY, regions: PROP_REGIONS, maxEvents: PROP_EVENTS }),
+  '/api/props': async (url) => {
+    const args = [leagueParam(url), param(url, 'game', RX.id)];
+    return getProps(...args, { key: KEY, regions: PROP_REGIONS, maxEvents: PROP_EVENTS }).catch(async (err) => fallback(err, await getProps(...args, {})));
+  },
 };
 
-const json = (res, status, body) => res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }).end(JSON.stringify(body));
+// Caché compartida en la CDN de Vercel (la memoria de cada instancia no se comparte): el plan gratis de The Odds API son 500 créditos/mes.
+const EDGE_S = { '/api/sports': 86400, '/api/odds': 3600, '/api/props': 21600 };
+const json = (res, status, body, edge = 0) => res.writeHead(status, {
+  'content-type': 'application/json; charset=utf-8',
+  'cache-control': edge ? `public, max-age=0, s-maxage=${edge}, stale-while-revalidate=${edge * 4}` : 'no-store',
+}).end(JSON.stringify(body));
 
 export async function handler(req, res) {
   const url = new URL(req.url, 'http://localhost');
@@ -83,7 +98,7 @@ export async function handler(req, res) {
       if (req.method !== 'GET' && req.method !== 'HEAD') throw espn.httpError(405, 'Método no permitido');
       const route = ROUTES[url.pathname];
       if (!route) throw espn.httpError(404, 'No encontrado');
-      json(res, 200, await route(url));
+      json(res, 200, await route(url), EDGE_S[url.pathname] ?? 300);
       return;
     }
     const file = path.normalize(path.join(PUBLIC, url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname)));
