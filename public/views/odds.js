@@ -1,4 +1,4 @@
-// Comparador (#/comparador): tablero de cuotas propias del modelo Coflas por liga y mercado, hoy y mañana.
+// Comparador (#/comparador): tablero de cuotas propias del modelo Coflas por liga y mercado, próximos 3 días (hoy incluido).
 // Por selección: probabilidad, cuota justa (1/p) y cuota Coflas (con margen). Toca la cuota Coflas para agregarla a Mis picks.
 import { LEAGUES } from '../leagues.js';
 
@@ -17,7 +17,7 @@ export default {
     let alive = true, token = 0;
 
     el.innerHTML = h`<header class="view-head"><div><h1>Comparador de cuotas</h1>
-        <p class="hint">Cuotas propias del modelo Coflas para hoy y mañana: probabilidad, cuota justa (sin margen) y cuota Coflas (con 5% de margen). Toca una cuota Coflas para agregarla a Mis picks.</p></div></header>
+        <p class="hint">Cuotas propias del modelo Coflas para los próximos 3 días: probabilidad, cuota justa (sin margen) y cuota Coflas (con 5% de margen). Toca una cuota Coflas para agregarla a Mis picks.</p></div></header>
       <nav class="chips" data-leagues aria-label="Liga">${LEAGUES.map((l, i) => h`<button type="button" data-league="${l.id}" aria-pressed="${i === 0}">${l.title}</button>`)}</nav>
       <div class="toolbar">
         <label>Mercado <select data-market></select></label>
@@ -35,7 +35,7 @@ export default {
       $('[data-list]').innerHTML = ui.loading(3);
       $('[data-acc]').textContent = '';
       const now = new Date();
-      const dates = [0, 1].map((i) => ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + i)));
+      const dates = [0, 1, 2].map((i) => ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + i)));
       try {
         const opt = { fresh };
         const res = await Promise.all(dates.flatMap((date) => [
@@ -97,7 +97,7 @@ export default {
             <h2 class="odds-match"><a href="#/${state.league}/games/${encodeURIComponent(g.id)}">${g.away.name} <small>@</small> ${g.home.name}</a></h2>
             ${markets.filter((m) => m.key === state.market).map((m) => table(g, m))}
           </article>`)}`
-        : ui.empty(state.games.length ? 'Ningún partido coincide con la búsqueda.' : 'No hay partidos con cuotas del modelo hoy ni mañana en esta liga.');
+        : ui.empty(state.games.length ? 'Ningún partido coincide con la búsqueda.' : 'No hay partidos con cuotas del modelo en los próximos 3 días en esta liga.');
     }
 
     el.addEventListener('click', (e) => {
