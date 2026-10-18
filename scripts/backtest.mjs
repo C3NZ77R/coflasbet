@@ -12,7 +12,7 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { LEAGUES, leagueById } from '../public/leagues.js';
-import { getPastSeason, isCollege, thinSeason } from '../lib/espn.mjs';
+import { getPastSeason, thinSeason } from '../lib/espn.mjs';
 import { ratingsFromResults, expected, SPORT_MODEL, SIGMA, SIGMA_T, MU_SHRINK } from '../lib/ratings.mjs';
 import { marketsFor } from '../lib/markets.mjs';
 import { finished, matchProb, getRankings } from '../lib/tennis.mjs';
@@ -218,7 +218,7 @@ const r4 = (x) => Math.round(x * 1e4) / 1e4;
 const r1 = (x) => Math.round(x * 10) / 10;
 
 async function main(args) {
-  const valid = [...new Set([...LEAGUES.filter((l) => !isCollege(l)).map((l) => l.id), 'atp'])];
+  const valid = LEAGUES.map((l) => l.id);
   const ids = args.length ? args : valid;
   const bad = ids.filter((id) => !valid.includes(id));
   if (bad.length) {

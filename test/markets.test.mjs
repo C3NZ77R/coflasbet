@@ -11,12 +11,11 @@ const pick = (ms, key, line) => ms.find((m) => m.key === key && (line === undefi
 const sel = (m, name) => m.selections.find((s) => s.name === name);
 
 const SOCCER = { kind: 'poisson', lh: 1.4, la: 1.1 };
-const HOCKEY = { kind: 'poisson', lh: 1.3, la: 1.2 };
 const BASEBALL = { kind: 'poisson', lh: 4.6, la: 4.1 };
 const NBA = { kind: 'normal', mu: 5.2, sigma: 12, total: 226.3, sigmaT: 13.2 };
 const BO3 = { kind: 'tennis', dist: matchDist(0.67, 0.62, 3) };
 const BO5 = { kind: 'tennis', dist: matchDist(0.67, 0.62, 5, { slam: true }) };
-const CASES = [['soccer', SOCCER], ['hockey', HOCKEY], ['baseball', BASEBALL], ['basketball', NBA], ['football', { ...NBA, sigma: 13.5 }], ['tennis', BO3], ['tennis', BO5]];
+const CASES = [['soccer', SOCCER], ['baseball', BASEBALL], ['basketball', NBA], ['football', { ...NBA, sigma: 13.5 }], ['tennis', BO3], ['tennis', BO5]];
 
 test('markets: 1x2 suma 1', () => {
   close(sumP(pick(marketsFor('soccer', SOCCER), '1x2')), 1);
@@ -86,24 +85,19 @@ test('markets: marcador exacto = los 10 más probables en orden, más "Otro"', (
   close(top.at(-1), g.flat().sort((a, b) => b - a)[9]);
 });
 
-test('markets: hockey sin empate; el empate se reparte según lh/(lh+la)', () => {
-  const ms = marketsFor('hockey', HOCKEY);
+test('markets: béisbol sin empate; el empate se reparte según lh/(lh+la)', () => {
+  const ms = marketsFor('baseball', BASEBALL);
   assert.deepEqual([...new Set(ms.map((m) => m.key))], ['ml', 'rl', 'ou']);
   const ml = pick(ms, 'ml');
   assert.deepEqual(ml.selections.map((s) => s.name), ['Local', 'Visitante']);
   assert.ok(!ml.selections.some((s) => s.name === 'Empate'));
-  const g = scoreGrid(HOCKEY.lh, HOCKEY.la, { rho: 0, max: 20 });
+  const g = scoreGrid(BASEBALL.lh, BASEBALL.la, { rho: 0, max: 20 });
   const P = (f) => g.reduce((s, row, i) => s + row.reduce((t, v, j) => (f(i, j) ? t + v : t), 0), 0);
-  close(sel(ml, 'Local').p, P((i, j) => i > j) + P((i, j) => i === j) * (1.3 / 2.5));
-  // El favorito (local) lleva −1.5: gana por 2 o más en tiempo regular (la prórroga solo da victorias por 1).
+  close(sel(ml, 'Local').p, P((i, j) => i > j) + P((i, j) => i === j) * (4.6 / 8.7));
+  // El favorito (local) lleva −1.5: gana por 2 o más.
   const rl = pick(ms, 'rl');
   assert.equal(sel(rl, 'Local').line, -1.5);
   close(sel(rl, 'Local').p, P((i, j) => i - j >= 2));
-  // Total sobre el marcador final: un empate en tiempo regular suma el gol de prórroga o shootout.
-  const ou = pick(ms, 'ou');
-  assert.equal(ou.selections[0].line, halfLine(2.5));
-  close(sel(ou, 'Más').p, P((i, j) => i + j + (i === j) > 2.5));
-  assert.ok(sel(ou, 'Más').p > P((i, j) => i + j > 2.5));
 });
 
 test('markets: run line con visitante favorito y total de carreras sin gol extra', () => {

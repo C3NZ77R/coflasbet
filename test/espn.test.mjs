@@ -110,9 +110,6 @@ test('game logs de otros deportes', () => {
   assert.equal(qb.pass_rush_yds, 180);
   const p = e.normGamelog(fx('gamelog-mlb-pitcher.json'), 'baseball')[0].stats;
   assert.deepEqual([p.outs, p.k, p.ha, p.er, p.hits], [15, 7, 5, 2, undefined]);
-  const nhl = e.normGamelog(fx('gamelog-nhl.json'), 'hockey')[0];
-  assert.equal(nhl.minutes, 19.87); // "19:52"
-  assert.deepEqual([nhl.stats.goals, nhl.stats.assists, nhl.stats.sog, nhl.stats.ppp], [2, 3, 2, 1]);
   const soc = e.normGamelog(fx('gamelog-soccer.json'), 'soccer')[0];
   assert.deepEqual([soc.stats.shots, soc.stats.sot, soc.result, soc.minutes], [3, 2, 'W', null]);
 });
@@ -160,7 +157,7 @@ test('stats.js: derivadas, mercados y alternativos', () => {
   assert.equal(statOf('football', 'rush_rec_yds', { rush_yds: 50, rec_yds: 40 }), 90);
   assert.equal(statOf('soccer', 'goals', null), null);
   assert.equal(statForMarket('basketball', 'player_points_alternate').key, 'pts');
-  assert.equal(statForMarket('hockey', 'player_goal_scorer_anytime').key, 'goals');
+  assert.equal(statForMarket('soccer', 'player_goal_scorer_anytime').key, 'goals');
   assert.equal(statForMarket('baseball', 'pitcher_strikeouts').key, 'k');
   assert.equal(statForMarket('basketball', 'player_first_basket'), null);
   assert.ok(propMarkets('football').includes('player_reception_yds'));

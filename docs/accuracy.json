@@ -67,26 +67,6 @@
       }
     }
   },
-  "nhl": {
-    "season": 2026,
-    "n": 656,
-    "brier": 0.2472,
-    "logloss": 0.6878,
-    "baseline": {
-      "brier": 0.2503,
-      "logloss": 0.6937
-    },
-    "publish": true,
-    "calibration": {
-      "n": 656,
-      "brier": 0.2578,
-      "logloss": 0.7096,
-      "baseline": {
-        "brier": 0.252,
-        "logloss": 0.6972
-      }
-    }
-  },
   "wnba": {
     "season": 2025,
     "n": 156,

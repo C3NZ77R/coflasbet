@@ -74,15 +74,6 @@ export const STATS = {
     { key: 'er', label: 'ER', name: 'Carreras limpias', market: 'pitcher_earned_runs' },
     { key: 'bba', label: 'BB (P)', name: 'Bases por bolas otorgadas', market: 'pitcher_walks' },
   ],
-  hockey: [
-    { key: 'points', label: 'PTS', name: 'Puntos', market: 'player_points' },
-    { key: 'goals', label: 'G', name: 'Goles', market: 'player_goals', markets: ['player_goal_scorer_anytime'] },
-    { key: 'assists', label: 'A', name: 'Asistencias', market: 'player_assists' },
-    { key: 'sog', label: 'SOG', name: 'Tiros a puerta', market: 'player_shots_on_goal' },
-    { key: 'ppp', label: 'PPP', name: 'Puntos en power play', market: 'player_power_play_points', from: sum('ppg', 'ppa') },
-    { key: 'saves', label: 'SV', name: 'Atajadas', market: 'player_total_saves' },
-    { key: 'ga', label: 'GA', name: 'Goles recibidos' },
-  ],
   soccer: [
     { key: 'goals', label: 'G', name: 'Goles', market: 'player_goal_scorer_anytime' },
     { key: 'assists', label: 'A', name: 'Asistencias', market: 'player_assists' },

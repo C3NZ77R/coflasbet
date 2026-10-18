@@ -58,7 +58,7 @@ test('ratings: aplazados, cancelados y pretemporada no son resultados; neutral s
   assert.equal(res.find((r) => r.id === json.events[4].id).neutral, true);
 });
 
-test('ratings: NHL conserva el marcador final y marca ot; fútbol con prórroga se descarta', () => {
+test('ratings: fútbol con prórroga se descarta', () => {
   const json = fx('schedule-nba.json');
   const set = (i, period, h, a) => {
     const c = json.events[i].competitions[0];
@@ -69,28 +69,10 @@ test('ratings: NHL conserva el marcador final y marca ot; fútbol con prórroga 
   set(0, 5, 3, 4); // Final/SO
   set(1, 4, 2, 1); // Final/OT
   set(2, 3, 5, 2); // tiempo regular
-  const hockey = normSchedule(json, 'hockey');
   const pick = (res, i) => res.find((r) => r.id === json.events[i].id);
-  const final = (r) => [r.homeScore, r.awayScore, r.ot];
-  assert.deepEqual(final(pick(hockey, 0)), [3, 4, true]);
-  assert.deepEqual(final(pick(hockey, 1)), [2, 1, true]);
-  assert.deepEqual(final(pick(hockey, 2)), [5, 2, false]);
   const soccer = normSchedule(json, 'soccer');
   assert.equal(soccer.length, 7); // en fútbol los periodos 3-5 son prórroga y penales
   assert.ok(!pick(soccer, 2) && pick(soccer, 3));
-  assert.ok(!('ot' in pick(normSchedule(json, 'basketball'), 1))); // ot solo existe en hockey
-});
-
-test('ratings: NHL con ot cuenta como empate de tiempo regular; sin ot o fuera del hockey, el final', () => {
-  const ot = (r) => ({ ...r, ot: true });
-  const base = [R('1', '2026-01-01', 'A', 'B', 4, 1), R('2', '2026-01-02', 'B', 'C', 2, 2), R('3', '2026-01-03', 'C', 'A', 0, 3)];
-  const withOt = [...base, ot(R('4', '2026-01-04', 'A', 'C', 3, 4)), ot(R('5', '2026-01-05', 'B', 'A', 2, 1))];
-  const asTies = [...base, R('4', '2026-01-04', 'A', 'C', 3, 3), R('5', '2026-01-05', 'B', 'A', 1, 1)];
-  const asFinal = [...base, R('4', '2026-01-04', 'A', 'C', 3, 4), R('5', '2026-01-05', 'B', 'A', 2, 1)];
-  assert.deepEqual(ratingsFromResults(withOt, { sport: 'hockey' }), ratingsFromResults(asTies, { sport: 'hockey' }));
-  assert.notDeepEqual(ratingsFromResults(withOt, { sport: 'hockey' }), ratingsFromResults(asFinal, { sport: 'hockey' }));
-  assert.deepEqual(ratingsFromResults(withOt, { sport: 'soccer' }), ratingsFromResults(asFinal, { sport: 'soccer' }));
-  assert.equal(withOt[3].awayScore, 4); // no muta la entrada
 });
 
 test('ratings: equipo sin partidos = media de liga (en fútbol, con el prior de recién llegado)', () => {
@@ -350,11 +332,11 @@ test('getSeasonResults: en playoffs pide la fase regular vigente y no la tempora
 test('getSeasonResults: si ESPN falla en demasiados calendarios es un error 502, no una liga vacía', async () => {
   const ok = { requestedSeason: { year: 2027, type: 2 }, events: games('h', '1', 12) };
   await withFetch({
-    'hockey/nhl/teams': { sports: [{ leagues: [{ teams: [{ team: { id: '1' } }, { team: { id: '2' } }] }] }] },
-    'hockey/nhl/teams/1/schedule': 429,
-    'hockey/nhl/teams/2/schedule': 429,
+    'soccer/conmebol.libertadores/teams': { sports: [{ leagues: [{ teams: [{ team: { id: '1' } }, { team: { id: '2' } }] }] }] },
+    'soccer/conmebol.libertadores/teams/1/schedule': 429,
+    'soccer/conmebol.libertadores/teams/2/schedule': 429,
   }, async () => {
-    await assert.rejects(getSeasonResults('nhl'), { status: 502 });
+    await assert.rejects(getSeasonResults('libertadores'), { status: 502 });
   });
   await withFetch({ 'basketball/wnba/teams/1/schedule': ok, 'basketball/wnba/teams/2/schedule': 503 }, async () => {
     await assert.rejects(getSeasonResults('wnba', { teamIds: ['1', '2'] }), { status: 502 });
@@ -362,13 +344,9 @@ test('getSeasonResults: si ESPN falla en demasiados calendarios es un error 502,
   await withFetch({ 'football/nfl/teams': { sports: [{ leagues: [{ teams: [] }] }] } }, async () => {
     await assert.rejects(getSeasonResults('nfl'), { status: 502 });
   });
-  await withFetch({}, async (urls) => {
-    assert.deepEqual(await getSeasonResults('ncaab'), []);
-    assert.equal(urls.length, 0);
-  });
 });
 
-test('getSeasonResults: a lo sumo 6 calendarios en vuelo (lista universitaria del día con cientos de equipos)', async () => {
+test('getSeasonResults: a lo sumo 6 calendarios en vuelo', async () => {
   const real = globalThis.fetch;
   let active = 0, peak = 0, calls = 0;
   globalThis.fetch = async (url) => {
@@ -381,7 +359,7 @@ test('getSeasonResults: a lo sumo 6 calendarios en vuelo (lista universitaria de
   };
   try {
     const ids = Array.from({ length: 40 }, (_, i) => String(i + 1));
-    assert.equal((await getSeasonResults('ncaaf', { teamIds: ids })).length, 40 * 12);
+    assert.equal((await getSeasonResults('nfl', { teamIds: ids })).length, 40 * 12);
     assert.equal(calls, 40); // 12 partidos por equipo: sin la temporada anterior
     assert.equal(peak, 6);
   } finally {
@@ -416,7 +394,6 @@ test('getPastSeason: temporada anterior completa, con rivales que ya no están e
 test('getPastSeason: argumentos inválidos son 400 y un calendario caído es un error', async () => {
   await assert.rejects(getPastSeason('xx'), { status: 400 });
   await assert.rejects(getPastSeason('laliga', 0), { status: 400 });
-  await assert.rejects(getPastSeason('ncaaf'), { status: 400 });
   const teams = { sports: [{ leagues: [{ teams: [{ team: { id: '1' } }] }] }] };
   await withFetch({ 'soccer/esp.1/teams': teams, 'soccer/esp.1/teams/1/schedule': { events: [] } }, async () => {
     await assert.rejects(getPastSeason('laliga'), { status: 502 });

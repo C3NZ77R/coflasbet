@@ -13,10 +13,10 @@ const SIDE = { Over: 'Más de', Under: 'Menos de' };
 const MATCHUP = { favorable: 'Favorable', neutral: 'Neutral', desfavorable: 'Desfavorable' };
 const STATUS = { Out: 'Fuera', Questionable: 'Duda', Doubtful: 'Dudoso', 'Day-To-Day': 'Día a día', Probable: 'Probable', Suspension: 'Suspendido' };
 // Equipos por liga, para saber si un ranking defensivo está en el tercio alto o bajo.
-const TEAMS = { nba: 30, nfl: 32, mlb: 30, nhl: 32, wnba: 15, ncaaf: 134, ncaab: 364, laliga: 20, epl: 20, ucl: 36, libertadores: 32, colombia: 20 };
+const TEAMS = { nba: 30, nfl: 32, mlb: 30, wnba: 15, laliga: 20, epl: 20, ucl: 36, libertadores: 32, colombia: 20 };
 // Palabra de las claves de ESPN (en inglés) con la que se busca "lo que permite" la defensa rival.
 // shortcut: ESPN solo publica avgPointsAgainst (sin ranking) en el summary; el resto queda "—" hasta tener otra fuente.
-const ALLOWED = { pts: 'points', reb: 'rebounds', ast: 'assists', '3pm': 'three', stl: 'steals', blk: 'blocks', to: 'turnovers', pass_yds: 'passingyards', rush_yds: 'rushingyards', rec_yds: 'receivingyards', rec: 'receptions', hits: 'hits', k: 'strikeouts', hr: 'homeruns', runs: 'runs', goals: 'goals', sog: 'shots', shots: 'shots', sot: 'shotsontarget' };
+const ALLOWED = { pts: 'points', reb: 'rebounds', ast: 'assists', '3pm': 'three', stl: 'steals', blk: 'blocks', to: 'turnovers', pass_yds: 'passingyards', rush_yds: 'rushingyards', rec_yds: 'receivingyards', rec: 'receptions', hits: 'hits', k: 'strikeouts', hr: 'homeruns', runs: 'runs', goals: 'goals', shots: 'shots', sot: 'shotsontarget' };
 
 // --- utilidades ---
 const str = (x) => (x == null ? '' : String(x)); // los helpers de texto de ui.js devuelven objetos Safe
