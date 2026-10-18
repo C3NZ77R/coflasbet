@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { normSchedule, getSeasonResults, getPastSeason } from '../lib/espn.mjs';
-import { ratingsFromResults, expected, SPORT_MODEL, SIGMA, SIGMA_T, MU_SHRINK } from '../lib/ratings.mjs';
+import { ratingsFromResults, expected, SPORT_MODEL, SIGMA, SIGMA_T, MU_SHRINK, HALF_LIFE, NEWCOMER } from '../lib/ratings.mjs';
 
 const fx = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const R = (id, date, homeId, awayId, homeScore, awayScore, neutral = false) => ({ id, date, homeId, awayId, homeScore, awayScore, neutral });
@@ -93,12 +93,13 @@ test('ratings: NHL con ot cuenta como empate de tiempo regular; sin ot o fuera d
   assert.equal(withOt[3].awayScore, 4); // no muta la entrada
 });
 
-test('ratings: equipo sin partidos = media de liga', () => {
+test('ratings: equipo sin partidos = media de liga (en fútbol, con el prior de recién llegado)', () => {
   const rs = [R('1', '2026-01-01', 'A', 'B', 2, 1), R('2', '2026-01-02', 'B', 'A', 3, 0)];
   const ra = ratingsFromResults(rs, { sport: 'soccer' });
   const e = expected('soccer', ra, 'X', 'Y');
-  close(e.lh, ra.avgHome);
-  close(e.la, ra.avgAway);
+  const { gf, ga } = NEWCOMER.soccer;
+  close(e.lh, ra.avgHome * gf * ga);
+  close(e.la, ra.avgAway * gf * ga);
 });
 
 test('ratings: sin resultados todo es finito', () => {
@@ -167,7 +168,7 @@ test('ratings: modelo poisson recupera los goles esperados de una liga multiplic
   const att = { A: 1.6, B: 1.2, C: 1.0, D: 0.8 };
   const def = { A: 0.7, B: 1.0, C: 1.1, D: 1.4 };
   const rs = league(['A', 'B', 'C', 'D'], (h, a) => [1.5 * att[h] * def[a], 1.1 * att[a] * def[h]]);
-  const ra = ratingsFromResults(rs, { sport: 'soccer', prior: 0 });
+  const ra = ratingsFromResults(rs, { sport: 'soccer', prior: 0, halfLife: Infinity }); // sin peso: la identidad es exacta
   const e = expected('soccer', ra, 'A', 'D');
   close(e.lh, 1.5 * 1.6 * 1.4);
   close(e.la, 1.1 * 0.8 * 0.7);
@@ -177,7 +178,7 @@ test('ratings: shrink = punto fijo (suma ajustada + prior·media)/(partidos + pr
   const prior = 5;
   for (const sport of ['basketball', 'soccer']) {
     const rs = sport === 'soccer' ? league(['A', 'B', 'C'], (h, a) => [h === 'A' ? 3 : 1, a === 'C' ? 0 : 2]) : additive;
-    const ra = ratingsFromResults(rs, { sport, prior });
+    const ra = ratingsFromResults(rs, { sport, prior, halfLife: Infinity }); // la fórmula de abajo es sin peso
     const m = (ra.avgHome + ra.avgAway) / 2;
     const v = (home) => (sport === 'soccer' ? (home ? ra.avgHome / m : ra.avgAway / m) : (home ? ra.avgHome - m : ra.avgAway - m));
     for (const [id, t] of ra.teams) {
@@ -194,8 +195,45 @@ test('ratings: shrink = punto fijo (suma ajustada + prior·media)/(partidos + pr
       assert.equal(t.gp, gs.length);
     }
     // con un prior enorme todos vuelven a la media de liga
-    for (const t of ratingsFromResults(rs, { sport, prior: 1e9 }).teams.values()) close(t.gf, m, 1e-6 * m);
+    for (const t of ratingsFromResults(rs, { sport, prior: 1e9, halfLife: Infinity }).teams.values()) close(t.gf, m, 1e-6 * m);
   }
+});
+
+test('ratings: halfLife pesa más lo reciente; el valor por defecto sale de HALF_LIFE', () => {
+  const d = (m) => new Date(Date.UTC(2026, m, 1)).toISOString();
+  const rs = [['1', '2', 4, 0, 0], ['2', '1', 0, 4, 1], ['1', '2', 0, 0, 9], ['2', '1', 0, 0, 10]].map(([h, a, hs, as, m], i) =>
+    ({ id: `g${i}`, date: d(m), homeId: h, awayId: a, homeScore: hs, awayScore: as, neutral: true }));
+  const asOf = d(11);
+  const flat = ratingsFromResults(rs, { sport: 'soccer', asOf, prior: 0, halfLife: Infinity });
+  assert.deepEqual(ratingsFromResults(rs, { sport: 'soccer', asOf, prior: 0 }), ratingsFromResults(rs, { sport: 'soccer', asOf, prior: 0, halfLife: HALF_LIFE.soccer }));
+  assert.deepEqual(ratingsFromResults(rs, { sport: 'basketball', asOf, prior: 0 }), ratingsFromResults(rs, { sport: 'basketball', asOf, prior: 0, halfLife: Infinity }));
+  const decayed = ratingsFromResults(rs, { sport: 'soccer', asOf, prior: 0, halfLife: 30 });
+  // '1' goleó a comienzos de año y empató 0-0 al final: con decaimiento su ataque cae hacia lo reciente.
+  assert.ok(decayed.teams.get('1').gf < flat.teams.get('1').gf);
+  for (const t of decayed.teams.values()) assert.ok(Number.isFinite(t.gf) && Number.isFinite(t.ga));
+});
+
+test('ratings: equipo nuevo (recién ascendido o sin partidos) arranca bajo la media en fútbol', () => {
+  const d = (n) => new Date(Date.UTC(2026, 0, n)).toISOString();
+  // A, B y C llevan muchos partidos parejos; N (ascendido) jugó uno solo, 1-1.
+  const rs = [];
+  for (let i = 0; i < 30; i++) {
+    const [h, a] = [['A', 'B'], ['B', 'C'], ['C', 'A']][i % 3];
+    rs.push(R(`g${i}`, d(1 + i), h, a, 1, 1));
+  }
+  rs.push(R('n1', d(40), 'N', 'A', 1, 1));
+  const opts = { sport: 'soccer', prior: 5, halfLife: Infinity };
+  const plain = ratingsFromResults(rs, { ...opts, newcomer: null });
+  const ra = ratingsFromResults(rs, opts);
+  assert.ok(ra.teams.get('N').gf < plain.teams.get('N').gf);
+  assert.ok(ra.teams.get('N').ga > plain.teams.get('N').ga);
+  close(ra.teams.get('A').gf, plain.teams.get('A').gf, 0.02); // los establecidos casi no cambian
+  // sin partidos: expected usa el prior de NEWCOMER
+  const e = expected('soccer', ra, 'Z', 'A');
+  const e0 = expected('soccer', ra, 'B', 'A');
+  assert.ok(e.lh < e0.lh);
+  // otros deportes: sin prior de nuevo
+  assert.equal(NEWCOMER.basketball, undefined);
 });
 
 test('ratings: expected con ratings a mano (normal y poisson, con y sin sede)', () => {
@@ -270,6 +308,20 @@ test('getSeasonResults: con pocos partidos suma la temporada anterior, quita dup
     const n = urls.length;
     assert.equal((await getSeasonResults('nba')).length, res.length);
     assert.equal(urls.length, n, 'la segunda llamada sale de la memoria');
+  });
+});
+
+test('getSeasonResults: fútbol suma la temporada anterior aunque la vigente ya tenga muchos partidos', async () => {
+  const cur = (teamId) => ({ requestedSeason: { year: 2026, type: 1 }, events: games(`c${teamId}-`, teamId, 15) });
+  const prev = (teamId) => ({ requestedSeason: { year: 2025, type: 1 }, events: games(`q${teamId}-`, teamId, 3) });
+  await withFetch({
+    'soccer/col.1/teams': { sports: [{ leagues: [{ teams: [{ team: { id: '1' } }, { team: { id: '2' } }] }] }] },
+    'soccer/col.1/teams/1/schedule': cur('1'),
+    'soccer/col.1/teams/2/schedule': cur('2'),
+    'soccer/col.1/teams/1/schedule?season=2025': prev('1'),
+    'soccer/col.1/teams/2/schedule?season=2025': prev('2'),
+  }, async () => {
+    assert.equal((await getSeasonResults('colombia')).length, 2 * 15 + 2 * 3);
   });
 });
 
