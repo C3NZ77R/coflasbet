@@ -42,6 +42,38 @@ export async function get(path, params = {}, { fresh = false } = {}) {
   }
 }
 
+// Game logs pedidos en el mismo instante viajan juntos en /api/gamelogs (máx. 40 por petición): insights pedía ~50
+// por separado. Con temporada explícita va al endpoint de uno.
+const BATCH = 40;
+const queued = new Map(); // liga -> Map(id -> { promise, resolve, reject })
+function gamelog(league, athleteId, season) {
+  if (season) return get('/api/gamelog', { league, athlete: athleteId, season });
+  const lg = param(league), id = String(athleteId);
+  if (!queued.has(lg)) {
+    queued.set(lg, new Map());
+    setTimeout(() => flush(lg), 0);
+  }
+  const q = queued.get(lg);
+  if (!q.has(id)) {
+    const w = {};
+    w.promise = new Promise((resolve, reject) => Object.assign(w, { resolve, reject }));
+    q.set(id, w);
+  }
+  return q.get(id).promise;
+}
+function flush(lg) {
+  const q = queued.get(lg);
+  queued.delete(lg);
+  const ids = [...q.keys()];
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const chunk = ids.slice(i, i + BATCH);
+    get('/api/gamelogs', { league: lg, ids: chunk.join(',') }).then(
+      (body) => chunk.forEach((id) => (body.data?.[id] ? q.get(id).resolve({ source: body.source, data: body.data[id] }) : q.get(id).reject(new Error('ESPN no devolvió el game log de este jugador.')))),
+      (err) => chunk.forEach((id) => q.get(id).reject(err)),
+    );
+  }
+}
+
 export const api = {
   get,
   leagues: () => get('/api/leagues'),
@@ -49,7 +81,7 @@ export const api = {
   accuracy: () => get('/api/accuracy'),
   games: (league, date) => get('/api/games', { league, date }),
   game: (league, id) => get('/api/game', { league, id }),
-  gamelog: (league, athleteId, season) => get('/api/gamelog', { league, athlete: athleteId, season }),
+  gamelog,
   props: (league, gameId) => get('/api/props', { league, game: gameId }),
   injuries: (league) => get('/api/injuries', { league }),
   roster: (league, team) => get('/api/roster', { league, team }),

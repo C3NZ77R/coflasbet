@@ -355,6 +355,8 @@ export default {
       const tasks = [...pre.map((g) => ({ g })), ...[...byAth.values()].map((ps) => ({ ps }))];
       prog.total = tasks.length;
       draw();
+      // Todos los game logs en el mismo tick: api.gamelog los junta en uno o dos /api/gamelogs.
+      for (const ps of byAth.values()) logFor(api, league, ps[0]).catch(() => {});
       await pool(tasks, 4, async ({ g, ps }) => {
         try {
           if (g) {

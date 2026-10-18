@@ -292,7 +292,8 @@ async function renderList(el, ctx) {
   }
   // Carga perezosa con a lo sumo CONCURRENCY peticiones; rellena las celdas en su sitio y reordena al terminar.
   function pump() {
-    while (alive && active < CONCURRENCY && want.length) {
+    // Los game logs no cuentan contra el límite: api.gamelog junta los del mismo tick en una sola petición.
+    while (alive && want.length && (active < CONCURRENCY || want[0][0] === 'log')) {
       const [kind, id] = want.shift();
       const k = kind === 'log' ? logKey(league, id) : gameKey(league, id);
       if (fresh(k)) {

@@ -19,6 +19,7 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; ch
 const RX = {
   date: /^\d{8}$/,
   id: /^\d{1,12}$/,
+  ids: /^\d{1,12}(,\d{1,12}){0,39}$/,
   season: /^(19|20)\d\d$/,
   q: /^[\p{L}\p{M}0-9 .'’-]{2,40}$/u,
 };
@@ -59,6 +60,13 @@ const ROUTES = {
     source: 'espn',
     data: await espn.getGamelog(teamLeague(url), param(url, 'athlete', RX.id, true), param(url, 'season', RX.season)),
   }),
+  // Varios game logs en una petición: insights y props pedían ~50 por separado. Un jugador que falla queda en null.
+  '/api/gamelogs': async (url) => {
+    const league = teamLeague(url);
+    const ids = [...new Set(param(url, 'ids', RX.ids, true).split(','))];
+    const logs = await espn.mapLimit(ids, 6, (id) => espn.getGamelog(league, id).catch(() => null));
+    return { source: 'espn', data: Object.fromEntries(ids.map((id, i) => [id, logs[i]])) };
+  },
   '/api/roster': async (url) => ({ source: 'espn', data: await espn.getRoster(teamLeague(url), param(url, 'team', RX.id, true)) }),
   '/api/injuries': async (url) => ({ source: 'espn', data: await espn.getInjuries(teamLeague(url)) }),
   '/api/search': async (url) => ({ source: 'espn', data: await espn.searchAthletes(teamLeague(url), param(url, 'q', RX.q, true).trim()) }),

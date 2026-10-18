@@ -135,3 +135,21 @@ test('server: tenis no tiene props ni rutas de equipo', () => withAtp(async () =
   assert.equal((await call('/api/game?league=atp&id=1')).status, 400);
   assert.equal((await call('/api/injuries?league=atp')).status, 400);
 }));
+
+test('server: /api/gamelogs junta varios jugadores y deja en null el que falla', async () => {
+  assert.equal((await call('/api/gamelogs?league=nba&ids=1,abc')).status, 400);
+  assert.equal((await call(`/api/gamelogs?league=nba&ids=${Array.from({ length: 41 }, (_, i) => i + 1).join(',')}`)).status, 400);
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = new URL(url);
+    if (u.pathname.includes('/athletes/999')) return new Response('{}', { status: 404 });
+    return new Response(JSON.stringify(u.pathname.endsWith('/gamelog') ? fixture('gamelog-nba.json') : fixture('athlete-nba.json')));
+  };
+  try {
+    const { status, body } = await call('/api/gamelogs?league=nba&ids=3112335,999,3112335');
+    assert.equal(status, 200);
+    assert.deepEqual(Object.keys(body.data).sort(), ['3112335', '999']);
+    assert.ok(body.data['3112335'].games.length > 0);
+    assert.equal(body.data['999'], null);
+  } finally { globalThis.fetch = real; }
+});

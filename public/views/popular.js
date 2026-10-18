@@ -98,6 +98,7 @@ export default {
       if (!need.length) return;
       loadingLogs += need.length;
       draw();
+      need.forEach((p) => logFor(api, league, p).catch(() => {})); // un solo /api/gamelogs para todos
       await pool(need, 4, async (p) => {
         try {
           logs.set(athKey(p), await logFor(api, league, p));
