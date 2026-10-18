@@ -1,7 +1,10 @@
 // Backtest: predicciones sin fuga, métricas (Brier y log-loss), referencia, mitades y calibración del modelo normal. Sin red.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { predict, score, baseline, halves, fitNormal, adjust, cutOf, LAG, SIGMAS } from '../scripts/backtest.mjs';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { predict, score, baseline, halves, fitNormal, adjust, cutOf, LAG, SIGMAS, politeFetch } from '../scripts/backtest.mjs';
 import { ratingsFromResults, expected, MU_SHRINK, SIGMA } from '../lib/ratings.mjs';
 
 const R = (id, date, homeId, awayId, homeScore, awayScore) => ({ id, date, homeId, awayId, homeScore, awayScore, neutral: false });
@@ -113,4 +116,83 @@ test('backtest: σ de basketball = menor log-loss de la grilla tras aplicar k; f
   for (const s of SIGMAS) assert.ok(ll(f.sigma) <= ll(s));
   assert.equal(fitNormal('football', ps).sigma, SIGMA.football);
   assert.equal(fitNormal('basketball', [N(0, 3), N(0, -3)]).kRel, 1); // sin mu no hay pendiente que estimar
+});
+
+// ---------- politeFetch: caché en disco, ≤ 2 en vuelo y reintentos ante 403/429 (Ruling 18) ----------
+const tmpDir = () => mkdtemp(join(tmpdir(), 'coflas-cache-'));
+const noSleep = () => Promise.resolve();
+const resp = (status, body = { ok: status }) => new Response(JSON.stringify(body), { status });
+
+test('politeFetch: guarda en disco lo que responde bien y otra corrida lo lee sin red', async () => {
+  const dir = await tmpDir();
+  try {
+    const calls = [];
+    const inner = async (url) => (calls.push(url), resp(200, { url }));
+    const a = politeFetch(inner, { dir, sleep: noSleep });
+    assert.deepEqual(await (await a('https://x/1')).json(), { url: 'https://x/1' });
+    const b = politeFetch(async () => assert.fail('no debía pedir a la red'), { dir, sleep: noSleep }); // corrida nueva: reanuda
+    assert.deepEqual(await (await b('https://x/1')).json(), { url: 'https://x/1' });
+    assert.equal(calls.length, 1);
+    assert.equal((await readdir(dir)).length, 1); // sin temporales sueltos
+  } finally {
+    await rm(dir, { recursive: true });
+  }
+});
+
+test('politeFetch: nunca más de 2 peticiones en vuelo', async () => {
+  const dir = await tmpDir();
+  try {
+    let active = 0;
+    let max = 0;
+    const inner = async (url) => {
+      max = Math.max(max, ++active);
+      await new Promise((r) => setTimeout(r, 5));
+      active--;
+      return resp(200, { url });
+    };
+    const f = politeFetch(inner, { dir, sleep: noSleep });
+    const got = await Promise.all([1, 2, 3, 4, 5, 6].map(async (i) => (await f(`https://x/${i}`)).json()));
+    assert.deepEqual(got.map((g) => g.url), [1, 2, 3, 4, 5, 6].map((i) => `https://x/${i}`));
+    assert.equal(max, 2);
+  } finally {
+    await rm(dir, { recursive: true });
+  }
+});
+
+test('politeFetch: 403/429 reintenta con espera exponencial; tras 4 intentos se detiene sin volver a pedir', async () => {
+  const dir = await tmpDir();
+  try {
+    const waits = [];
+    const sleep = async (ms) => { waits.push(ms); };
+    const seq = [429, 403, 200];
+    const ok = politeFetch(async () => resp(seq.shift()), { dir, sleep, delayMs: 1, backoffMs: 100 });
+    assert.equal((await ok('https://x/a')).status, 200);
+    assert.deepEqual(waits.filter((w) => w !== 1), [100, 200]);
+
+    let calls = 0;
+    const blocked = politeFetch(async () => (calls++, resp(403)), { dir, sleep: noSleep });
+    assert.equal((await blocked('https://x/b')).status, 403);
+    assert.equal(calls, 4);
+    assert.equal(blocked.blocked, 403);
+    assert.equal((await blocked('https://x/c')).status, 403); // bloqueado: ya no pide
+    assert.equal(calls, 4);
+    assert.equal((await blocked('https://x/a')).status, 200); // lo que ya está en disco sigue sirviendo
+    assert.ok(!(await readdir(dir)).some((f) => f.endsWith('.tmp')));
+  } finally {
+    await rm(dir, { recursive: true });
+  }
+});
+
+test('politeFetch: otros errores no se reintentan ni se guardan', async () => {
+  const dir = await tmpDir();
+  try {
+    let calls = 0;
+    const f = politeFetch(async () => (calls++, resp(404)), { dir, sleep: noSleep });
+    assert.equal((await f('https://x/404')).status, 404);
+    assert.equal((await f('https://x/404')).status, 404);
+    assert.equal(calls, 2);
+    assert.deepEqual(await readdir(dir), []);
+  } finally {
+    await rm(dir, { recursive: true });
+  }
 });

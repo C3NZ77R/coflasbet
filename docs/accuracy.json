@@ -1,0 +1,194 @@
+{
+  "nba": {
+    "season": 2026,
+    "n": 616,
+    "brier": 0.2159,
+    "logloss": 0.6215,
+    "baseline": {
+      "brier": 0.2475,
+      "logloss": 0.6882
+    },
+    "publish": true,
+    "calibration": {
+      "n": 615,
+      "brier": 0.2269,
+      "logloss": 0.6452,
+      "baseline": {
+        "brier": 0.2467,
+        "logloss": 0.6866
+      }
+    },
+    "k": 0.72,
+    "sigma": 14,
+    "residualSd": 14.33,
+    "sigmaT": 19.4
+  },
+  "nfl": {
+    "season": 2025,
+    "n": 136,
+    "brier": 0.2433,
+    "logloss": 0.6785,
+    "baseline": {
+      "brier": 0.2491,
+      "logloss": 0.6914
+    },
+    "publish": true,
+    "calibration": {
+      "n": 135,
+      "brier": 0.2241,
+      "logloss": 0.6396,
+      "baseline": {
+        "brier": 0.2479,
+        "logloss": 0.689
+      }
+    },
+    "k": 0.8,
+    "sigma": 13.5,
+    "residualSd": 13.36,
+    "sigmaT": 13.2
+  },
+  "mlb": {
+    "season": 2025,
+    "n": 1215,
+    "brier": 0.2507,
+    "logloss": 0.6951,
+    "baseline": {
+      "brier": 0.2488,
+      "logloss": 0.6908
+    },
+    "publish": false,
+    "calibration": {
+      "n": 1215,
+      "brier": 0.2435,
+      "logloss": 0.6798,
+      "baseline": {
+        "brier": 0.2484,
+        "logloss": 0.6899
+      }
+    }
+  },
+  "nhl": {
+    "season": 2026,
+    "n": 656,
+    "brier": 0.2472,
+    "logloss": 0.6878,
+    "baseline": {
+      "brier": 0.2503,
+      "logloss": 0.6937
+    },
+    "publish": true,
+    "calibration": {
+      "n": 656,
+      "brier": 0.2578,
+      "logloss": 0.7096,
+      "baseline": {
+        "brier": 0.252,
+        "logloss": 0.6972
+      }
+    }
+  },
+  "wnba": {
+    "season": 2025,
+    "n": 156,
+    "brier": 0.2229,
+    "logloss": 0.6381,
+    "baseline": {
+      "brier": 0.2485,
+      "logloss": 0.6902
+    },
+    "publish": true,
+    "calibration": {
+      "n": 155,
+      "brier": 0.2308,
+      "logloss": 0.653,
+      "baseline": {
+        "brier": 0.2443,
+        "logloss": 0.6817
+      }
+    },
+    "k": 0.72,
+    "sigma": 14,
+    "residualSd": 14.33,
+    "sigmaT": 19.4
+  },
+  "laliga": {
+    "season": 2025,
+    "n": 190,
+    "brier": 0.594,
+    "logloss": 1.0008,
+    "baseline": {
+      "brier": 0.6208,
+      "logloss": 1.0333
+    },
+    "publish": true,
+    "calibration": {
+      "n": 190,
+      "brier": 0.5727,
+      "logloss": 0.9655,
+      "baseline": {
+        "brier": 0.6455,
+        "logloss": 1.0683
+      }
+    }
+  },
+  "epl": {
+    "season": 2025,
+    "n": 190,
+    "brier": 0.6463,
+    "logloss": 1.0684,
+    "baseline": {
+      "brier": 0.6671,
+      "logloss": 1.1009
+    },
+    "publish": true,
+    "calibration": {
+      "n": 190,
+      "brier": 0.5973,
+      "logloss": 1.0016,
+      "baseline": {
+        "brier": 0.6465,
+        "logloss": 1.0686
+      }
+    }
+  },
+  "ucl": {
+    "season": 2025,
+    "n": 93,
+    "brier": 0.5575,
+    "logloss": 0.9405,
+    "baseline": {
+      "brier": 0.6116,
+      "logloss": 1.0113
+    },
+    "publish": true,
+    "calibration": {
+      "n": 93,
+      "brier": 0.5414,
+      "logloss": 0.9268,
+      "baseline": {
+        "brier": 0.6252,
+        "logloss": 1.0408
+      }
+    }
+  },
+  "libertadores": {
+    "season": 2025,
+    "n": 74,
+    "brier": 0.5613,
+    "logloss": 0.9426,
+    "baseline": {
+      "brier": 0.6074,
+      "logloss": 1.0194
+    },
+    "publish": true,
+    "calibration": {
+      "n": 74,
+      "brier": 0.6383,
+      "logloss": 1.056,
+      "baseline": {
+        "brier": 0.6627,
+        "logloss": 1.0944
+      }
+    }
+  }
+}

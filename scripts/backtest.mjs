@@ -4,8 +4,12 @@
 // baseline son de esa segunda mitad y calibration trae la primera. Escribe docs/accuracy.json mezclando con lo que ya
 // tenía. Uso: node --env-file-if-exists=.env scripts/backtest.mjs [liga…] (sin ligas: todas menos las universitarias;
 // el k, σ y σ_T que imprime valen para copiar a lib/ratings.mjs solo si corrieron todas las ligas del deporte).
-import { readFile, writeFile } from 'node:fs/promises';
-import { pathToFileURL } from 'node:url';
+// Cada JSON de ESPN que responde bien queda en .cache/espn/: una corrida cortada reanuda sin volver a pedirlo
+// (temporadas ya jugadas; borrar la carpeta para refrescar la vigente).
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { LEAGUES, leagueById } from '../public/leagues.js';
 import { getPastSeason, isCollege } from '../lib/espn.mjs';
 import { ratingsFromResults, expected, SPORT_MODEL, SIGMA, SIGMA_T, MU_SHRINK } from '../lib/ratings.mjs';
@@ -17,6 +21,59 @@ export const SIGMAS = Array.from({ length: 33 }, (_, i) => 8 + i / 2);
 const GRID = { basketball: SIGMAS }; // football conserva el σ de la literatura
 const EPS = 1e-12; // log(0) sería Infinity, que JSON guarda como null
 const OUT = new URL('../docs/accuracy.json', import.meta.url);
+const CACHE = fileURLToPath(new URL('../.cache/espn/', import.meta.url));
+
+// fetch educado con ESPN: caché en disco, a lo sumo inFlight peticiones a la vez con una pausa entre ellas y, ante
+// 403/429, espera exponencial hasta tries intentos. Si se agotan queda bloqueado (blocked = status) y lo que no esté en
+// disco falla sin pedir más. El signal de quien llama se ignora: su timeout correría mientras espera turno.
+export function politeFetch(inner, { dir, inFlight = 2, delayMs = 300, tries = 4, backoffMs = 5_000, timeoutMs = 8_000,
+  sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
+  let active = 0;
+  let tmp = 0;
+  const queue = [];
+  const take = () => (active < inFlight ? (active++, Promise.resolve()) : new Promise((r) => queue.push(r)));
+  const give = () => (queue.length ? queue.shift()() : active--);
+  const json = (text) => new Response(text, { headers: { 'content-type': 'application/json' } });
+  const self = async (url, init = {}) => {
+    const file = join(dir, `${createHash('sha256').update(String(url)).digest('hex')}.json`);
+    const hit = await readFile(file, 'utf8').catch((err) => {
+      if (err.code !== 'ENOENT') throw err;
+      return null;
+    });
+    if (hit !== null) return json(hit);
+    if (self.blocked) return new Response('{}', { status: self.blocked });
+    await take();
+    try {
+      for (let k = 1; ; k++) {
+        const res = await inner(url, { headers: init.headers, signal: AbortSignal.timeout(timeoutMs) });
+        if (res.ok) {
+          const text = await res.text();
+          try {
+            JSON.parse(text);
+          } catch {
+            return json(text); // no es JSON: fetchJson lo rechaza y no se guarda
+          }
+          const part = `${file}.${process.pid}.${++tmp}.tmp`; // escribir y renombrar: un corte no deja JSON a medias
+          await writeFile(part, text);
+          await rename(part, file);
+          return json(text);
+        }
+        if (res.status !== 403 && res.status !== 429) return res;
+        if (k === tries) {
+          self.blocked = res.status;
+          return res;
+        }
+        await res.body?.cancel(); // libera la conexión antes de esperar
+        await sleep(backoffMs * 2 ** (k - 1));
+      }
+    } finally {
+      await sleep(delayMs);
+      give();
+    }
+  };
+  self.blocked = null;
+  return self;
+}
 
 // Los ratings de un partido usan lo que empezó al menos 6 h antes (ya terminó: sin fuga del resultado), con el
 // corte bajado al día UTC para calcular los ratings una vez por jornada.
@@ -105,6 +162,9 @@ async function main(args) {
     process.exitCode = 2;
     return;
   }
+  await mkdir(CACHE, { recursive: true });
+  const espn = politeFetch(globalThis.fetch, { dir: CACHE });
+  globalThis.fetch = espn; // lib/espn.mjs pide con el fetch global
   const runs = [];
   for (const id of ids) {
     try {
@@ -115,6 +175,10 @@ async function main(args) {
       console.error(`${id}: ${err.message}`);
       process.exitCode = 1;
     }
+  }
+  if (espn.blocked) {
+    console.error(`ESPN respondió ${espn.blocked} tras 4 intentos: se detuvo sin pedir más. Lo bajado quedó en .cache/espn/;`
+      + ' volver a correr más tarde reanuda desde ahí.');
   }
   const fits = {};
   for (const sport of new Set(runs.map((r) => r.sport).filter((s) => SPORT_MODEL[s] === 'normal'))) {
