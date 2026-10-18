@@ -1,0 +1,134 @@
+// Mercados por deporte desde el modelo de expected(): sumas, identidades entre mercados y casos límite.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { marketsFor } from '../lib/markets.mjs';
+import { scoreGrid, normalOver, halfLine } from '../lib/pricing.mjs';
+
+const close = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≠ ${b}`);
+const sumP = (m) => m.selections.reduce((s, x) => s + x.p, 0);
+const pick = (ms, key, line) => ms.find((m) => m.key === key && (line === undefined || m.selections[0].line === line));
+const sel = (m, name) => m.selections.find((s) => s.name === name);
+
+const SOCCER = { kind: 'poisson', lh: 1.4, la: 1.1 };
+const HOCKEY = { kind: 'poisson', lh: 1.3, la: 1.2 };
+const BASEBALL = { kind: 'poisson', lh: 4.6, la: 4.1 };
+const NBA = { kind: 'normal', mu: 5.2, sigma: 12, total: 226.3, sigmaT: 13.2 };
+const CASES = [['soccer', SOCCER], ['hockey', HOCKEY], ['baseball', BASEBALL], ['basketball', NBA], ['football', { ...NBA, sigma: 13.5 }]];
+
+test('markets: 1x2 suma 1', () => {
+  close(sumP(pick(marketsFor('soccer', SOCCER), '1x2')), 1);
+});
+
+test('markets: cada mercado suma 1 (doble oportunidad suma 2: cada selección cubre dos resultados)', () => {
+  for (const [sport, model] of CASES) {
+    for (const m of marketsFor(sport, model)) close(sumP(m), m.key === 'dc' ? 2 : 1);
+  }
+});
+
+test('markets: cada selección trae p, fair y coflas, con coflas < fair', () => {
+  for (const [sport, model] of CASES) {
+    for (const m of marketsFor(sport, model)) {
+      assert.ok(m.key && m.label && m.selections.length >= 2, `${sport} ${m.key}`);
+      for (const s of m.selections) {
+        assert.ok(s.name && s.p >= 0 && s.p <= 1, `${sport} ${m.key} ${s.name}`);
+        assert.ok(s.coflas < s.fair, `${sport} ${m.key} ${s.name}: ${s.coflas} ≥ ${s.fair}`);
+      }
+    }
+  }
+});
+
+test('markets: fútbol trae todos los mercados y líneas del brief', () => {
+  const ms = marketsFor('soccer', SOCCER);
+  assert.deepEqual([...new Set(ms.map((m) => m.key))], ['1x2', 'dc', 'dnb', 'ou', 'btts', 'ah', 'cs']);
+  assert.deepEqual(ms.filter((m) => m.key === 'ou').map((m) => m.selections[0].line), [0.5, 1.5, 2.5, 3.5, 4.5]);
+  assert.deepEqual(ms.filter((m) => m.key === 'ah').map((m) => m.selections[0].line), [-1.5, -0.5, 0.5, 1.5]);
+});
+
+test('markets: btts.Sí con lh = la = 0 es 0 y nada sale NaN', () => {
+  const ms = marketsFor('soccer', { kind: 'poisson', lh: 0, la: 0 });
+  assert.equal(sel(pick(ms, 'btts'), 'Sí').p, 0);
+  for (const m of ms) for (const s of m.selections) assert.ok(Number.isFinite(s.p) && Number.isFinite(s.fair) && Number.isFinite(s.coflas), `${m.key} ${s.name}`);
+  assert.equal(sel(pick(ms, 'dnb'), 'Local').p, 0.5); // sin goles no hay ganador: reparto parejo
+});
+
+test('markets: identidades entre mercados de fútbol', () => {
+  const ms = marketsFor('soccer', SOCCER);
+  const x = pick(ms, '1x2');
+  const [H, D, A] = ['Local', 'Empate', 'Visitante'].map((n) => sel(x, n).p);
+  close(sel(pick(ms, 'ah', -0.5), 'Local').p, H); // −0.5 = ganar
+  close(sel(pick(ms, 'ah', 0.5), 'Local').p, H + D); // +0.5 = no perder
+  close(sel(pick(ms, 'dc'), 'Local o empate').p, H + D);
+  close(sel(pick(ms, 'dnb'), 'Local').p, H / (H + A));
+  assert.equal(sel(pick(ms, 'ah', -1.5), 'Visitante').line, 1.5);
+  const g = scoreGrid(SOCCER.lh, SOCCER.la);
+  close(sel(pick(ms, 'ou', 2.5), 'Menos').p, g[0][0] + g[0][1] + g[1][0] + g[1][1] + g[0][2] + g[2][0]);
+  close(sel(pick(ms, 'btts'), 'No').p, g.reduce((s, row, i) => s + row.reduce((t, v, j) => (i && j ? t : t + v), 0), 0));
+});
+
+test('markets: marcador exacto = los 10 más probables en orden, más "Otro"', () => {
+  const cs = pick(marketsFor('soccer', SOCCER), 'cs');
+  assert.equal(cs.selections.length, 11);
+  assert.equal(cs.selections.at(-1).name, 'Otro');
+  const top = cs.selections.slice(0, 10).map((s) => s.p);
+  assert.deepEqual(top, [...top].sort((a, b) => b - a));
+  const g = scoreGrid(SOCCER.lh, SOCCER.la);
+  assert.equal(cs.selections[0].name, '1-1');
+  close(cs.selections[0].p, g[1][1]);
+  close(top.at(-1), g.flat().sort((a, b) => b - a)[9]);
+});
+
+test('markets: hockey sin empate; el empate se reparte según lh/(lh+la)', () => {
+  const ms = marketsFor('hockey', HOCKEY);
+  assert.deepEqual([...new Set(ms.map((m) => m.key))], ['ml', 'rl', 'ou']);
+  const ml = pick(ms, 'ml');
+  assert.deepEqual(ml.selections.map((s) => s.name), ['Local', 'Visitante']);
+  assert.ok(!ml.selections.some((s) => s.name === 'Empate'));
+  const g = scoreGrid(HOCKEY.lh, HOCKEY.la, { rho: 0, max: 20 });
+  const P = (f) => g.reduce((s, row, i) => s + row.reduce((t, v, j) => (f(i, j) ? t + v : t), 0), 0);
+  close(sel(ml, 'Local').p, P((i, j) => i > j) + P((i, j) => i === j) * (1.3 / 2.5));
+  // El favorito (local) lleva −1.5: gana por 2 o más en tiempo regular (la prórroga solo da victorias por 1).
+  const rl = pick(ms, 'rl');
+  assert.equal(sel(rl, 'Local').line, -1.5);
+  close(sel(rl, 'Local').p, P((i, j) => i - j >= 2));
+  // Total sobre el marcador final: un empate en tiempo regular suma el gol de prórroga o shootout.
+  const ou = pick(ms, 'ou');
+  assert.equal(ou.selections[0].line, halfLine(2.5));
+  close(sel(ou, 'Más').p, P((i, j) => i + j + (i === j) > 2.5));
+  assert.ok(sel(ou, 'Más').p > P((i, j) => i + j > 2.5));
+});
+
+test('markets: run line con visitante favorito y total de carreras sin gol extra', () => {
+  const ms = marketsFor('baseball', { kind: 'poisson', lh: 3.9, la: 4.8 });
+  assert.equal(pick(ms, 'rl').label, 'Run line');
+  assert.equal(sel(pick(ms, 'rl'), 'Visitante').line, -1.5);
+  assert.equal(sel(pick(ms, 'rl'), 'Local').line, 1.5);
+  const g = scoreGrid(3.9, 4.8, { rho: 0, max: 20 });
+  close(sel(pick(ms, 'ou'), 'Más').p, g.reduce((s, row, i) => s + row.reduce((t, v, j) => (i + j > 8.5 ? t + v : t), 0), 0));
+});
+
+test('markets: normal con mu = 0 y línea 0 da ml 0.5', () => {
+  const ml = pick(marketsFor('basketball', { ...NBA, mu: 0 }), 'ml');
+  close(sel(ml, 'Local').p, 0.5);
+  close(sel(ml, 'Visitante').p, 0.5);
+});
+
+test('markets: spread en halfLine(-mu) para el local y total en halfLine(total)', () => {
+  const ms = marketsFor('basketball', NBA);
+  assert.deepEqual([...new Set(ms.map((m) => m.key))], ['ml', 'spread', 'ou']);
+  const sp = pick(ms, 'spread');
+  assert.equal(sel(sp, 'Local').line, -5.5);
+  assert.equal(sel(sp, 'Visitante').line, 5.5);
+  close(sel(sp, 'Local').p, normalOver(5.2, 12, 5.5));
+  const ou = pick(ms, 'ou');
+  assert.equal(ou.selections[0].line, 226.5);
+  close(sel(ou, 'Más').p, normalOver(226.3, 13.2, 226.5));
+  // ml sin push: empate excluido y renormalizado.
+  const [over, under] = [normalOver(5.2, 12, 0), normalOver(-5.2, 12, 0)];
+  close(sel(pick(ms, 'ml'), 'Local').p, over / (over + under));
+});
+
+test('markets: deporte o modelo desconocido es un error', () => {
+  assert.throws(() => marketsFor('curling', SOCCER), TypeError);
+  assert.throws(() => marketsFor('soccer', NBA), TypeError);
+  assert.throws(() => marketsFor('basketball', SOCCER), TypeError);
+});

@@ -3,8 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { normSchedule, getSeasonResults } from '../lib/espn.mjs';
-import { ratingsFromResults, expected, SPORT_MODEL, SIGMA } from '../lib/ratings.mjs';
+import { normSchedule, getSeasonResults, getPastSeason } from '../lib/espn.mjs';
+import { ratingsFromResults, expected, SPORT_MODEL, SIGMA, SIGMA_T, MU_SHRINK } from '../lib/ratings.mjs';
 
 const fx = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const R = (id, date, homeId, awayId, homeScore, awayScore, neutral = false) => ({ id, date, homeId, awayId, homeScore, awayScore, neutral });
@@ -144,10 +144,11 @@ test('ratings: modelo normal recupera margen y total de una liga aditiva (prior 
   const ra = ratingsFromResults(additive, { sport: 'basketball', prior: 0 });
   close(ra.avgHome - ra.avgAway, 3);
   const e = expected('basketball', ra, 'A', 'D');
-  close(e.mu, 43); // (125 + 130) − (110 + 105) + 3
+  const k = MU_SHRINK.basketball; // regresión a la media calibrada en el backtest
+  close(e.mu, 43 * k); // (125 + 130) − (110 + 105) + 3
   close(e.total, 240); // 125 + 130 + 110 + 105 − 2·115
-  close(expected('basketball', ra, 'A', 'D', { neutral: true }).mu, 40);
-  close(expected('basketball', ra, 'D', 'A').mu, -37);
+  close(expected('basketball', ra, 'A', 'D', { neutral: true }).mu, 40 * k);
+  close(expected('basketball', ra, 'D', 'A').mu, -37 * k);
   close(expected('basketball', ra, 'B', 'C').total, (115 + 110 + 110 + 115) - 230);
 });
 
@@ -202,11 +203,13 @@ test('ratings: expected con ratings a mano (normal y poisson, con y sin sede)', 
   const e = expected('basketball', nba, 'A', 'B');
   assert.equal(e.kind, 'normal');
   assert.equal(e.sigma, SIGMA.basketball);
-  close(e.sigmaT, SIGMA.basketball * 1.1);
-  close(e.mu, 23); // +10 − (−10) + 3
+  assert.equal(e.sigmaT, SIGMA_T.basketball);
+  const k = MU_SHRINK.basketball;
+  assert.ok(k > 0 && k <= 1);
+  close(e.mu, 23 * k); // +10 − (−10) + 3
   close(e.total, 220);
-  close(expected('basketball', nba, 'A', 'B', { neutral: true }).mu, 20);
-  close(expected('basketball', nba, 'A', 'A').mu, 3); // equipos iguales = ventaja local
+  close(expected('basketball', nba, 'A', 'B', { neutral: true }).mu, 20 * k);
+  close(expected('basketball', nba, 'A', 'A').mu, 3 * k); // equipos iguales = ventaja local
   close(expected('basketball', nba, 'A', 'A', { neutral: true }).mu, 0);
 
   const epl = { teams: new Map([['A', { gf: 2, ga: 1 }], ['B', { gf: 1, ga: 1.5 }]]), avgHome: 1.6, avgAway: 1.2 };
@@ -310,5 +313,43 @@ test('getSeasonResults: si ESPN falla en demasiados calendarios es un error 502,
   await withFetch({}, async (urls) => {
     assert.deepEqual(await getSeasonResults('ncaab'), []);
     assert.equal(urls.length, 0);
+  });
+});
+
+// ---------- getPastSeason (backtest) con fetch simulado ----------
+test('getPastSeason: temporada anterior completa, con rivales que ya no están en la liga y sin ids inválidos', async () => {
+  const d = (n) => new Date(Date.UTC(2025, 8, n)).toISOString();
+  const [g12, g91, g89] = [ev('g12', d(3), '1', '2', 2, 1), ev('g91', d(1), '9', '1', 0, 0), ev('g89', d(2), '8', '9', 1, 3)];
+  const bad = ev('gx', d(4), '1', '../x', 1, 0);
+  const past = (...events) => ({ requestedSeason: { year: 2025, type: 1 }, events });
+  await withFetch({
+    'soccer/eng.1/teams': { sports: [{ leagues: [{ teams: [{ team: { id: '1' } }, { team: { id: '2' } }, { team: { id: '3' } }] }] }] },
+    'soccer/eng.1/teams/1/schedule': { events: [] }, // sin requestedSeason (eliminado): se prueba el siguiente
+    'soccer/eng.1/teams/2/schedule': { requestedSeason: { year: 2026, type: 1 }, events: [] },
+    'soccer/eng.1/teams/1/schedule?season=2025': past(g12, g91, bad),
+    'soccer/eng.1/teams/2/schedule?season=2025': past(g12),
+    'soccer/eng.1/teams/3/schedule?season=2025': { events: [] }, // ascendido: no jugó esa temporada
+    'soccer/eng.1/teams/9/schedule?season=2025': past(g91, g89), // descendido: aparece como rival de 1
+    'soccer/eng.1/teams/8/schedule?season=2025': past(g89), // solo jugó contra descendidos
+  }, async (urls) => {
+    const { season, results } = await getPastSeason('epl');
+    assert.equal(season, 2025);
+    assert.deepEqual(results.map((r) => r.id), ['g91', 'g89', 'g12', 'gx']);
+    assert.ok(!urls.some((u) => u.includes('../x')));
+    assert.equal(urls.filter((u) => u.includes('/9/schedule?season=2025')).length, 1);
+  });
+});
+
+test('getPastSeason: argumentos inválidos son 400 y un calendario caído es un error', async () => {
+  await assert.rejects(getPastSeason('xx'), { status: 400 });
+  await assert.rejects(getPastSeason('laliga', 0), { status: 400 });
+  await assert.rejects(getPastSeason('ncaaf'), { status: 400 });
+  const teams = { sports: [{ leagues: [{ teams: [{ team: { id: '1' } }] }] }] };
+  await withFetch({ 'soccer/esp.1/teams': teams, 'soccer/esp.1/teams/1/schedule': { events: [] } }, async () => {
+    await assert.rejects(getPastSeason('laliga'), { status: 502 });
+  });
+  await withFetch({ 'soccer/col.1/teams': teams, 'soccer/col.1/teams/1/schedule': { requestedSeason: { year: 2026 }, events: [] },
+    'soccer/col.1/teams/1/schedule?season=2024': 500 }, async () => {
+    await assert.rejects(getPastSeason('colombia', 2), { status: 502 });
   });
 });
