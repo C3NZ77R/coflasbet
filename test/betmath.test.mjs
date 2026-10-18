@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import * as m from '../public/betmath.js';
 
 const near = (a, b, eps = 1e-3) => assert.ok(Math.abs(a - b) < eps, `${a} ≈ ${b}`);
-const demo = JSON.parse(await readFile(new URL('../demo-odds.json', import.meta.url), 'utf8'));
+const demo = JSON.parse(await readFile(new URL('./fixtures/demo-odds.json', import.meta.url), 'utf8'));
 const am = m.americanToDecimal;
 const METHODS = ['multiplicative', 'additive', 'power', 'shin', 'probit'];
 const total = (xs) => xs.reduce((s, x) => s + x, 0);

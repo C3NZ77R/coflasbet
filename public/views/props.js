@@ -32,7 +32,9 @@ const defOf = (sport, stat, market) => defsOf(sport).find((d) => d.key === stat)
 const statName = (def, stat) => def?.name ?? def?.label ?? stat;
 const propText = (side, line, def, stat) => `${SIDE[side] ?? side} ${fmtLine(line)} ${statName(def, stat)}`;
 const who = (p) => (p.athleteId != null ? String(p.athleteId) : `n:${norm(p.player)}`);
-const best = (p) => p.books.reduce((a, b) => (b.price > a.price ? b : a));
+const coflas = (p) => p.books[0]; // única cuota: la del modelo Coflas (con margen)
+const MIN_GAMES = 8; // mismo mínimo que lib/props.mjs
+const THIN = 'Muestra insuficiente (menos de 8 partidos)';
 const skel = '<span class="pp-skel" aria-label="Cargando"></span>';
 const inSlip = (store, id) => store.get('picks').some((x) => x.id === id);
 const valsOf = (games, sport, stat) => games.map((g) => S.statOf(sport, stat, g.stats)).filter(Number.isFinite);
@@ -107,23 +109,6 @@ function matchupFrom(st, league, side) {
   return { stat: st, rank, cls };
 }
 
-// Línea principal por (jugador, estadística): la que más casas ofrecen; empate → la más cercana a 50 %.
-function mainLines(props) {
-  const by = new Map();
-  for (const p of props) {
-    const k = `${who(p)}|${p.stat}`;
-    const m = by.get(k) ?? new Map();
-    by.set(k, m);
-    const e = m.get(p.line) ?? { n: 0, gap: 1 };
-    e.n += p.books.length;
-    if (p.side === 'Over') e.gap = Math.abs(1 / best(p).price - 0.5);
-    m.set(p.line, e);
-  }
-  const out = new Map();
-  for (const [k, m] of by) out.set(k, [...m].sort((a, b) => b[1].n - a[1].n || a[1].gap - b[1].gap)[0][0]);
-  return out;
-}
-
 const hrCls = (pct) => (pct == null ? 'pp-na' : pct >= 0.8 ? 'pp-h4' : pct >= 0.65 ? 'pp-h3' : pct >= 0.5 ? 'pp-h2' : pct >= 0.35 ? 'pp-h1' : 'pp-h0');
 const hrCell = (h) => (h === undefined ? skel : h?.pct == null ? '<span class="pp-na">—</span>' : `<span class="pp-hr ${hrCls(h.pct)}" title="${h.hits} de ${h.n}">${pctTxt(h.pct)}</span>`);
 const day = (iso) => { const d = new Date(iso); return Number.isNaN(+d) ? '' : `${d.getDate()}/${String(d.getMonth() + 1).padStart(2, '0')}`; };
@@ -185,7 +170,7 @@ function mount(el) {
 
 // ======================= LISTA =======================
 const memory = {}; // filtros por liga mientras dure la pestaña
-const defaults = () => ({ stats: [], players: [], games: [], side: 'all', ev: false, minOdds: '', maxOdds: '', minHit: '', hitWin: 'l10', matchup: [], alt: false, sort: 'l10', dir: 'desc' });
+const defaults = () => ({ stats: [], players: [], games: [], side: 'all', minOdds: '', maxOdds: '', minHit: '', hitWin: 'l10', matchup: [], sort: 'l10', dir: 'desc' });
 const WIN_HEAD = { l5: ['L5', 'Últimos 5'], l10: ['L10', 'Últimos 10'], l20: ['L20', 'Últimos 20'], h2h: ['H2H', 'Contra este rival'], season: ['Temp.', 'Temporada actual'], prev: ['Temp. ant.', 'Temporada anterior'] };
 
 async function renderList(el, ctx) {
@@ -198,18 +183,10 @@ async function renderList(el, ctx) {
 
   const props = pr.error ? [] : (dataOf(pr) ?? []).filter((p) => p?.books?.length && Number.isFinite(p.line));
   const gamesById = new Map((dataOf(gr) ?? []).map((g) => [String(g.id), g]));
-  const main = mainLines(props);
-  // EV+ con la misma referencia que la vista EV+ (Pinnacle o consenso de ≥2 casas, método de los ajustes).
-  const evBy = new Map();
-  for (const g of bm.analyzeProps(props, { method: store.get('settings').devigMethod, minEv: 1e-9 })) {
-    for (const b of g.evBets) if (!(evBy.get(`${g.key}|${b.outcome}`) >= b.ev)) evBy.set(`${g.key}|${b.outcome}`, b.ev);
-  }
   const rowMap = new Map();
   for (const p of props) {
     const key = propKey(p);
-    if (rowMap.has(key)) continue;
-    const ev = evBy.get(`${[p.eventId ?? p.gameId, p.player, p.stat ?? p.market, p.line].join('|')}|${p.side}`) ?? null;
-    rowMap.set(key, { p, key, who: who(p), def: defOf(sport, p.stat, p.market), best: best(p), books: [...p.books].sort((x, y) => y.price - x.price), main: main.get(`${who(p)}|${p.stat}`) === p.line, ev });
+    if (!rowMap.has(key)) rowMap.set(key, { p, key, who: who(p), def: defOf(sport, p.stat, p.market), price: coflas(p).price });
   }
   const rows = [...rowMap.values()];
   const f = (memory[league] ??= defaults());
@@ -238,13 +215,11 @@ async function renderList(el, ctx) {
   function visible() {
     const minA = f.minOdds === '' ? null : Number(f.minOdds), maxA = f.maxOdds === '' ? null : Number(f.maxOdds);
     return rows.filter((r) => {
-      const p = r.p, am = bm.decimalToAmerican(r.best.price);
+      const p = r.p, am = bm.decimalToAmerican(r.price);
       if (f.stats.length && !f.stats.includes(p.stat)) return false;
       if (f.players.length && !f.players.includes(r.who)) return false;
       if (f.games.length && !f.games.includes(String(p.gameId))) return false;
       if (f.side !== 'all' && p.side !== f.side) return false;
-      if (!f.alt && !r.main) return false;
-      if (f.ev && !(r.ev > 0)) return false;
       if ((minA != null && am < minA) || (maxA != null && am > maxA)) return false;
       if (f.minHit !== '') {
         const h = hits(r); // sin cargar todavía: se muestra hasta que llegue su historial
@@ -254,7 +229,7 @@ async function renderList(el, ctx) {
       return true;
     });
   }
-  const SORT = { player: (r) => r.p.player, line: (r) => r.p.line, odds: (r) => r.best.price, ip: (r) => 1 / r.best.price, opp: (r) => matchupOf(r)?.rank ?? null };
+  const SORT = { player: (r) => r.p.player, line: (r) => r.p.line, p: (r) => r.p.p, fair: (r) => r.p.fair, odds: (r) => r.price, opp: (r) => matchupOf(r)?.rank ?? null };
   for (const w of WINS) SORT[w] = (r) => hits(r)?.[w]?.pct ?? null;
   function sorted(list) {
     const fn = SORT[f.sort] ?? SORT.l10, dir = f.dir === 'asc' ? 1 : -1;
@@ -268,10 +243,6 @@ async function renderList(el, ctx) {
     const match = g?.home ? `${g.away.abbr} @ ${g.home.abbr}` : '';
     return `<a class="pp-pl" href="#/${esc(league)}/props/${esc(r.key)}">${str(ui.headshot(log?.athlete ?? { name: r.p.player }, { size: 36 }))}<span><b>${esc(r.p.player)}</b><small>${esc([team, match].filter(Boolean).join(' · '))}</small><span>${esc(propText(r.p.side, r.p.line, r.def, r.p.stat))}</span></span></a>`;
   }
-  function oddsCell(r) {
-    const others = r.books.slice(1, 4).map((b) => `${esc(b.title ?? b.key)} ${esc(ui.fmtOdds(b.price))}`).join(' · ');
-    return `<div class="pp-best"><b>${esc(ui.fmtOdds(r.best.price))}</b>${str(ui.bookChip(r.best.key ?? r.best.title, { name: false }))}${r.ev > 0 ? `<span class="pp-ev" title="Valor esperado contra la cuota justa sin vig">EV+ ${(r.ev * 100).toFixed(1)}%</span>` : ''}</div>${others ? `<small class="pp-others">${others}${r.books.length > 4 ? ` · +${r.books.length - 4}` : ''}</small>` : ''}`;
-  }
   function oppCell(r) {
     const s = sides(r);
     if (!s) return r.p.gameId != null && detailOf(r) === undefined ? skel : '<span class="pp-na">—</span>';
@@ -282,13 +253,13 @@ async function renderList(el, ctx) {
   function rowInner(r) {
     const h = hits(r), on = inSlip(store, r.key);
     return `<td><button type="button" class="pp-add" data-act="add" data-k="${esc(r.key)}" aria-pressed="${on}" aria-label="${on ? 'Quitar del' : 'Agregar al'} boleto: ${esc(`${r.p.player} ${propText(r.p.side, r.p.line, r.def, r.p.stat)}`)}">${on ? '✓' : '+'}</button></td>
-      <td class="pp-c-prop">${propCell(r)}</td><td class="pp-num">${fmtLine(r.p.line)}</td><td class="pp-c-odds">${oddsCell(r)}</td>
-      <td class="pp-num">${esc(ui.fmtPct(1 / r.best.price, 1))}</td><td>${oppCell(r)}</td>
+      <td class="pp-c-prop">${propCell(r)}</td><td class="pp-num">${fmtLine(r.p.line)}</td>
+      <td class="pp-num">${esc(ui.fmtPct(r.p.p, 1))}</td><td class="pp-num">${esc(ui.fmtOdds(r.p.fair))}</td><td class="pp-num"><b>${esc(ui.fmtOdds(r.price))}</b></td><td>${oppCell(r)}</td>
       ${WINS.map((w) => `<td class="pp-num">${hrCell(h === undefined ? undefined : h?.[w] ?? null)}</td>`).join('')}`;
   }
   const rowHtml = (r) => `<tr data-k="${esc(r.key)}" data-a="${esc(r.p.athleteId ?? '')}" data-g="${esc(r.p.gameId ?? '')}">${rowInner(r)}</tr>`;
   function head() {
-    const cols = [['player', 'Proposición'], ['line', 'Línea'], ['odds', 'Cuota'], ['ip', 'IP', 'Probabilidad implícita de la mejor cuota'], ['opp', 'Rango rival', 'Ranking de la defensa rival en esa estadística'], ...WINS.map((w) => [w, ...WIN_HEAD[w]])];
+    const cols = [['player', 'Proposición'], ['line', 'Línea', 'Línea Coflas: mediana de los últimos 20 partidos'], ['p', 'Prob.', 'Probabilidad del modelo Coflas'], ['fair', 'Justa', 'Cuota justa (1/p), sin margen'], ['odds', 'Coflas', 'Cuota Coflas (con margen del 5 %)'], ['opp', 'Rango rival', 'Ranking de la defensa rival en esa estadística'], ...WINS.map((w) => [w, ...WIN_HEAD[w]])];
     return `<tr><th scope="col"><span class="sr-only">Boleto</span></th>${cols.map(([k, label, title]) => {
       const on = f.sort === k;
       return `<th scope="col" aria-sort="${on ? (f.dir === 'asc' ? 'ascending' : 'descending') : 'none'}"><button type="button" class="pp-sort" data-act="sort" data-sort="${k}"${title ? ` title="${esc(title)}"` : ''}>${esc(label)}${on ? (f.dir === 'asc' ? ' ▲' : ' ▼') : ''}</button></th>`;
@@ -300,7 +271,7 @@ async function renderList(el, ctx) {
     const vis = sorted(visible());
     root.querySelector('[data-count]').textContent = `${vis.length}/${rows.length} props`;
     if (!rows.length) {
-      box.innerHTML = `${pr.error ? str(ui.errorBox(pr.error)) : str(ui.empty('No hay props publicados para esta liga ahora mismo.'))}<p class="pp-muted">Igual puedes buscar cualquier jugador y analizar su historial con una línea propia.</p>${searchBox()}`;
+      box.innerHTML = `${pr.error ? str(ui.errorBox(pr.error)) : `${str(ui.empty('Abre un partido para ver sus props.'))}<p class="pp-muted">Esta lista cubre solo los próximos 3 partidos de hoy. <a href="#/${esc(league)}/games">Ver partidos</a></p>`}<p class="pp-muted">Igual puedes buscar cualquier jugador y analizar su historial con una línea propia.</p>${searchBox()}`;
       return;
     }
     const page = vis.slice(0, shown);
@@ -371,11 +342,9 @@ async function renderList(el, ctx) {
       ${dd('players', 'Jugadores', searchBox(`<div class="pp-list" data-plist>${players}</div>`), 'pp-wide')}
       ${dd('games', 'Partidos', `<div class="pp-list">${games || '<p class="pp-muted">Sin partidos.</p>'}</div>`)}
       ${dd('side', 'Over/Under', `${radio('all', 'Ambos')}${radio('Over', 'Más de (Over)')}${radio('Under', 'Menos de (Under)')}`)}
-      <button type="button" class="pp-tg" data-act="ev" aria-pressed="${f.ev}">Solo EV+</button>
       ${dd('odds', 'Cuotas', `<p class="pp-muted">Rango en americano, p. ej. −300 a +200.</p><div class="pp-row"><label class="pp-field">Mínima <input type="number" step="5" data-f="minOdds" value="${esc(f.minOdds)}" placeholder="-300"></label><label class="pp-field">Máxima <input type="number" step="5" data-f="maxOdds" value="${esc(f.maxOdds)}" placeholder="200"></label></div>`)}
       ${dd('hit', 'Acierto', `<div class="pp-row"><label class="pp-field">Mínimo % <input type="number" min="0" max="100" step="5" data-f="minHit" value="${esc(f.minHit)}" placeholder="60"></label><label class="pp-field">Ventana <select data-f="hitWin">${winOpts}</select></label></div>`)}
       ${dd('matchup', 'Matchup del rival', `${Object.entries(MATCHUP).map(([k, label]) => check('matchup', k, `<i class="pp-dot pp-${k}"></i>${label}`, f.matchup.includes(k))).join('')}<p class="pp-muted">Según el ranking de la defensa rival en esa estadística. Solo hay ranking cuando ESPN lo publica.</p>`)}
-      <button type="button" class="pp-tg" data-act="alt" aria-pressed="${f.alt}">Mostrar líneas alternativas</button>
       <button type="button" class="pp-link" data-act="reset">Limpiar</button>
       <span class="pp-count" data-count role="status"></span>
     </div>`;
@@ -384,7 +353,7 @@ async function renderList(el, ctx) {
   const refresh = () => { shown = PAGE; badges(); paintTable(); };
 
   el.innerHTML = `<div class="pp">
-    <header class="pp-top"><h1>Props</h1>${pr.source ? str(ui.sourceBadge(pr.source, pr.remaining)) : ''}${pr.warning ? `<p class="pp-muted">${ui.esc(pr.warning)}</p>` : ''}<p class="pp-muted" data-progress aria-live="polite"></p></header>
+    <header class="pp-top"><h1>Props</h1>${pr.source ? str(ui.sourceBadge(pr.source)) : ''}<p class="pp-muted" data-progress aria-live="polite"></p></header>
     <div data-bar></div><div data-table></div></div>`;
   const root = el.firstElementChild;
   paintBar();
@@ -394,8 +363,7 @@ async function renderList(el, ctx) {
     const t = e.target.closest('[data-act]');
     if (!t) return;
     const act = t.dataset.act;
-    if (act === 'ev' || act === 'alt') { f[act] = !f[act]; t.setAttribute('aria-pressed', f[act]); refresh(); }
-    else if (act === 'sort') {
+    if (act === 'sort') {
       const key = t.dataset.sort;
       f.dir = f.sort === key ? (f.dir === 'asc' ? 'desc' : 'asc') : key === 'player' ? 'asc' : 'desc';
       f.sort = key;
@@ -404,7 +372,7 @@ async function renderList(el, ctx) {
     else if (act === 'reset') { Object.assign(f, defaults()); paintBar(); refresh(); }
     else if (act === 'add') {
       const r = rowMap.get(t.dataset.k);
-      if (r) togglePick(ctx, r.key, `${r.p.player} · ${propText(r.p.side, r.p.line, r.def, r.p.stat)}`, r.best, r.p.gameId);
+      if (r) togglePick(ctx, r.key, `${r.p.player} · ${propText(r.p.side, r.p.line, r.def, r.p.stat)}`, coflas(r.p), r.p.gameId);
     } else if (act === 'save') {
       const name = root.querySelector('[data-pname]').value.trim() || `Filtro ${presets().length + 1}`;
       savePresets([...presets().filter((x) => x.name !== name), { name, f: { ...f } }]);
@@ -435,21 +403,21 @@ async function renderDetail(el, ctx) {
   if (!k) { el.innerHTML = `<div class="pp">${str(ui.empty('El enlace de este prop no es válido.'))}<a class="pp-back" href="#/${esc(league)}/props">← Volver a Props</a></div>`; return undefined; }
   const stillHere = mount(el);
 
-  // Props de The Odds API sin athleteId: se intenta encontrar al jugador en ESPN por nombre.
+  // Enlace sin athleteId: se intenta encontrar al jugador en ESPN por nombre.
   let athleteId = k.athleteId;
   if (athleteId == null && k.player) {
     const found = dataOf(await api.search(league, k.player).catch(() => null)) ?? [];
     athleteId = (found.find((a) => norm(a.name) === norm(k.player)) ?? found[0])?.id ?? null;
   }
-  const [pr, log, gr] = await Promise.all([
-    api.props(league, k.gameId ?? undefined).catch(() => null),
+  const [log, gr] = await Promise.all([
     athleteId != null ? loadLog(api, league, athleteId) : null,
     k.gameId == null ? api.games(league).catch(() => null) : null,
   ]);
   const athlete = log?.athlete ?? { id: athleteId, name: k.player };
   // Sin partido en la clave: el próximo partido de su equipo en la cartelera de hoy.
   const gameId = k.gameId ?? (dataOf(gr) ?? []).find((g) => sameId(g.home?.id, athlete.teamId) || sameId(g.away?.id, athlete.teamId))?.id ?? null;
-  const gd = gameId != null ? await loadGame(api, league, gameId) : null;
+  // Las props se piden por partido: sin partido no hay línea Coflas.
+  const [pr, gd] = gameId != null ? await Promise.all([api.props(league, gameId).catch(() => null), loadGame(api, league, gameId)]) : [null, null];
   const pk = { athleteId, player: athlete.name ?? k.player };
   const mine = (dataOf(pr) ?? []).filter((p) => p?.books?.length && Number.isFinite(p.line) && (sameId(p.athleteId, athleteId) || norm(p.player) === norm(pk.player)));
   const sd = sidesOf(gd, athlete.teamId, mine[0]);
@@ -465,10 +433,9 @@ async function renderDetail(el, ctx) {
   const hasCur = Number.isFinite(cur);
   const statsHere = defs.filter((d) => d.key === k.stat || mine.some((p) => p.stat === d.key) || games.some((g) => Number.isFinite(S.statOf(sport, d.key, g.stats))));
   const propFor = (stat, line, side) => mine.find((p) => p.stat === stat && p.line === line && p.side === side) ?? null;
-  const linesFor = (stat) => [...new Set(mine.filter((p) => p.stat === stat).map((p) => p.line))].sort((a, b) => a - b);
+  const lineOf = (stat) => mine.find((p) => p.stat === stat)?.line ?? null;
   function defaultLine(stat) {
-    const m = mainLines(mine.filter((p) => p.stat === stat));
-    if (m.size) return [...m.values()][0];
+    if (lineOf(stat) != null) return lineOf(stat);
     const med = bm.summarize(valsOf(games.slice(0, 10), sport, stat)).median;
     return med == null ? 0.5 : Math.floor(med) + 0.5;
   }
@@ -518,17 +485,18 @@ async function renderDetail(el, ctx) {
 
   function hctl() {
     const d = def(), over = propFor(s.stat, s.line, 'Over'), under = propFor(s.stat, s.line, 'Under');
-    const sel = s.side === 'Over' ? over : under, b = sel && best(sel), on = inSlip(store, keyNow());
-    const lines = linesFor(s.stat);
-    const price = (p) => (p ? esc(ui.fmtOdds(best(p).price)) : '—');
-    const sideBtn = (side, p) => `<button type="button" data-sv="side:${side}" aria-pressed="${s.side === side}">${SIDE[side]} ${esc(fmtLine(s.line))} <b>${price(p)}</b></button>`;
-    const altOpt = (l) => `<option value="${l}"${l === s.line ? ' selected' : ''}>${l} · Más ${price(propFor(s.stat, l, 'Over'))} / Menos ${price(propFor(s.stat, l, 'Under'))}</option>`;
+    const sel = s.side === 'Over' ? over : under, on = inSlip(store, keyNow()), ours = lineOf(s.stat);
+    const sideBtn = (side, p) => `<button type="button" data-sv="side:${side}" aria-pressed="${s.side === side}">${SIDE[side]} ${esc(fmtLine(s.line))} <b>${p ? esc(ui.fmtOdds(coflas(p).price)) : '—'}</b></button>`;
+    // Sin línea pero con historial de esa estadística: menos de MIN_GAMES partidos.
+    const thin = ours == null && log && valsOf(games, sport, s.stat).length < MIN_GAMES;
+    const why = thin ? THIN : gameId == null ? 'Sin partido próximo: no hay línea Coflas.' : 'Sin línea Coflas para esta estadística.';
     return `<p class="pp-market">${esc(propText(s.side, s.line, d, s.stat))}</p>
       <div class="pp-seg pp-sides" role="group" aria-label="Lado">${sideBtn('Over', over)}${sideBtn('Under', under)}</div>
-      <label class="pp-field">Líneas alternativas <select data-alt>${lines.includes(s.line) ? '' : `<option value="${esc(s.line)}" selected>${esc(fmtLine(s.line))} · personalizada (sin cuota)</option>`}${lines.map(altOpt).join('')}</select></label>
-      ${b ? `<div class="pp-addbox"><button type="button" class="pp-btn" data-act="addbest" aria-pressed="${on}">${on ? '✓ En el boleto' : `+ Agregar ${esc(ui.fmtOdds(b.price))}`}</button>${str(ui.bookChip(b.key ?? b.title))}
-        ${dd('books', 'Otras casas', `<ul class="pp-books">${[...sel.books].sort((x, y) => y.price - x.price).map((x) => `<li><button type="button" class="pp-link" data-act="addbook" data-book="${esc(x.key)}">${str(ui.bookChip(x.key ?? x.title))} <b>${esc(ui.fmtOdds(x.price))}</b></button></li>`).join('')}</ul>`)}</div>`
-        : '<p class="pp-muted">Sin cuotas para esta línea: análisis con línea personalizada.</p>'}`;
+      ${ours == null ? `<p class="pp-muted">${esc(why)}</p>`
+        : `<p class="pp-avg">Línea Coflas <b>${esc(fmtLine(ours))}</b>${ours !== s.line ? ` <button type="button" class="pp-link" data-act="ourline">Volver a la línea Coflas</button>` : ''}</p>`}
+      ${sel ? `<p class="pp-avg">Prob. <b>${esc(ui.fmtPct(sel.p, 1))}</b> · Justa <b>${esc(ui.fmtOdds(sel.fair))}</b> · Coflas <b>${esc(ui.fmtOdds(coflas(sel).price))}</b> ${str(ui.sourceBadge('coflas'))}</p>
+        <div class="pp-addbox"><button type="button" class="pp-btn" data-act="addbest" aria-pressed="${on}">${on ? '✓ En el boleto' : `+ Agregar ${esc(ui.fmtOdds(coflas(sel).price))}`}</button></div>`
+        : ours != null ? '<p class="pp-muted">Línea personalizada: análisis sin cuota.</p>' : ''}`;
   }
 
   // Partidos que pasan los filtros, con su valor de la estadística (del más reciente al más antiguo).
@@ -633,11 +601,13 @@ async function renderDetail(el, ctx) {
       const [key, v] = t.dataset.sv.split(':');
       if (key === 'stat' && v !== s.stat) Object.assign(s, { stat: v, line: defaultLine(v) });
       else s[key] = v;
-    } else if (t.dataset.act === 'addbest' || t.dataset.act === 'addbook') {
-      const p = propFor(s.stat, s.line, s.side), id = keyNow();
+    } else if (t.dataset.act === 'addbest') {
+      const p = propFor(s.stat, s.line, s.side);
       if (!p) return;
-      if (t.dataset.act === 'addbook' && inSlip(store, id)) store.removePick(id); // cambiar de casa
-      togglePick(ctx, id, `${pk.player} · ${propText(s.side, s.line, def(), s.stat)}`, t.dataset.act === 'addbook' ? p.books.find((x) => x.key === t.dataset.book) : best(p), gameId);
+      togglePick(ctx, keyNow(), `${pk.player} · ${propText(s.side, s.line, def(), s.stat)}`, coflas(p), gameId);
+    } else if (t.dataset.act === 'ourline') {
+      if (lineOf(s.stat) == null) return;
+      s.line = lineOf(s.stat);
     } else if (t.dataset.act === 'freset') {
       Object.assign(s, { rest: 'all', result: 'all', margin: 20, minMin: 0, mate: '', mateMode: 'with' });
       for (const x of root.querySelectorAll('.pp-filters [data-s]')) x.value = s[x.dataset.s];
@@ -649,8 +619,7 @@ async function renderDetail(el, ctx) {
     if (t.matches('[data-line]')) {
       const v = parseFloat(t.value);
       if (Number.isFinite(v) && v >= 0) { s.line = v; paint(); }
-    } else if (t.matches('[data-alt]')) { s.line = Number(t.value); paint(); }
-    else if (t.dataset.s) {
+    } else if (t.dataset.s) {
       s[t.dataset.s] = t.type === 'range' ? Number(t.value) : t.value;
       if (t.dataset.s === 'mate' && s.mate) loadLog(api, league, s.mate).then(() => root.isConnected && paint());
       paint();

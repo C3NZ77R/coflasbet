@@ -1,6 +1,6 @@
 # Coflas Bet — arquitectura y contratos
 
-Vanilla JS sin build (ES modules en el navegador), Node >= 22 sin dependencias. UI en español. Lo que existe hoy: server.mjs (proxy The Odds API + estáticos), public/betmath.js (matemática), public/app.js (UI de 4 pestañas), tests con `node --test`.
+Vanilla JS sin build (ES modules en el navegador), Node >= 22 sin dependencias. UI en español. Lo que existe hoy: server.mjs (proxy de ESPN, cuotas propias + estáticos), public/betmath.js (matemática), public/app.js (UI de 4 pestañas), tests con `node --test`.
 Funcionalidad objetivo: todo lo de `docs/outlier-spec.md`.
 
 ## Fuentes de datos reales
@@ -11,25 +11,26 @@ Funcionalidad objetivo: todo lo de `docs/outlier-spec.md`.
   - `https://site.api.espn.com/apis/site/v2/sports/{sport}/{league}/teams/{id}/roster`
   - `https://site.api.espn.com/apis/site/v2/sports/{sport}/{league}/injuries`
   - `https://site.api.espn.com/apis/site/v2/sports/{sport}/{league}/teams/{id}` y `sports.core.api.espn.com/v2/sports/{sport}/leagues/{league}/seasons/{y}/types/2/teams/{id}/statistics`
-- **The Odds API** (`COFLAS_ODDS_API_KEY`, opcional): cuotas de varias casas para líneas de partido (`/v4/sports/{sport}/odds`) y props de jugador (`/v4/sports/{sport}/events/{eventId}/odds?markets=player_points,...`). Sin clave → fixtures demo (`demo-odds.json`, `demo-props.json`) y la UI lo indica.
+- **Cuotas propias** (sin casas): `lib/markets.mjs` (partidos: ratings desde los calendarios de ESPN → Dixon-Coles / Poisson / normal) y `lib/props.mjs` (props: game logs de ESPN → binomial negativa / normal). Cuota justa = 1/p; cuota Coflas = 1/(p·1.05). Precisión medida en `docs/accuracy.json` (`scripts/backtest.mjs`).
 - **Mercados de predicción sin clave** (opcional, como "casas" adicionales en líneas de partido): Kalshi `https://api.elections.kalshi.com/trade-api/v2/markets?series_ticker=...` / Polymarket gamma `https://gamma-api.polymarket.com/events?tag_slug=...`. Solo si se emparejan bien con los partidos de ESPN.
 - Nunca se llama a la API de Outlier.
 
-Todas las llamadas externas pasan por server.mjs, con una caché en memoria por URL (TTL: 60 s en vivo, 5 min para scoreboard/summary, 30 min para gamelog/roster/stats, 5 min para Odds API). Todo error devuelve `{error}` con un status HTTP. Con un timeout de 8 s por fetch.
+Todas las llamadas externas pasan por server.mjs, con una caché en memoria por URL (TTL: 60 s en vivo, 5 min para scoreboard/summary, 30 min para gamelog/roster/stats). Todo error devuelve `{error}` con un status HTTP. Con un timeout de 8 s por fetch.
 
 ## Ligas (`public/leagues.js`, compartido por servidor y cliente)
-`export const LEAGUES = [{ id:'nba', title:'NBA', sport:'basketball', espn:'nba', odds:'basketball_nba' }, { id:'nfl', ... espn:'nfl', odds:'americanfootball_nfl' }, { id:'mlb', sport:'baseball', espn:'mlb', odds:'baseball_mlb' }, { id:'nhl', sport:'hockey', espn:'nhl', odds:'icehockey_nhl' }, { id:'ncaaf', title:'NCAAF', sport:'football', espn:'college-football', odds:'americanfootball_ncaaf' }, { id:'ncaab', title:'NCAAB', sport:'basketball', espn:'mens-college-basketball', odds:'basketball_ncaab' }, { id:'wnba', sport:'basketball', espn:'wnba', odds:'basketball_wnba' }, { id:'laliga', title:'LaLiga', sport:'soccer', espn:'esp.1', odds:'soccer_spain_la_liga' }, { id:'epl', title:'Premier League', sport:'soccer', espn:'eng.1', odds:'soccer_epl' }, { id:'ucl', title:'Champions', sport:'soccer', espn:'uefa.champions', odds:'soccer_uefa_champs_league' }, { id:'libertadores', title:'Libertadores', sport:'soccer', espn:'conmebol.libertadores', odds:'soccer_conmebol_copa_libertadores' }, { id:'colombia', title:'Liga BetPlay', sport:'soccer', espn:'col.1', odds:null }]`
+`export const LEAGUES = [{ id:'nba', title:'NBA', sport:'basketball', espn:'nba' }, { id:'nfl', ... espn:'nfl' }, { id:'mlb', sport:'baseball', espn:'mlb' }, { id:'nhl', sport:'hockey', espn:'nhl' }, { id:'ncaaf', title:'NCAAF', sport:'football', espn:'college-football' }, { id:'ncaab', title:'NCAAB', sport:'basketball', espn:'mens-college-basketball' }, { id:'wnba', sport:'basketball', espn:'wnba' }, { id:'laliga', title:'LaLiga', sport:'soccer', espn:'esp.1' }, { id:'epl', title:'Premier League', sport:'soccer', espn:'eng.1' }, { id:'ucl', title:'Champions', sport:'soccer', espn:'uefa.champions' }, { id:'libertadores', title:'Libertadores', sport:'soccer', espn:'conmebol.libertadores' }, { id:'colombia', title:'Liga BetPlay', sport:'soccer', espn:'col.1' }]`
 `export const leagueById = (id) => ...`
 
-## API HTTP (server.mjs) — todas devuelven `{ source: 'live'|'demo'|'espn', data, remaining? }`
+## API HTTP (server.mjs) — todas devuelven `{ source: 'coflas'|'espn', data }`
 - `GET /api/leagues` → LEAGUES
-- `GET /api/sports`, `GET /api/odds?sport=` — se mantienen (The Odds API, formato v4; ya los usa betmath.analyzeEvent).
+- `GET /api/markets?league=nba&game=ID` → `{ gameId, markets: Market[] }` (sin game: todos los partidos de `date`, por defecto hoy) + `accuracy`
+- `GET /api/accuracy` → `docs/accuracy.json`
 - `GET /api/games?league=nba&date=YYYYMMDD` → `Game[]`
 - `GET /api/game?league=nba&id=ESPN_EVENT_ID` → `GameDetail`
 - `GET /api/gamelog?league=nba&athlete=ID[&season=YYYY]` → `GameLog` (temporada actual + anterior combinadas si no se pasa season)
 - `GET /api/roster?league=nba&team=ID` → `Athlete[]`
 - `GET /api/injuries?league=nba` → `Injury[]`
-- `GET /api/props?league=nba[&game=ESPN_EVENT_ID]` → `Prop[]` (The Odds API con clave; si no, demo-props.json filtrado)
+- `GET /api/props?league=nba[&game=ESPN_EVENT_ID]` → `Prop[]` con línea propia y `books: [{ key:'coflas' }]` (sin game: los próximos 3 partidos de hoy)
 - `GET /api/search?league=nba&q=texto` → `Athlete[]`
 
 Tipos (JSON). Las cuotas SIEMPRE en decimal (la UI convierte a americano):
@@ -52,7 +53,7 @@ Athlete = { id, name, short, pos, jersey, headshot, teamId, teamAbbr }
 Injury  = { teamId, teamAbbr, athlete: Athlete, status: 'Out'|'Questionable'|'Doubtful'|'Day-To-Day'|..., detail, date: ISO }
 GameLog = { athlete: Athlete, statKeys: string[], labels: {key: label},
             games: [{ eventId, date: ISO, season: number, opp: {id, abbr}, home: bool, result: 'W'|'L'|'T'|null, margin: number|null, teamScore, oppScore, minutes: number|null, stats: { [key]: number } }] }  // ordenados del más reciente al más antiguo
-Prop    = { id, league, gameId|null, eventId /*Odds API*/, start, player, athleteId|null, team|null, opp|null, market: 'player_points', stat: 'pts', line, side: 'Over'|'Under', books: [{ key, title, price }] }
+Prop    = { id, league, gameId|null, eventId /*= gameId*/, start, player, athleteId|null, team|null, opp|null, market: 'player_points', stat: 'pts', line, side: 'Over'|'Under', books: [{ key, title, price }] }
 ```
 
 ## Estadísticas por deporte (`public/stats.js`)

@@ -1,30 +1,25 @@
 // Boosts (/pro/boosts): evaluador de boosts de cuota. Ninguna fuente gratuita publica los boosts de las casas,
-// así que el usuario escribe el boost y sus patas. Cada pata se toma de las cuotas reales (props de /api/props o
-// líneas de /api/odds; la probabilidad justa sale del devig del consenso de casas) o se ingresa a mano.
+// así que el usuario escribe la cuota con boost y sus patas. Cada pata se toma del modelo Coflas (mercados de
+// /api/markets y props de /api/props, con su probabilidad p) o se ingresa a mano.
 // Probabilidad del combinado = producto de las patas (supone independencia y avisa si hay patas del mismo partido).
 import { LEAGUES, leagueById } from '../leagues.js';
 import { statOf } from '../stats.js';
-import { devig, fairFromBooks, expectedValue, kelly, hitRate } from '../betmath.js';
+import { devig, expectedValue, kelly, hitRate } from '../betmath.js';
 import { h, raw, fmtOdds, fmtPct, fmtMoney, when, ago, bookChip, bookInfo, BOOKS, hitBar, empty, sourceBadge, dropdown, tabs } from '../ui.js';
-import { METHODS, kellyOptions, optionsHtml, showMethodsInfo, parseOdds, dataOf, num, marketsOf, fullRows, started } from './ev.js';
+import { kellyOptions, optionsHtml, parseOdds, dataOf, num, pctSigned, selectionsOf } from './ev.js';
 
 const MAX_LEGS = 12, MAX_SAVED = 100, MAX_RESULTS = 25;
 const ORDERS = [['ev', 'Mayor EV'], ['kelly', 'Mayor Kelly'], ['odds', 'Mayor cuota'], ['recent', 'Más recientes']];
 const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 const norm = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-const pctSigned = (x, d = 2) => (Number.isFinite(x) ? `${x >= 0 ? '+' : ''}${(x * 100).toFixed(d)}%` : '—');
 const blank = () => ({ id: newId(), desc: '', boosted: '', original: '', maxStake: '', book: '', legs: [], savedAt: null });
 
 // ---------- cálculo (puro) ----------
 
-// Probabilidad justa de una pata: { p, how, withVig }.
+// Probabilidad de una pata: { p, how, withVig }. Las patas del mercado traen la p del modelo Coflas.
 export function legProb(leg, method = 'multiplicative') {
-  if (leg.prob > 0 && leg.prob < 1) return { p: leg.prob, how: 'Probabilidad fija (manual)' };
-  if (leg.rows?.length) {
-    const r = fairFromBooks(leg.rows, { method });
-    const n = r?.used.length ?? 0;
-    return { p: r?.probs[leg.idx] ?? null, how: n ? `Devig del consenso de ${n} ${n === 1 ? 'casa' : 'casas'}` : 'Sin cuotas para el devig' };
-  }
+  if (leg.prob > 0 && leg.prob < 1) return { p: leg.prob, how: leg.kind === 'manual' ? 'Probabilidad fija (manual)' : 'Probabilidad del modelo Coflas' };
+  if (leg.kind !== 'manual') return { p: null, how: 'Sin probabilidad del modelo: vuelve a buscar la pata' };
   if (leg.price > 1 && leg.opp > 1) return { p: devig([leg.price, leg.opp], method)?.[0] ?? null, how: 'Devig de tus dos cuotas' };
   if (leg.price > 1) return { p: 1 / leg.price, how: 'Una sola cuota: incluye el vig', withVig: true };
   return { p: null, how: 'Sin probabilidad' };
@@ -65,11 +60,9 @@ const str = (v, n = 200) => (typeof v === 'string' ? v.slice(0, n) : '');
 const fin = (v) => (Number.isFinite(v) ? v : null);
 function cleanLeg(l) {
   if (!l || typeof l !== 'object' || typeof l.label !== 'string' || !l.label.trim()) return null;
-  const rows = Array.isArray(l.rows) ? l.rows.filter((r) => r && typeof r.key === 'string' && Array.isArray(r.prices) && r.prices.length >= 2 && r.prices.every((x) => Number.isFinite(x) && x > 1)).slice(0, 60).map((r) => ({ key: r.key.slice(0, 60), prices: r.prices.slice(0, 4) })) : [];
   return {
     id: str(l.id, 40) || newId(), kind: ['prop', 'line', 'manual'].includes(l.kind) ? l.kind : 'manual', label: str(l.label),
     league: leagueById(l.league) ? l.league : null, event: str(l.event, 120) || null, matchup: str(l.matchup), start: str(l.start, 40),
-    idx: Number.isInteger(l.idx) && l.idx >= 0 && l.idx < 4 ? l.idx : 0, rows,
     price: fin(l.price), opp: fin(l.opp), prob: fin(l.prob),
     player: str(l.player, 120), athleteId: typeof l.athleteId === 'string' || Number.isFinite(l.athleteId) ? l.athleteId : null,
     stat: str(l.stat, 40) || null, line: fin(l.line), side: l.side === 'Under' ? 'Under' : 'Over', at: fin(l.at),
@@ -115,12 +108,13 @@ export default {
     const { api, store } = ctx;
     const s0 = store.get('settings') ?? {};
     const bankroll = () => Number(store.get('settings')?.bankroll) || 0;
-    const o = { method: METHODS[s0.devigMethod] ? s0.devigMethod : 'multiplicative', kellyMult: Number(s0.kellyMult) > 0 && Number(s0.kellyMult) <= 1 ? Number(s0.kellyMult) : 0.25 };
+    // El método de devig (Ajustes) solo aplica a patas manuales con las dos cuotas.
+    const o = { method: s0.devigMethod || 'multiplicative', kellyMult: Number(s0.kellyMult) > 0 && Number(s0.kellyMult) <= 1 ? Number(s0.kellyMult) : 0.25 };
     const opts = () => ({ ...o, bankroll: bankroll() });
     let alive = true;
     let draft = cleanBoost(store.get('boostDraft')) ?? blank();
     let mode = 'search';
-    let search = { league: leagueById(ctx.league) ? ctx.league : 'nba', q: '', state: 'idle', list: [], notes: [], srcs: [], demo: false, skipped: 0 };
+    let search = { league: leagueById(ctx.league) ? ctx.league : 'nba', q: '', state: 'idle', list: [], notes: [], srcs: [] };
     const lf = { minEv: '', minKelly: '', leagues: [], order: 'ev' };
     const hits = new Map();
     let msgTimer = 0, qTimer = 0, hitTimer = 0;
@@ -129,10 +123,9 @@ export default {
     const persist = () => store.set('boostDraft', draft);
 
     el.innerHTML = h`<section class="bst">
-      <div class="view-head"><div><h1>Boosts</h1><p class="hint">Calcula si un boost de cuota tiene valor con la probabilidad justa (sin vig) de cada pata.</p></div></div>
-      <p class="bst-limit" role="note"><b>No hay lista automática de boosts:</b> las casas no publican sus promociones en una fuente gratuita. Escribe el boost que ves en tu casa y agrega sus patas: buscándolas en las cuotas reales del mercado (devig del consenso de casas) o a mano. El combinado supone patas independientes.</p>
+      <div class="view-head"><div><h1>Boosts</h1><p class="hint">Escribe la cuota con boost de tu casa y la comparamos con la probabilidad del modelo Coflas para cada pata.</p></div></div>
+      <p class="bst-limit" role="note"><b>No hay lista automática de boosts:</b> las casas no publican sus promociones en una fuente gratuita. Escribe el boost que ves en tu casa y agrega sus patas: buscándolas en los mercados y props del modelo Coflas o a mano. El combinado supone patas independientes.</p>
       <div class="toolbar bst-bar">
-        <span class="ev-method"><label>Devig <select data-o="method">${optionsHtml(Object.entries(METHODS).map(([k, [t]]) => [k, t]), o.method)}</select></label><button type="button" class="icon-btn sm" data-info aria-label="Qué significa cada método de devig">?</button></span>
         <label>Kelly <select data-o="kellyMult">${optionsHtml(kellyOptions(o.kellyMult), o.kellyMult)}</select></label>
         <span class="status">Bankroll ${fmtMoney(bankroll())} · se cambia en Ajustes</span>
       </div>
@@ -152,7 +145,7 @@ export default {
           <div class="bst-add">
             <h3 id="bst-add-h" tabindex="-1">Agregar pata</h3>
             <div data-tabs></div>
-            <div class="bst-panel" data-panel="search" role="tabpanel" aria-label="Buscar en el mercado">
+            <div class="bst-panel" data-panel="search" role="tabpanel" aria-label="Buscar en el modelo">
               <div class="bst-sbar">
                 <label class="ev-field"><span>Liga</span><select data-s="league">${optionsHtml(LEAGUES.map((l) => [l.id, l.title]), search.league)}</select></label>
                 <label class="ev-field bst-grow"><span>Buscar</span><input type="search" data-s="q" autocomplete="off" placeholder="Jugador, equipo o mercado"></label>
@@ -165,7 +158,7 @@ export default {
                 <label class="ev-field bst-wide"><span>Pata *</span><input data-m="label" maxlength="120" autocomplete="off" placeholder="p. ej. Real Madrid gana"></label>
                 <label class="ev-field"><span>Cuota de esta pata</span><input data-m="price" maxlength="20" autocomplete="off" placeholder="p. ej. -150"></label>
                 <label class="ev-field"><span>Cuota del lado contrario</span><input data-m="opp" maxlength="20" autocomplete="off" placeholder="p. ej. +130"></label>
-                <label class="ev-field"><span>O probabilidad justa %</span><input data-m="prob" type="number" min="0.1" max="99.9" step="any" inputmode="decimal"></label>
+                <label class="ev-field"><span>O probabilidad %</span><input data-m="prob" type="number" min="0.1" max="99.9" step="any" inputmode="decimal"></label>
                 <label class="ev-field"><span>Liga</span><select data-m="league"><option value="">—</option>${optionsHtml(LEAGUES.map((l) => [l.id, l.title]), '')}</select></label>
                 <label class="ev-field"><span>Partido (opcional)</span><input data-m="event" maxlength="120" autocomplete="off" placeholder="p. ej. LAL @ BOS"></label>
               </div>
@@ -195,7 +188,7 @@ export default {
     // ---------- pestañas para agregar patas ----------
     $('[data-tabs]').append(tabs({
       label: 'Cómo agregar la pata', value: mode,
-      items: [{ value: 'search', label: 'Buscar en el mercado' }, { value: 'manual', label: 'Manual' }],
+      items: [{ value: 'search', label: 'Buscar en el modelo' }, { value: 'manual', label: 'Manual' }],
       onChange: (v) => { mode = v; for (const p of root.querySelectorAll('[data-panel]')) p.hidden = p.dataset.panel !== v; },
     }));
     $('[data-slot="leagues"]').append(dropdown({
@@ -241,7 +234,7 @@ export default {
             const { p, how } = legProb(l, o.method);
             return h`<li class="bst-leg">
               <div class="bst-leg-main"><b>${l.label}</b>${legMeta(l) ? h`<small>${legMeta(l)}</small>` : ''}<small class="bst-muted">${how}</small></div>
-              <div class="bst-leg-side"><b title="Probabilidad justa">${fmtPct(p, 1)}</b><span class="bst-hit">${hitHtml(l)}</span></div>
+              <div class="bst-leg-side"><b title="Probabilidad">${fmtPct(p, 1)}</b><span class="bst-hit">${hitHtml(l)}</span></div>
               <button type="button" class="icon-btn sm" data-rm="${l.id}" aria-label="Quitar la pata ${l.label}">✕</button></li>`;
           })}`
           : h`<li class="bst-empty">Todavía no hay patas. Búscalas abajo o agrégalas a mano.</li>`;
@@ -265,17 +258,17 @@ export default {
       const warns = [];
       if (draft.boosted && !b.boosted) warns.push('La cuota con boost no es válida: usa americana (+575) o decimal (6.75).');
       if (draft.original && !b.original) warns.push('La cuota original no es válida.');
-      if (res.missing && draft.legs.length) warns.push('Alguna pata no tiene probabilidad justa: complétala o quítala.');
+      if (res.missing && draft.legs.length) warns.push('Alguna pata no tiene probabilidad: vuelve a buscarla, complétala o quítala.');
       if (res.sameGame) warns.push('Hay patas del mismo partido: suelen estar correlacionadas, así que la probabilidad real del combinado puede ser bastante distinta del producto. Las casas suelen poner boosts justo en combinaciones correlacionadas.');
       if (res.withVig) warns.push('Hay patas con una sola cuota: su probabilidad incluye el vig, así que el EV calculado es conservador.');
-      if (draft.legs.some((l) => l.at && Date.now() - l.at > 3 * 3600e3)) warns.push('Algunas patas usan cuotas guardadas hace más de 3 horas; vuelve a buscarlas para actualizarlas.');
+      if (draft.legs.some((l) => l.at && Date.now() - l.at > 3 * 3600e3)) warns.push('Algunas patas usan probabilidades guardadas hace más de 3 horas; vuelve a buscarlas para actualizarlas.');
       live.textContent = res.ev != null ? `EV ${pctSigned(res.ev)}, Kelly ${fmtPct(res.kelly, 2)}` : '';
       const inSlip = picked(`boost:${draft.id}`);
       const ready = b.boosted && draft.legs.length;
       keepFocus(box, () => {
         box.innerHTML = h`${!draft.legs.length ? empty('Agrega al menos una pata para calcular el valor del boost.') : !b.boosted ? empty('Escribe la cuota con boost.') : h`<dl class="bst-kpis">
             ${kpi('EV', pctSigned(res.ev), `bst-big ${res.ev >= 0 ? 'pos' : 'neg'}`)}
-            ${kpi('Prob. justa del combinado', h`${fmtPct(res.prob, 2)} <small>cuota justa ${fmtOdds(res.fairOdds)}</small>`)}
+            ${kpi('Prob. del combinado (modelo)', h`${fmtPct(res.prob, 2)} <small>cuota justa ${fmtOdds(res.fairOdds)}</small>`)}
             ${kpi('Prob. implícita del boost', fmtPct(1 / b.boosted, 2))}
             ${kpi('Kelly', fmtPct(res.kelly, 2))}
             ${kpi('Monto sugerido', h`${fmtMoney(res.stake)}${res.capped ? h` <small>tope de la casa</small>` : ''}`)}
@@ -306,29 +299,12 @@ export default {
 
     // ---------- búsqueda en el mercado ----------
     async function loadCands(id) {
-      const lg = leagueById(id);
-      search = { ...search, league: id, state: 'loading', list: [], notes: [], srcs: [], demo: false, skipped: 0 };
+      search = { ...search, league: id, state: 'loading', list: [], notes: [], srcs: [] };
       paintSearch();
-      const jobs = [lg?.odds ? api.odds(lg.odds).then((b) => ['lines', b]) : null, api.props(id).then((b) => ['props', b])].filter(Boolean);
-      const res = await Promise.allSettled(jobs);
+      const r = await selectionsOf(api, id);
       if (!alive || search.league !== id) return;
-      const list = [], notes = [], srcs = [];
-      let demo = false, skipped = 0;
-      if (!lg?.odds) notes.push(`The Odds API no cubre las líneas de partido de ${lg?.title ?? id}.`);
-      res.forEach((r, i) => {
-        const kind = jobs.length === 2 && i === 0 ? 'lines' : 'props';
-        if (r.status === 'rejected') return notes.push(`${kind === 'lines' ? 'Líneas' : 'Props'}: ${r.reason?.message ?? 'no se pudieron cargar'}`);
-        const body = r.value[1];
-        if (body?.source === 'demo') demo = true;
-        srcs.push([kind, body]);
-        for (const m of marketsOf(id, r.value[0], dataOf(body))) {
-          if (started(m.start)) continue;
-          const rows = fullRows(m);
-          if (m.a.names.length < 2 || !rows.length) { skipped++; continue; }
-          m.a.names.forEach((n, idx) => list.push({ m, n, idx, rows, label: m.label(n), hay: norm(`${m.label(n)} ${m.matchup} ${m.title}`) }));
-        }
-      });
-      search = { ...search, state: 'ok', list, notes, srcs, demo, skipped };
+      const list = r.list.map((c) => ({ ...c, hay: norm(`${c.label} ${c.matchup} ${c.title}`) }));
+      search = { ...search, state: 'ok', list, notes: r.notes, srcs: r.srcs };
       paintSearch();
     }
 
@@ -340,21 +316,18 @@ export default {
     function paintSearch() {
       const st = $('[data-s-status]'), box = $('[data-cands]');
       const found = search.state === 'ok' ? matchesQ() : [];
-      const srcs = search.srcs.map(([k, b]) => h`<span>${k === 'lines' ? 'Líneas' : 'Props'} ${sourceBadge(b)}</span>`);
+      const srcs = search.srcs.map(([k, b]) => h`<span>${k} ${sourceBadge(b)}</span>`);
       st.innerHTML = search.state === 'loading' ? 'Cargando cuotas…'
         : search.state !== 'ok' ? ''
-        : h`${search.q.trim() ? `${found.length} ${found.length === 1 ? 'resultado' : 'resultados'}${found.length > MAX_RESULTS ? ` (se muestran ${MAX_RESULTS})` : ''}` : `${search.list.length} selecciones con devig disponible. Escribe para buscar.`} ${srcs}
-          ${search.demo ? h`<span class="bst-warn-i">Cuotas de demostración: no son reales.</span>` : ''}
+        : h`${search.q.trim() ? `${found.length} ${found.length === 1 ? 'resultado' : 'resultados'}${found.length > MAX_RESULTS ? ` (se muestran ${MAX_RESULTS})` : ''}` : `${search.list.length} selecciones del modelo. Escribe para buscar.`} ${srcs}
           ${search.notes.map((n) => h`<span class="bst-muted">${n}</span>`)}`;
       const inDraft = new Set(draft.legs.map((l) => `${l.event}|${l.label}`));
       keepFocus(box, () => {
         box.innerHTML = h`${found.slice(0, MAX_RESULTS).map((c, i) => {
-          const p = fairFromBooks(c.rows, { method: o.method })?.probs[c.idx];
-          const best = c.m.a.best[c.n];
-          const added = inDraft.has(`${c.m.event}|${c.label}`);
+          const added = inDraft.has(`${c.gameId}|${c.label}`);
           return h`<li><button type="button" class="bst-cand" data-cand="${i}"${added ? raw(' aria-disabled="true"') : ''}>
-            <span class="bst-cand-l"><span class="sr-only">${added ? 'Ya agregada: ' : 'Agregar pata: '}</span><b>${c.label}</b><small>${[c.m.matchup, when(c.m.start)].filter(Boolean).join(' · ')}</small></span>
-            <span class="bst-cand-r"><b>${fmtPct(p, 1)}</b><small>justa · mejor ${fmtOdds(best?.price)} ${bookInfo(best?.key || best?.book).name}</small></span>
+            <span class="bst-cand-l"><span class="sr-only">${added ? 'Ya agregada: ' : 'Agregar pata: '}</span><b>${c.label}</b><small>${[c.matchup, when(c.start)].filter(Boolean).join(' · ')}</small></span>
+            <span class="bst-cand-r"><b>${fmtPct(c.p, 1)}</b><small>justa ${fmtOdds(c.fair)} · Coflas ${fmtOdds(c.coflas)}</small></span>
             ${added ? h`<span class="bst-cand-ok" aria-hidden="true">✓</span>` : ''}</button></li>`;
         })}`;
       });
@@ -370,13 +343,13 @@ export default {
     }
 
     function addCandidate(c) {
-      if (draft.legs.some((l) => l.event === c.m.event && l.label === c.label)) return;
-      const a = c.m.a;
+      if (draft.legs.some((l) => l.event === c.gameId && l.label === c.label)) return;
+      const pr = c.prop;
       const ok = addLeg({
-        id: newId(), kind: c.m.kind === 'props' ? 'prop' : 'line', label: c.label, league: c.m.league, event: c.m.event, matchup: c.m.matchup,
-        start: c.m.start ?? '', idx: c.idx, rows: c.rows.map((r) => ({ key: r.key, prices: [...r.prices] })), price: null, opp: null, prob: null,
-        player: c.m.kind === 'props' ? a.player : '', athleteId: c.m.kind === 'props' ? a.athleteId ?? null : null,
-        stat: c.m.kind === 'props' ? a.stat : null, line: c.m.kind === 'props' && Number.isFinite(a.line) ? a.line : null, side: c.n === 'Under' ? 'Under' : 'Over', at: Date.now(),
+        id: newId(), kind: pr ? 'prop' : 'line', label: c.label, league: c.league, event: c.gameId, matchup: c.matchup,
+        start: c.start ?? '', price: null, opp: null, prob: c.p,
+        player: pr?.player ?? '', athleteId: pr?.athleteId ?? null, stat: pr?.stat ?? null, line: pr && Number.isFinite(pr.line) ? pr.line : null,
+        side: pr?.side === 'Under' ? 'Under' : 'Over', at: Date.now(),
       });
       if (ok) { paintSearch(); flash(`Pata agregada: ${c.label}.`); }
     }
@@ -396,7 +369,7 @@ export default {
       if (problem) return;
       const ok = addLeg({
         id: newId(), kind: 'manual', label: label.slice(0, 120), league: v('league') || null, event: v('event').slice(0, 120) || null, matchup: v('event').slice(0, 120),
-        start: '', idx: 0, rows: [], price, opp, prob: pct != null ? pct / 100 : null, player: '', athleteId: null, stat: null, line: null, side: 'Over', at: null,
+        start: '', price, opp, prob: pct != null ? pct / 100 : null, player: '', athleteId: null, stat: null, line: null, side: 'Over', at: null,
       });
       if (!ok) return;
       for (const k of ['label', 'price', 'opp', 'prob']) form.querySelector(`[data-m="${k}"]`).value = '';
@@ -426,12 +399,12 @@ export default {
             return h`<article class="card bst-card" aria-label="Boost a ${fmtOdds(p.boosted)}">
               <header class="bst-card-h"><b class="bst-boosted">Boost a ${fmtOdds(p.boosted)}</b><span class="bst-tag">${p.original ? `antes ${fmtOdds(p.original)}` : 'Odds boost'}</span>${b.book ? bookChip(b.book) : ''}</header>
               ${b.desc ? h`<p class="bst-desc">${b.desc}</p>` : ''}
-              <ul class="bst-card-legs">${b.legs.map((l, i) => h`<li><span class="bst-cl">${l.label}${legMeta(l) ? h`<small>${legMeta(l)}</small>` : ''}</span><span class="bst-hit">${hitHtml(l)}</span><b title="Probabilidad justa">${fmtPct(res.probs[i]?.p, 1)}</b></li>`)}</ul>
+              <ul class="bst-card-legs">${b.legs.map((l, i) => h`<li><span class="bst-cl">${l.label}${legMeta(l) ? h`<small>${legMeta(l)}</small>` : ''}</span><span class="bst-hit">${hitHtml(l)}</span><b title="Probabilidad">${fmtPct(res.probs[i]?.p, 1)}</b></li>`)}</ul>
               <dl class="bst-kpis bst-kpis-sm">
-                ${kpi('EV', pctSigned(res.ev), res.ev >= 0 ? 'pos' : 'neg')}${kpi('Kelly', fmtPct(res.kelly, 2))}${kpi('Monto', fmtMoney(res.stake))}${kpi('Prob. justa', fmtPct(res.prob, 2))}
+                ${kpi('EV', pctSigned(res.ev), res.ev >= 0 ? 'pos' : 'neg')}${kpi('Kelly', fmtPct(res.kelly, 2))}${kpi('Monto', fmtMoney(res.stake))}${kpi('Prob. modelo', fmtPct(res.prob, 2))}
               </dl>
               ${res.sameGame ? h`<p class="bst-muted">Patas del mismo partido: probablemente correlacionadas.</p>` : ''}
-              <p class="bst-muted">${Number.isFinite(oldest) ? `Cuotas tomadas ${ago(new Date(oldest).toISOString())}` : 'Patas manuales'}${b.savedAt ? ` · guardado ${ago(new Date(b.savedAt).toISOString())}` : ''}</p>
+              <p class="bst-muted">${Number.isFinite(oldest) ? `Probabilidades tomadas ${ago(new Date(oldest).toISOString())}` : 'Patas manuales'}${b.savedAt ? ` · guardado ${ago(new Date(b.savedAt).toISOString())}` : ''}</p>
               <div class="bst-card-act">
                 <button type="button" class="btn btn-primary" data-pick="${b.id}" aria-pressed="${String(inSlip)}"${p.boosted ? '' : raw(' disabled')}>${inSlip ? '✓ En el boleto' : `Al boleto${bk ? ` en ${bk}` : ''} ${fmtOdds(p.boosted)}`}</button>
                 <button type="button" class="btn" data-edit="${b.id}">Editar</button>
@@ -471,7 +444,6 @@ export default {
     root.addEventListener('click', (e) => {
       const b = e.target.closest('button');
       if (!b) return;
-      if (b.dataset.info != null) return showMethodsInfo(() => b.isConnected && b.focus());
       if (b.dataset.cand != null) { const c = matchesQ()[b.dataset.cand]; if (c) addCandidate(c); return; }
       if (b.dataset.rm != null) {
         const i = draft.legs.findIndex((l) => l.id === b.dataset.rm);

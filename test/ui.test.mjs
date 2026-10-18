@@ -3,16 +3,16 @@ import assert from 'node:assert/strict';
 import { h, esc, raw, fmtOdds, fmtPct, bookInfo, bookChip, hitBar, barChart } from '../public/ui.js';
 import { store, encodePicks, decodePicks } from '../public/store.js';
 
-test('fmtOdds: americano por defecto y decimal', () => {
+test('fmtOdds: decimal por defecto y americano', () => {
   assert.equal(fmtOdds(2.5, 'american'), '+150');
   assert.equal(fmtOdds(1.5, 'american'), '-200');
   assert.equal(fmtOdds(2, 'american'), '+100');
   assert.equal(fmtOdds(1.909, 'decimal'), '1.91');
-  assert.equal(fmtOdds(2.5), '+150'); // settings.oddsFormat por defecto = american
+  assert.equal(fmtOdds(2.5), '2.50'); // settings.oddsFormat por defecto = decimal
   for (const bad of [null, undefined, 1, 0.5, NaN, 'x']) assert.equal(fmtOdds(bad), '—');
-  store.set('settings', { ...store.get('settings'), oddsFormat: 'decimal' });
-  assert.equal(fmtOdds(2.5), '2.50');
   store.set('settings', { ...store.get('settings'), oddsFormat: 'american' });
+  assert.equal(fmtOdds(2.5), '+150');
+  store.set('settings', { ...store.get('settings'), oddsFormat: 'decimal' });
 });
 
 test('fmtPct', () => {

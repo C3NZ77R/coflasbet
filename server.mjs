@@ -1,5 +1,5 @@
-// Servidor de Coflas Bet: sirve public/ y hace de proxy a ESPN (partidos, game logs, lesiones, plantillas; sin clave)
-// y a The Odds API (cuotas y props; la clave nunca llega al navegador). Caché en memoria por URL en lib/espn.mjs.
+// Servidor de Coflas Bet: sirve public/ y hace de proxy a ESPN (partidos, game logs, lesiones, plantillas; sin clave).
+// Las cuotas son propias (lib/markets.mjs y lib/props.mjs). Caché en memoria por URL en lib/espn.mjs.
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -7,23 +7,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { LEAGUES, leagueById } from './public/leagues.js';
 import * as espn from './lib/espn.mjs';
 import { getProps } from './lib/props.mjs';
+import { getMarkets, getAccuracy } from './lib/markets.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
-const KEY = process.env.COFLAS_ODDS_API_KEY;
-const REGIONS = process.env.COFLAS_REGIONS || 'eu,us';
-const PROP_REGIONS = process.env.COFLAS_PROP_REGIONS || 'us'; // cada región multiplica el costo de los props
 const PORT = Number(process.env.PORT || 5173);
-const demo = JSON.parse(await readFile(path.join(ROOT, 'demo-odds.json'), 'utf8'));
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.ico': 'image/x-icon' };
-
-// Cada consulta de cuotas gasta créditos del plan: caché de 5 min (TTL.board).
-async function oddsApi(route, params = {}) {
-  const url = new URL(`https://api.the-odds-api.com/v4${route}`);
-  url.search = new URLSearchParams({ ...params, apiKey: KEY });
-  const { body, headers } = await espn.fetchJson(url.href, espn.TTL.board, { label: 'The Odds API', meta: true });
-  return { source: 'live', remaining: headers.get('x-requests-remaining'), data: body };
-}
 
 // ---------- validación de parámetros ----------
 const RX = {
@@ -31,7 +20,6 @@ const RX = {
   id: /^\d{1,12}$/,
   season: /^(19|20)\d\d$/,
   q: /^[\p{L}\p{M}0-9 .'’-]{2,40}$/u,
-  sport: /^[a-z0-9_]{1,60}$/,
 };
 const bad = (msg) => espn.httpError(400, msg);
 function param(url, name, rx, required = false) {
@@ -49,25 +37,10 @@ function leagueParam(url) {
   return lg.id;
 }
 
-// Si The Odds API falla (p. ej. créditos agotados), se muestran los datos demo en vez de un error.
-function fallback(err, demoBody) {
-  console.error('The Odds API:', err.message);
-  return { ...demoBody, warning: 'The Odds API no respondió (¿créditos agotados?): se muestran datos demo.' };
-}
-
 const ROUTES = {
   '/api/leagues': async () => ({ source: 'espn', data: LEAGUES }),
-  '/api/sports': async () => {
-    if (!KEY) return { source: 'demo', data: demo.sports };
-    const r = await oddsApi('/sports');
-    return { ...r, data: r.data.filter((s) => s.active && !s.has_outrights).map(({ key, title, group }) => ({ key, title, group })) };
-  },
-  '/api/odds': async (url) => {
-    const sport = param(url, 'sport', RX.sport) || 'upcoming';
-    const demoOdds = { source: 'demo', data: sport === 'upcoming' ? demo.events : demo.events.filter((e) => e.sport_key === sport) };
-    if (!KEY) return demoOdds;
-    return oddsApi(`/sports/${sport}/odds`, { regions: REGIONS, markets: 'h2h,spreads,totals', oddsFormat: 'decimal' }).catch((err) => fallback(err, demoOdds));
-  },
+  '/api/markets': async (url) => getMarkets(leagueParam(url), { game: param(url, 'game', RX.id), date: param(url, 'date', RX.date) }),
+  '/api/accuracy': async () => ({ source: 'coflas', data: getAccuracy() }),
   '/api/games': async (url) => ({ source: 'espn', data: await espn.getGames(leagueParam(url), param(url, 'date', RX.date)) }),
   '/api/game': async (url) => ({ source: 'espn', data: await espn.getGame(leagueParam(url), param(url, 'id', RX.id, true)) }),
   '/api/gamelog': async (url) => ({
@@ -77,14 +50,11 @@ const ROUTES = {
   '/api/roster': async (url) => ({ source: 'espn', data: await espn.getRoster(leagueParam(url), param(url, 'team', RX.id, true)) }),
   '/api/injuries': async (url) => ({ source: 'espn', data: await espn.getInjuries(leagueParam(url)) }),
   '/api/search': async (url) => ({ source: 'espn', data: await espn.searchAthletes(leagueParam(url), param(url, 'q', RX.q, true).trim()) }),
-  '/api/props': async (url) => {
-    const args = [leagueParam(url), param(url, 'game', RX.id)];
-    return getProps(...args, { key: KEY, regions: PROP_REGIONS }).catch(async (err) => fallback(err, await getProps(...args, {})));
-  },
+  '/api/props': async (url) => getProps(leagueParam(url), param(url, 'game', RX.id)),
 };
 
-// Caché compartida en la CDN de Vercel (la memoria de cada instancia no se comparte): el plan gratis de The Odds API son 500 créditos/mes.
-const EDGE_S = { '/api/sports': 86400, '/api/odds': 10800, '/api/props': 21600 };
+// Caché compartida en la CDN de Vercel (la memoria de cada instancia no se comparte): los ratings piden un calendario por equipo.
+const EDGE_S = { '/api/markets': 1800, '/api/props': 1800, '/api/accuracy': 86400 };
 const json = (res, status, body, edge = 0) => res.writeHead(status, {
   'content-type': 'application/json; charset=utf-8',
   'cache-control': edge ? `public, max-age=0, s-maxage=${edge}, stale-while-revalidate=${edge * 4}` : 'no-store',
@@ -115,5 +85,5 @@ export async function handler(req, res) {
 
 // En Vercel solo se importa el handler (api/[...path].mjs); en local se levanta el servidor.
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) http.createServer(handler).listen(PORT, '127.0.0.1', () => {
-  console.log(`Coflas Bet en http://localhost:${PORT} — partidos y estadísticas: ESPN · cuotas y props: ${KEY ? `The Odds API (regiones ${REGIONS}; props ${PROP_REGIONS}, solo al abrir un partido)` : 'DEMO (falta COFLAS_ODDS_API_KEY en .env)'}`);
+  console.log(`Coflas Bet en http://localhost:${PORT} — partidos y estadísticas: ESPN · cuotas y props: modelo propio`);
 });

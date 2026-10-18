@@ -45,8 +45,8 @@ export async function get(path, params = {}, { fresh = false } = {}) {
 export const api = {
   get,
   leagues: () => get('/api/leagues'),
-  sports: () => get('/api/sports'),
-  odds: (sportKey) => get('/api/odds', { sport: sportKey }),
+  markets: (league, gameId, date) => get('/api/markets', { league, game: gameId, date }),
+  accuracy: () => get('/api/accuracy'),
   games: (league, date) => get('/api/games', { league, date }),
   game: (league, id) => get('/api/game', { league, id }),
   gamelog: (league, athleteId, season) => get('/api/gamelog', { league, athlete: athleteId, season }),

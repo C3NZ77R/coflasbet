@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Coflas Bet</title>
-  <meta name="description" content="Investigación de apuestas deportivas: props, partidos, EV+, arbitraje y middles con datos reales." />
+  <meta name="description" content="Investigación de apuestas deportivas: props, partidos y EV+ con cuotas propias sobre datos reales." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%2311161f'/><path d='M22 10a8 8 0 1 0 0 12' stroke='%23c6f432' stroke-width='4' fill='none' stroke-linecap='round'/></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
@@ -16,8 +16,6 @@
   <link rel="stylesheet" href="css/popular.css" />
   <link rel="stylesheet" href="css/ev.css" />
   <link rel="stylesheet" href="css/boosts.css" />
-  <link rel="stylesheet" href="css/arbitrage.css" />
-  <link rel="stylesheet" href="css/middles.css" />
   <link rel="stylesheet" href="css/odds.css" />
   <link rel="stylesheet" href="css/calculators.css" />
 </head>
@@ -28,8 +26,8 @@
     <a class="brand" href="#/nba/props" aria-label="Coflas Bet, inicio"><span class="logo" aria-hidden="true"></span> coflas<b>bet</b></a>
     <div class="top-actions">
       <div class="seg" role="group" aria-label="Formato de cuotas">
-        <button type="button" data-odds="american" aria-pressed="true">Americana</button>
-        <button type="button" data-odds="decimal" aria-pressed="false">Decimal</button>
+        <button type="button" data-odds="decimal" aria-pressed="true">Decimal</button>
+        <button type="button" data-odds="american" aria-pressed="false">Americana</button>
       </div>
       <button type="button" class="icon-btn" id="settingsBtn" aria-label="Ajustes: mis casas y bankroll" title="Ajustes">
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
@@ -48,8 +46,6 @@
         <p class="nav-group" id="navPro">Pro</p>
         <a data-nav="ev" href="#/pro/ev"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg><span>EV+</span></a>
         <a data-nav="boosts" href="#/pro/boosts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg><span>Boosts</span></a>
-        <a data-nav="arbitrage" href="#/pro/arbitrage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></svg><span>Arbitraje</span></a>
-        <a data-nav="middles" href="#/pro/middles"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h4M16 12h4M12 4v16"/><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg><span>Middles</span></a>
         <hr />
         <a data-nav="odds" href="#/comparador"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Comparador</span></a>
         <a data-nav="calculators" href="#/calculadoras"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 18h.01M12 18h.01M16 18h.01"/></svg><span>Calculadoras</span></a>
@@ -61,13 +57,13 @@
         <div>
           <span class="pill"><i></i> Gratis · sin cuenta</span>
           <h1 id="heroTitle">Apuesta con <span class="grad">ventaja</span></h1>
-          <p>Props con game logs reales, cuotas de varias casas, EV+, arbitraje y middles. Todo en un solo lugar.</p>
+          <p>Props con game logs reales y cuotas propias del modelo Coflas para cada mercado. Todo en un solo lugar.</p>
         </div>
         <button type="button" class="btn" data-hero-close>Entendido</button>
       </section>
       <nav class="chips league-chips" id="leagues" aria-label="Ligas" hidden></nav>
       <main id="view" tabindex="-1"></main>
-      <footer>+18. Herramienta de análisis con fines informativos: ninguna apuesta es segura. Juega con responsabilidad. Datos: ESPN y The Odds API.</footer>
+      <footer>+18. Herramienta de análisis con fines informativos: ninguna apuesta es segura. Juega con responsabilidad. Datos: ESPN. Cuotas: modelo propio de Coflas.</footer>
     </div>
 
     <aside class="slip" id="slip" aria-labelledby="slipTitle">

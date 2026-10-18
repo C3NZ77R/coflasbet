@@ -1,45 +1,58 @@
-// Comparador: cuotas de The Odds API por casa para un mercado (ganador, hándicap o totales), agrupadas por línea.
-import { analyzeEvent } from '../betmath.js';
+// Comparador (#/comparador): tablero de cuotas propias del modelo Coflas por liga y mercado, hoy y mañana.
+// Por selección: probabilidad, cuota justa (1/p) y cuota Coflas (con margen). Toca la cuota Coflas para agregarla a Mis picks.
 import { LEAGUES } from '../leagues.js';
 
-const MARKETS = { h2h: 'Ganador', spreads: 'Hándicap', totals: 'Totales' };
-const label = (name) => name.replace(/^Draw$/, 'Empate').replace(/^Over /, 'Más de ').replace(/^Under /, 'Menos de ');
-const leagueOf = (sportKey) => LEAGUES.find((l) => l.odds === sportKey)?.id ?? null;
+const KEYS = { '1x2': 'Resultado (1X2)', ml: 'Ganador', spread: 'Spread', rl: 'Run/Puck line', ah: 'Hándicap asiático', ou: 'Totales', dc: 'Doble oportunidad', dnb: 'Empate no válido', btts: 'Ambos marcan', cs: 'Marcador exacto' };
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+const signed = (x) => (x > 0 ? `+${x}` : String(x));
+const abbr = (t) => t?.abbr || t?.name || '';
 
 export default {
   title: 'Comparador de cuotas',
   render(el, { api, store, ui }) {
     const { h, raw } = ui;
-    const state = { sport: 'upcoming', market: 'h2h', q: '', rows: [], body: null };
+    const state = { league: LEAGUES[0].id, market: null, q: '', games: [], accuracy: null };
     let picks = []; // índice → pick para los botones de cuota
     let alive = true, token = 0;
 
     el.innerHTML = h`<header class="view-head"><div><h1>Comparador de cuotas</h1>
-        <p class="hint">Cuotas del mercado elegido por casa, agrupadas por línea (solo se comparan cuotas de la misma línea). La mejor de cada resultado va resaltada; toca una cuota para agregarla a Mis picks.</p></div></header>
-      <nav class="chips" data-sports aria-label="Deporte"><button type="button" data-sport="upcoming" aria-pressed="true">Todos</button></nav>
+        <p class="hint">Cuotas propias del modelo Coflas para hoy y mañana: probabilidad, cuota justa (sin margen) y cuota Coflas (con 5% de margen). Toca una cuota Coflas para agregarla a Mis picks.</p></div></header>
+      <nav class="chips" data-leagues aria-label="Liga">${LEAGUES.map((l, i) => h`<button type="button" data-league="${l.id}" aria-pressed="${i === 0}">${l.title}</button>`)}</nav>
       <div class="toolbar">
-        <label>Mercado <select data-market>${Object.entries(MARKETS).map(([k, v]) => h`<option value="${k}">${v}</option>`)}</select></label>
-        <label>Buscar <input type="search" data-q placeholder="Equipo o liga"></label>
+        <label>Mercado <select data-market></select></label>
+        <label>Buscar <input type="search" data-q placeholder="Equipo"></label>
         <button type="button" class="btn btn-primary" data-refresh>Actualizar</button>
         <span class="status" data-status role="status"></span>
       </div>
-      <div class="odds-list" data-list></div>`;
+      <div class="odds-list" data-list></div>
+      <p class="hint" data-acc></p>`;
     const $ = (s) => el.querySelector(s);
-
-    api.sports().then((body) => {
-      if (!alive) return;
-      $('[data-sports]').insertAdjacentHTML('beforeend', h`${(body.data ?? []).map((s) => h`<button type="button" data-sport="${s.key}" aria-pressed="false">${s.title}</button>`)}`);
-    }).catch(() => { /* sin lista de deportes: queda "Todos" */ });
 
     async function load(fresh = false) {
       const my = ++token;
       $('[data-status]').textContent = 'Cargando cuotas…';
       $('[data-list]').innerHTML = ui.loading(3);
+      $('[data-acc]').textContent = '';
+      const now = new Date();
+      const dates = [0, 1].map((i) => ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + i)));
       try {
-        const body = await api.get('/api/odds', { sport: state.sport }, { fresh });
+        const opt = { fresh };
+        const res = await Promise.all(dates.flatMap((date) => [
+          api.get('/api/games', { league: state.league, date }, opt),
+          api.get('/api/markets', { league: state.league, date }, opt),
+        ]));
         if (!alive || my !== token) return;
-        state.body = body;
-        state.rows = (body.data ?? []).flatMap((event) => analyzeEvent(event, { market: state.market }).map((a) => ({ event, a })));
+        const byId = new Map(res.filter((_, i) => i % 2).flatMap((r) => r.data ?? []).map((x) => [String(x.gameId), x.markets]));
+        state.accuracy = res[1].accuracy;
+        state.games = res.filter((_, i) => !(i % 2)).flatMap((r) => r.data ?? [])
+          .filter((g) => g.status?.state !== 'post' && byId.has(String(g.id)))
+          .map((g) => ({ g, markets: byId.get(String(g.id)) }))
+          .sort((a, b) => Date.parse(a.g.start) - Date.parse(b.g.start));
+        // Selector: los mercados presentes en esta liga (se conserva el elegido si existe).
+        const keys = [...new Set(state.games.flatMap((x) => x.markets.map((m) => m.key)))];
+        if (!keys.includes(state.market)) state.market = keys[0] ?? null;
+        $('[data-market]').innerHTML = h`${keys.map((k) => h`<option value="${k}"${raw(k === state.market ? ' selected' : '')}>${KEYS[k] ?? k}</option>`)}`;
         draw();
       } catch (err) {
         if (!alive || my !== token) return;
@@ -49,40 +62,49 @@ export default {
     }
 
     function draw() {
+      const acc = state.accuracy;
+      $('[data-acc]').textContent = acc?.brier != null
+        ? `Precisión del modelo: Brier ${acc.brier.toFixed(3)} en ${acc.n} partidos (referencia ${acc.baseline?.brier?.toFixed(3) ?? '—'})`
+        : 'Precisión del modelo: sin backtest para esta liga.';
+      if (acc?.publish === false) {
+        $('[data-status]').innerHTML = ui.sourceBadge('coflas');
+        $('[data-list]').innerHTML = ui.empty('Cuotas no publicadas: el modelo aún no supera la referencia');
+        return;
+      }
       const q = state.q.trim().toLowerCase();
-      const shown = state.rows
-        .filter(({ event: e }) => !q || [e.home_team, e.away_team, e.sport_title].some((t) => String(t).toLowerCase().includes(q)))
-        .sort((x, y) => new Date(x.event.commence_time) - new Date(y.event.commence_time));
-      const events = new Set(shown.map((r) => r.event.id)).size;
-      $('[data-status]').innerHTML = h`${ui.sourceBadge(state.body)} ${events} ${events === 1 ? 'evento' : 'eventos'}`;
+      const shown = state.games.filter(({ g }) => !q || [g.home.name, g.away.name, g.home.abbr, g.away.abbr].some((t) => String(t ?? '').toLowerCase().includes(q)));
+      $('[data-status]').innerHTML = h`${ui.sourceBadge('coflas')} ${shown.length} ${shown.length === 1 ? 'partido' : 'partidos'}`;
       picks = [];
       const inSlip = new Set(store.get('picks').map((p) => p.id));
+      const name = (g, s) => (s.name === 'Local' ? abbr(g.home) : s.name === 'Visitante' ? abbr(g.away) : s.name);
+      const table = (g, m) => h`<div class="scroll"><table class="odds-table">
+          <caption class="sr-only">${m.label}: ${g.away.name} en ${g.home.name}</caption>
+          <thead><tr><th scope="col">${m.label}</th>${m.selections.map((s) => h`<th scope="col">${name(g, s)}${s.line != null ? ` ${m.key === 'ou' ? s.line : signed(s.line)}` : ''}</th>`)}</tr></thead>
+          <tbody>
+            <tr><th scope="row">Prob.</th>${m.selections.map((s) => h`<td>${ui.fmtPct(s.p)}</td>`)}</tr>
+            <tr><th scope="row">Justa</th>${m.selections.map((s) => h`<td>${ui.fmtOdds(s.fair)}</td>`)}</tr>
+            <tr><th scope="row">Coflas</th>${m.selections.map((s) => {
+              const n = `${name(g, s)}${s.line != null ? ` ${m.key === 'ou' ? s.line : signed(s.line)}` : ''}`;
+              // Mismo id que en Partidos: el pick se reconoce en ambas vistas.
+              const pick = { id: `coflas:${state.league}:${g.id}:${m.key}:${m.label}:${s.name}`, label: `${n} (${m.label}) · ${abbr(g.away)} @ ${abbr(g.home)}`, price: s.coflas, book: 'coflas', league: state.league, gameId: g.id };
+              picks.push(pick);
+              return h`<td><button type="button" class="odds-btn" data-pick="${picks.length - 1}" aria-pressed="${String(inSlip.has(pick.id))}" aria-label="${n} a ${ui.fmtOdds(s.coflas)} (Coflas)">${ui.fmtOdds(s.coflas)}</button></td>`;
+            })}</tr>
+          </tbody></table></div>`;
       $('[data-list]').innerHTML = shown.length
-        ? h`${shown.map(({ event: e, a }) => h`<article class="card odds-card">
-            <div class="odds-meta"><span class="odds-league">${e.sport_title}</span><time datetime="${e.commence_time}">${ui.when(e.commence_time)}</time></div>
-            <h2 class="odds-match">${e.away_team} <small>@</small> ${e.home_team}${a.line != null ? h` <span class="odds-line">${MARKETS[state.market]} ${a.line}</span>` : ''}</h2>
-            <div class="scroll"><table class="odds-table">
-              <caption class="sr-only">${MARKETS[state.market]}: ${e.away_team} en ${e.home_team}</caption>
-              <thead><tr><th scope="col">Casa</th>${a.names.map((n) => h`<th scope="col">${label(n)}</th>`)}</tr></thead>
-              <tbody>${a.books.map((b) => h`<tr><th scope="row">${ui.bookChip(b.key || b.title)}</th>${a.names.map((n) => {
-                const price = b.outcomes[n];
-                if (!price) return h`<td class="odds-na">—</td>`;
-                const best = price === a.best[n].price;
-                const pick = { id: `odds:${e.id}:${state.market}:${n}:${b.key}`, label: `${label(n)} (${MARKETS[state.market]}) · ${e.away_team} @ ${e.home_team}`, price, book: b.key || b.title, league: leagueOf(e.sport_key), gameId: e.id };
-                picks.push(pick);
-                return h`<td class="${best ? 'best' : ''}"><button type="button" class="odds-btn" data-pick="${picks.length - 1}" aria-pressed="${inSlip.has(pick.id)}" aria-label="${label(n)} a ${ui.fmtOdds(price)} en ${b.title}${best ? ' (mejor cuota)' : ''}">${ui.fmtOdds(price)}</button></td>`;
-              })}</tr>`)}</tbody>
-              ${a.fair ? h`<tfoot><tr class="fair"><th scope="row">Justa <small>(${a.fairSource})</small></th>${a.names.map((n) => h`<td>${ui.fmtOdds(1 / a.fair[n])} <small>${ui.fmtPct(a.fair[n], 1)}</small></td>`)}</tr></tfoot>` : raw('')}
-            </table></div>
+        ? h`${shown.map(({ g, markets }) => h`<article class="card odds-card">
+            <div class="odds-meta"><span class="odds-league">${LEAGUES.find((l) => l.id === state.league)?.title}</span><time datetime="${g.start}">${ui.when(g.start)}</time></div>
+            <h2 class="odds-match"><a href="#/${state.league}/games/${encodeURIComponent(g.id)}">${g.away.name} <small>@</small> ${g.home.name}</a></h2>
+            ${markets.filter((m) => m.key === state.market).map((m) => table(g, m))}
           </article>`)}`
-        : ui.empty(state.rows.length ? 'Ningún evento coincide con la búsqueda.' : 'No hay cuotas de este mercado para este deporte.');
+        : ui.empty(state.games.length ? 'Ningún partido coincide con la búsqueda.' : 'No hay partidos con cuotas del modelo hoy ni mañana en esta liga.');
     }
 
     el.addEventListener('click', (e) => {
-      const sp = e.target.closest('[data-sport]');
-      if (sp) {
-        state.sport = sp.dataset.sport;
-        for (const b of $('[data-sports]').children) b.setAttribute('aria-pressed', String(b === sp));
+      const lb = e.target.closest('[data-league]');
+      if (lb) {
+        state.league = lb.dataset.league;
+        for (const b of $('[data-leagues]').children) b.setAttribute('aria-pressed', String(b === lb));
         load();
         return;
       }
@@ -93,8 +115,8 @@ export default {
       if (store.hasPick(pick.id)) store.removePick(pick.id);
       else store.addPick(pick);
     });
-    $('[data-market]').addEventListener('change', (e) => { state.market = e.target.value; load(); });
-    $('[data-q]').addEventListener('input', (e) => { state.q = e.target.value; if (state.body) draw(); });
+    $('[data-market]').addEventListener('change', (e) => { state.market = e.target.value; draw(); });
+    $('[data-q]').addEventListener('input', (e) => { state.q = e.target.value; draw(); });
 
     // El boleto puede cambiar desde el panel: se refleja en los botones sin redibujar.
     const off = store.on('picks', (list) => {

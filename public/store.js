@@ -3,7 +3,7 @@
 const PREFIX = 'coflas.';
 const DEFAULTS = {
   picks: [], // [{ id, label, price (decimal), book, league, gameId, addedAt }]
-  settings: { oddsFormat: 'american', books: [], bankroll: 100, kellyMult: 0.25, devigMethod: 'multiplicative' },
+  settings: { oddsFormat: 'decimal', books: [], bankroll: 100, kellyMult: 0.25, devigMethod: 'multiplicative' },
   views: {}, // { [propKey]: { view, add, last } } → "Populares" con actividad local
   presets: {}, // { [vista]: [{ name, ... }] }
   league: 'nba',

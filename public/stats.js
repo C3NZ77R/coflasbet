@@ -1,6 +1,6 @@
 // Estadísticas de jugador por deporte. Lo comparten el servidor (lib/espn.mjs normaliza los game logs de ESPN a estas
-// claves cortas y lib/props.mjs pide a The Odds API los mercados `market`) y el navegador (pestañas, insights, props).
-// Cada definición: { key, label (corto, como en las pestañas), name (español), market? (The Odds API), markets? (otros
+// claves cortas y lib/props.mjs les pone línea propia a las que tienen `market`) y el navegador (pestañas, insights, props).
+// Cada definición: { key, label (corto, como en las pestañas), name (español), market? (id del prop), markets? (otros
 // mercados equivalentes, p. ej. Sí/No de anotar), from? (estadística derivada a partir de las claves crudas) }.
 
 // Suma tolerante: null si falta la primera clave (la que define el tipo de jugador); las demás, si faltan, cuentan como 0.
@@ -104,11 +104,11 @@ export function statOf(sport, key, gameStats) {
   return Number.isFinite(v) ? v : null;
 }
 
-// Definición para un mercado de The Odds API (acepta también las variantes `_alternate`).
+// Definición para un id de mercado de prop (acepta también las variantes `_alternate`).
 export function statForMarket(sport, market) {
   const m = String(market || '').replace(/_alternate$/, '');
   return STATS[sport]?.find((d) => d.market === m || d.markets?.includes(m)) ?? null;
 }
 
-// Mercados de props que se piden a The Odds API para un deporte (los principales, sin alternativos).
+// Mercados de props de un deporte (los principales, sin alternativos).
 export const propMarkets = (sport) => [...new Set((STATS[sport] ?? []).flatMap((d) => (d.market ? [d.market] : [])))];

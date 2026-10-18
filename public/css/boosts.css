@@ -1,4 +1,4 @@
-/* Boosts (/pro/boosts). Reutiliza .ev-field, .ev-method e .ev-info-list de ev.css. */
+/* Boosts (/pro/boosts). Reutiliza .ev-field de ev.css. */
 .bst-limit { padding: 12px 14px; border: 1px solid rgba(246, 200, 124, .35); background: rgba(246, 200, 124, .06); border-radius: 14px; font-size: 13px; margin: 0 0 14px; }
 .bst-limit b { color: var(--warn); }
 .bst-bar .status { margin-left: auto; }
@@ -38,7 +38,6 @@
 .bst-cand-r { justify-items: end; text-align: right; flex: none; }
 .bst-cand small { color: var(--muted); font-size: 12px; }
 .bst-cand-ok { color: var(--teal); font-weight: 800; }
-.bst-warn-i { color: var(--warn); }
 .bst-err:not(:empty) { color: var(--err); font-size: 13px; margin: 8px 0; }
 .bst-err:empty { margin: 0; }
 

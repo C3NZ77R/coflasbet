@@ -2,7 +2,7 @@
 // gratis de popularidad global; sin actividad se muestran las mejores rachas L10 de los props disponibles.
 import { leagueById } from '../leagues.js';
 import { statOf } from '../stats.js';
-import { SIDE, H, propKey, statDef, statName, matchup, best, pool, logFor, loadUpcoming } from './insights.js';
+import { SIDE, H, propKey, statDef, statName, matchup, coflasOf, oddsHtml, pool, logFor, loadUpcoming } from './insights.js';
 
 const TABS = { view: 'Más investigados', add: 'Más agregados' };
 const TOP = 20;
@@ -127,7 +127,7 @@ export default {
       const a = gl?.athlete ?? { id: p.athleteId, name: p.player, short: p.player, headshot: null, teamAbbr: p.team };
       const abbr = a.teamAbbr ?? p.team;
       const team = [g?.home, g?.away].find((t) => t && t.abbr === abbr);
-      const top = best(r.same ?? [p]);
+      const top = coflasOf(r.same ?? [p]);
       const hit = r.hit;
       return `<article class="pop-card">
         <a class="pop-link" href="#/${esc(league)}/props/${esc(propKey(p))}">
@@ -139,7 +139,7 @@ export default {
         </a>
         <div class="pop-foot">
           <span class="pop-hit">${hit ? `${H(ui.hitBar(hit.results))}<small>L10 · ${hit.hits}/${hit.n}</small>` : `<small>${logs.has(athKey(p)) ? 'Sin game log' : 'Cargando acierto…'}</small>`}</span>
-          <span class="pop-odds">${top ? `<b>${esc(ui.fmtOdds(top.price))}</b>${H(ui.bookChip(top.book))}` : '<small>sin cuota</small>'}</span>
+          <span class="pop-odds">${oddsHtml(ui, top)}</span>
         </div>
         ${r.view != null ? `<small class="pop-counts">${plural(r.view, 'vista', 'vistas')} · ${plural(r.add, 'agregado', 'agregados')}</small>` : ''}
       </article>`;
@@ -164,7 +164,8 @@ export default {
         : data.source ? H(ui.sourceBadge(data.source)) : '';
       listEl.innerHTML = rows.length
         ? rows.map(card).join('')
-        : loadingLogs ? '' : H(ui.empty(data.props.length ? 'No hay game logs para calcular rachas.' : 'No hay props disponibles para esta liga ahora mismo.'));
+        : loadingLogs ? '' : data.props.length ? H(ui.empty('No hay game logs para calcular rachas.'))
+          : `${H(ui.empty('Abre un partido para ver sus props.'))}<p class="pop-note">Esta lista cubre solo los próximos 3 partidos de hoy. <a href="#/${esc(league)}/games">Ver partidos</a></p>`;
     }
 
     // Al cambiar de pestaña o de modo, se cargan los game logs que falten para lo que se va a mostrar.

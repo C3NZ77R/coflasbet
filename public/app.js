@@ -8,8 +8,8 @@ import { parlayOdds } from './betmath.js';
 const $ = (s) => document.querySelector(s);
 const LEAGUE_VIEWS = ['props', 'games', 'insights', 'popular'];
 const DETAIL_VIEWS = ['props', 'games'];
-const PRO_VIEWS = ['ev', 'arbitrage', 'middles', 'boosts'];
-const NAMES = { props: 'Props', games: 'Partidos', insights: 'Insights', popular: 'Populares', ev: 'EV+', arbitrage: 'Arbitraje', middles: 'Middles', boosts: 'Boosts', odds: 'Comparador', calculators: 'Calculadoras' };
+const PRO_VIEWS = ['ev', 'boosts'];
+const NAMES = { props: 'Props', games: 'Partidos', insights: 'Insights', popular: 'Populares', ev: 'EV+', boosts: 'Boosts', odds: 'Comparador', calculators: 'Calculadoras' };
 const lastLeague = () => leagueById(store.get('league')) ?? LEAGUES[0];
 const defaultHash = () => `#/${lastLeague().id}/props`;
 

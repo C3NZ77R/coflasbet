@@ -1,5 +1,5 @@
 // Insights: frases de tendencia calculadas con game logs reales (ESPN) para los partidos de hoy a +3 días,
-// cruzadas con las cuotas de /api/props y la línea de ESPN de cada partido.
+// cruzadas con las cuotas propias de /api/props (modelo Coflas) y la línea de ESPN de cada partido.
 import { leagueById } from '../leagues.js';
 import { STATS, statForMarket } from '../stats.js';
 import { insightsFor, teamInsights, decimalToAmerican } from '../betmath.js';
@@ -17,12 +17,13 @@ export const statName = (def, p) => def?.name ?? def?.label ?? p.stat;
 export const matchup = (g, p) => (g ? `${g.away.abbr} @ ${g.home.abbr}` : [p?.team, p?.opp].filter(Boolean).join(' vs '));
 const ymd = (d) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 
-// Mejor cuota entre varias líneas iguales (mismo jugador, estadística, línea y lado).
-export function best(props) {
-  let top = null;
-  for (const p of props) for (const b of p.books || []) if (b.price > 1 && (!top || b.price > top.price)) top = { price: b.price, book: b.key ?? b.title };
-  return top;
+// Cuota Coflas (con margen) y justa (1/p) del prop; hay una sola por jugador, estadística, línea y lado.
+export function coflasOf(props) {
+  const p = props.find((q) => q.books?.[0]?.price > 1);
+  return p ? { price: p.books[0].price, fair: p.fair, p: p.p, book: 'coflas' } : null;
 }
+// Cuota Coflas y justa en una celda.
+export const oddsHtml = (ui, o) => (o?.price ? `<b title="Cuota Coflas (con margen)">${ui.esc(ui.fmtOdds(o.price))}</b>${o.fair ? `<small title="Cuota justa (1/p)">Justa ${ui.esc(ui.fmtOdds(o.fair))}</small>` : ''}` : '<small>sin cuota</small>');
 
 // Ejecuta run(item) con a lo sumo `limit` en paralelo; run no debe lanzar.
 export async function pool(items, limit, run, alive) {
@@ -220,7 +221,7 @@ export default {
       <div class="ins-out">
         <span class="ins-pick">${esc(it.outcome)}</span>
         <span class="ins-hit">${H(ui.hitBar(it.pct))}${it.n ? `<small>${it.k}/${it.n}</small>` : ''}</span>
-        <span class="ins-odds">${it.price ? `<b>${esc(ui.fmtOdds(it.price))}</b>${H(ui.bookChip(it.book))}` : '<small>sin cuota</small>'}</span>
+        <span class="ins-odds">${it.kind === 'player' ? oddsHtml(ui, it) : it.price ? `<b>${esc(ui.fmtOdds(it.price))}</b>${H(ui.bookChip(it.book))}` : '<small>sin cuota</small>'}</span>
         <button type="button" class="ins-add" data-i="${i}"${it.price ? '' : ' disabled'} aria-pressed="${inSlip.has(it.pickId)}" aria-label="${inSlip.has(it.pickId) ? 'Quitar del boleto' : 'Agregar al boleto'}: ${esc(it.pickLabel)}">${inSlip.has(it.pickId) ? '✓' : '+'}</button>
       </div>
     </article>`;
@@ -234,6 +235,8 @@ export default {
       listEl.innerHTML = shown.length
         ? shown.slice(0, page).map((it, i) => card(it, i, inSlip)).join('') + (rest > 0 ? `<button type="button" class="ins-more">Mostrar más (${rest})</button>` : '')
         : prog.loading ? '' : H(ui.empty(items.length ? 'Ningún insight cumple estos filtros.' : 'No hay insights para los partidos próximos de esta liga.'));
+      // Sin props de jugador (solo cubren los próximos 3 partidos de hoy) quedan solo los insights de equipo.
+      if (!prog.loading && !prog.props) listEl.insertAdjacentHTML('afterbegin', `<p class="hint">Sin props de jugador para los próximos partidos de hoy. Abre un partido para ver sus props: <a href="#/${esc(league)}/games">ver partidos</a>.</p>`);
       root.querySelector('.ins-progress').innerHTML = prog.loading
         ? `Analizando ${prog.done} de ${prog.total || '…'} (partidos y jugadores)…`
         : `${prog.games} partidos y ${prog.players} jugadores analizados${prog.failed ? ` · ${prog.failed} sin datos` : ''}. ${prog.source ? H(ui.sourceBadge(prog.source)) : ''}`;
@@ -292,14 +295,14 @@ export default {
           seen.add(id);
           const same = ps.filter((q) => q.stat === p.stat && q.line === line && q.side === side);
           const kp = same[0] ?? { ...p, side, line };
-          const top = best(same);
+          const top = coflasOf(same);
           const g = games.get(p.gameId);
           const split = splitOf(ins);
           const sName = statName(def, p);
           const teamAbbr = a.teamAbbr ?? p.team ?? '';
           items.push({
             kind: 'player', cat: playerCat(ins, split), split, text: ins.text, side, pct: pctOf(ins), k: ins.k, n: ins.n ?? 0,
-            price: top?.price ?? null, book: top?.book ?? null, start: g?.start ?? p.start ?? null, gameId: p.gameId ?? null,
+            price: top?.price ?? null, fair: top?.fair ?? null, book: top?.book ?? null, start: g?.start ?? p.start ?? null, gameId: p.gameId ?? null,
             gameLabel: matchup(g, p), player: p.player, teams: teamAbbr ? [teamAbbr] : [], teamAbbr, statKey: p.stat, statLabel: sName,
             name: a.name ?? p.player, img: H(ui.headshot(a)), href: `#/${league}/props/${propKey(kp)}`, propKey: propKey(kp),
             outcome: `${SIDE[side] ?? side} ${line} ${sName}`, pickId: propKey(kp), pickLabel: `${p.player} ${SIDE[side] ?? side} ${line} ${sName}`,
@@ -351,6 +354,7 @@ export default {
       const { games, props, source, error } = await loadUpcoming(api, league);
       if (!alive()) return;
       prog.source = source;
+      prog.props = props.length;
       if (error && !games.size && !props.length) {
         prog.loading = false;
         listEl.innerHTML = H(ui.errorBox(error));

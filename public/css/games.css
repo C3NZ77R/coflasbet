@@ -23,9 +23,6 @@
 .gm-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 600; }
 .gm-live { color: var(--err); font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
 .gm-live::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: var(--err); vertical-align: 1px; }
-.gm-ev { padding: 2px 8px; border-radius: 999px; background: var(--grad); color: var(--on-accent); font-size: 11px; font-weight: 800; }
-.gm-grid { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, minmax(72px, 96px)); gap: 6px 8px; align-items: center; }
-.gm-hd { color: var(--muted); font-size: 11px; font-weight: 600; text-align: center; text-transform: uppercase; letter-spacing: .04em; }
 .gm-team { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .gm-team > :first-child, .gm-hteam > :first-child { flex: none; }
 .gm-tname { min-width: 0; flex: 1; display: grid; gap: 2px; }
@@ -33,11 +30,17 @@
 .gm-tl small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 .gm-tl .gm-rec { flex: none; font-size: 11px; }
 .gm-score { flex: none; font-size: 17px; font-variant-numeric: tabular-nums; }
-.gm-draw { color: var(--muted); font-size: 13px; }
-.gm-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 48px; padding: 4px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; font-size: 13px; text-align: center; font-variant-numeric: tabular-nums; }
-.gm-cell b { font-size: 14px; }
-.gm-cell > :last-child:not(b):not(.gm-line) { font-size: 10px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gm-line { color: var(--muted); font-size: 12px; }
+/* Cuotas del modelo: selección con probabilidad, justa y Coflas (botón que agrega al boleto) */
+.gm-teams { display: grid; gap: 8px; }
+.gm-mkh { color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+.gm-sels { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 6px; }
+.gm-sel { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 4px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; color: var(--text); font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; cursor: pointer; min-width: 0; }
+.gm-sel:hover { border-color: var(--teal); }
+.gm-sel small, .gm-sel span { color: var(--muted); font-size: 11px; }
+.gm-sel span b { color: var(--text); font-size: 13px; }
+.gm-sel[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--teal); }
+.gm-sel-sm { display: inline-flex; padding: 4px 10px; font-size: 14px; }
 .gm-foot { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
 .gm-public { flex: 1 1 200px; font-size: 13px; }
 .gm-public summary { cursor: pointer; color: var(--muted); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
@@ -84,10 +87,6 @@
 .gm-mk { min-width: 0; }
 .gm-mk table td, .gm-mk table th, .gm-player table td, .gm-player table th { padding: 7px 8px; font-variant-numeric: tabular-nums; }
 .gm-mk tbody th, .gm-player tbody th { font-weight: 600; color: var(--text); font-size: 13px; }
-.gm-mk td.gm-off { color: var(--muted); }
-.gm-mk td.best .gm-line { color: inherit; opacity: .75; }
-.gm-tag { color: var(--muted); font-size: 10px; border: 1px solid var(--line); border-radius: 6px; padding: 0 4px; }
-.gm-evline { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .gm-rank { color: var(--muted); }
 .gm-rt td { text-align: center; }
 
@@ -116,10 +115,6 @@
 }
 @media (max-width: 600px) {
   .gm-card { padding: 12px; }
-  .gm-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .gm-corner { display: none; }
-  .gm-team { grid-column: 1 / -1; margin-top: 4px; }
-  .gm-cell { min-height: 44px; font-size: 12px; }
   .gm-hrow { grid-template-columns: 1fr; gap: 6px; }
   .gm-at { display: none; }
   .gm-hteam.gm-home { flex-direction: row; text-align: left; }

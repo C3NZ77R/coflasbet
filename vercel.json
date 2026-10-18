@@ -1,1 +1,1 @@
-{ "functions": { "api/[...path].mjs": { "includeFiles": "{demo-odds.json,demo-props.json,lib/**,data/**,public/leagues.js,public/stats.js}" } } }
+{ "functions": { "api/[...path].mjs": { "includeFiles": "{lib/**,data/**,docs/accuracy.json,public/leagues.js,public/stats.js,public/betmath.js}" } } }

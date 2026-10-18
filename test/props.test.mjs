@@ -1,116 +1,72 @@
-// Props: normalización de The Odds API (fixture con el formato v4), enlace con ESPN y demo-props.json. Sin red.
+// Props con línea y cuotas propias (modelo Coflas) sobre game logs de ESPN. Sin red: fixtures y fetch simulado.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { normName, sameTeam, matchGame, normEventProps, getProps } from '../lib/props.mjs';
-import { normScoreboard } from '../lib/espn.mjs';
-import { leagueById } from '../public/leagues.js';
-import { statForMarket } from '../public/stats.js';
+import { propLine, playerProps, getProps } from '../lib/props.mjs';
+import { normGamelog, buildGameLog } from '../lib/espn.mjs';
+import { normalOver } from '../lib/pricing.mjs';
 
 const fx = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
+// Copia del game log con otros eventId y un año antes: hace de temporada anterior (el fixture trae solo 6 partidos).
+const rekey = (j, s) => ({
+  ...j,
+  seasonTypes: j.seasonTypes.map((st) => ({ ...st, categories: st.categories.map((c) => ({ ...c, events: (c.events ?? []).map((e) => ({ ...e, eventId: e.eventId + s })) })) })),
+  events: Object.fromEntries(Object.entries(j.events).map(([k, v]) => [k + s, { ...v, id: k + s, gameDate: v.gameDate.replace('2026', '2025') }])),
+});
+const nbaLog = (lists = [fx('gamelog-nba.json'), rekey(fx('gamelog-nba.json'), 'p')]) =>
+  buildGameLog({ id: '4433188', name: 'Devin Carter' }, 'basketball', lists.map((j) => normGamelog(j, 'basketball')));
+const ctx = { league: 'nba', gameId: '401871339', start: '2026-05-18T00:00:00.000Z', team: 'BOS', opp: 'DET' };
 
-test('nombres y equipos', () => {
-  assert.equal(normName('Luka Dončić'), 'luka doncic');
-  assert.equal(normName('Chris Cenac Jr.'), 'chris cenac');
-  assert.equal(normName("De'Aaron Fox"), 'de aaron fox');
-  assert.ok(sameTeam('Atletico Madrid', 'Atlético de Madrid'));
-  assert.ok(sameTeam('LA Clippers', 'Los Angeles Clippers'));
-  assert.ok(sameTeam('Detroit Pistons', 'Detroit Pistons'));
-  assert.ok(!sameTeam('Los Angeles Lakers', 'Los Angeles Clippers'));
-  assert.ok(!sameTeam('Real Madrid', 'Atletico Madrid'));
-  assert.ok(sameTeam('Inter Miami CF', 'Inter Miami'));
-  assert.ok(!sameTeam('', 'Boston Celtics'));
+test('propLine: mínimo de 8 partidos, línea = mediana redondeada a .5', () => {
+  assert.equal(propLine([1, 2, 3, 4, 5, 6, 7]), null);
+  const r = propLine(Array(20).fill(10));
+  assert.equal(r.line, 10.5);
+  assert.ok(r.pOver < 0.5, `pOver ${r.pOver}`);
 });
 
-test('enlace evento de The Odds API ↔ partido de ESPN', () => {
-  const games = normScoreboard(fx('scoreboard-nba.json'), 'nba');
-  const ev = fx('oddsapi-event-props.json');
-  assert.equal(matchGame(ev, games)?.id, '401909088');
-  assert.equal(matchGame({ ...ev, commence_time: '2026-10-22T19:00:00Z' }, games), null); // otro día
-  assert.equal(matchGame({ ...ev, home_team: 'Boston Celtics', away_team: 'Detroit Pistons' }, games), null); // local/visita al revés
+test('pts usa la normal; los conteos, la binomial negativa', () => {
+  const log = nbaLog();
+  const vals = log.games.map((g) => g.stats.pts);
+  const r = propLine(vals, 'normal');
+  const m = 0.5 * avg(vals.slice(0, 10)) + 0.3 * avg(vals) + 0.2 * avg(vals.slice(0, 5));
+  const sd = Math.sqrt(vals.reduce((s, x) => s + (x - avg(vals)) ** 2, 0) / (vals.length - 1));
+  assert.equal(r.pOver, Math.min(0.99, Math.max(0.01, normalOver(m, Math.max(sd, 1), r.line))));
+  const over = playerProps(log, 'basketball', ctx).find((p) => p.stat === 'pts' && p.side === 'Over');
+  assert.equal(over.p, r.pOver);
+  assert.notEqual(over.p, propLine(vals, 'count').pOver);
 });
+const avg = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
 
-test('evento de The Odds API → Prop[]', () => {
-  const players = new Map([[normName('Jayson Tatum'), { athleteId: '4065648', team: 'BOS', opp: 'DET' }]]);
-  const props = normEventProps(fx('oddsapi-event-props.json'), { league: 'nba', sport: 'basketball', gameId: '401909088', players });
-  const over = props.find((p) => p.player === 'Jayson Tatum' && p.market === 'player_points' && p.line === 26.5 && p.side === 'Over');
-  assert.deepEqual(over.books, [{ key: 'draftkings', title: 'DraftKings', price: 1.87 }, { key: 'fanduel', title: 'FanDuel', price: 1.9 }]);
-  assert.deepEqual([over.athleteId, over.team, over.opp, over.stat, over.gameId, over.start], ['4065648', 'BOS', 'DET', 'pts', '401909088', '2026-10-20T19:00:00Z']);
-  assert.equal(over.eventId, 'e912304de2b2ce35b473ce2ecd3d1502');
-  assert.ok(props.some((p) => p.line === 29.5), 'otra línea = otro prop');
-  const dd = props.filter((p) => p.market === 'player_double_double');
-  assert.deepEqual(dd.map((p) => [p.side, p.line, p.stat]), [['Over', 0.5, 'dd'], ['Under', 0.5, 'dd']]); // Sí/No → Over/Under 0.5
-  const cade = props.find((p) => p.player === 'Cade Cunningham');
-  assert.deepEqual([cade.athleteId, cade.team], [null, null]); // sin enlace no se inventa
-  assert.equal(props.find((p) => p.market === 'player_threes_alternate').stat, '3pm');
-  assert.ok(!props.some((p) => p.player === 'Jaylen Brown' || p.player === ''), 'se descartan cuotas <= 1 y outcomes sin jugador');
-  assert.equal(new Set(props.map((p) => p.id)).size, props.length);
-});
-
-test('sin clave: demo-props.json filtrado y marcado como demo', async () => {
-  const all = await getProps('nba');
-  assert.equal(all.source, 'demo');
-  assert.ok(all.data.length > 0);
-  assert.ok(all.data.every((p) => p.league === 'nba'));
-  const gameId = all.data[0].gameId;
-  const one = await getProps('nba', gameId);
-  assert.ok(one.data.length > 0 && one.data.every((p) => p.gameId === gameId));
-  assert.equal((await getProps('nhl')).data.length, 0);
-  await assert.rejects(getProps('xx'), { status: 400 });
-});
-
-test('demo-props.json cumple el tipo Prop y usa IDs reales de ESPN', () => {
-  const { props } = JSON.parse(readFileSync(new URL('../demo-props.json', import.meta.url), 'utf8'));
-  const keys = ['athleteId', 'books', 'eventId', 'gameId', 'id', 'league', 'line', 'market', 'opp', 'player', 'side', 'start', 'stat', 'team'];
-  assert.ok(new Set(props.map((p) => p.league)).size >= 2);
-  assert.equal(new Set(props.map((p) => p.id)).size, props.length);
+test('playerProps: Over y Under a la línea propia con cuota Coflas < justa', () => {
+  const props = playerProps(nbaLog(), 'basketball', ctx);
+  assert.ok(props.length >= 2);
   for (const p of props) {
-    assert.deepEqual(Object.keys(p).sort(), keys);
-    assert.match(p.gameId, /^\d+$/);
-    assert.match(p.athleteId, /^\d+$/);
-    assert.ok(['Over', 'Under'].includes(p.side));
-    assert.equal(statForMarket(leagueById(p.league).sport, p.market)?.key, p.stat);
-    assert.ok(p.books.length >= 2 && p.books.every((b) => b.key && b.title && b.price > 1));
+    assert.equal(p.books.length, 1);
+    assert.equal(p.books[0].key, 'coflas');
+    assert.ok(p.books[0].price < p.fair, `${p.id}: ${p.books[0].price} >= ${p.fair}`);
+    assert.ok(Math.abs(p.fair - 1 / p.p) <= 0.005 + 1e-9); // redondeada a 2 decimales
+    assert.equal(p.n, 12);
+    assert.deepEqual([p.gameId, p.eventId, p.team, p.opp, p.athleteId, p.player], ['401871339', '401871339', 'BOS', 'DET', '4433188', 'Devin Carter']);
+    const twin = props.find((q) => q.stat === p.stat && q.line === p.line && q.side !== p.side);
+    assert.ok(Math.abs(p.p + twin.p - 1) < 1e-12);
   }
+  assert.equal(new Set(props.map((p) => p.id)).size, props.length);
+  assert.deepEqual(playerProps(nbaLog([fx('gamelog-nba.json')]), 'basketball', ctx), []); // 6 partidos: sin props
 });
 
-test('con clave: eventos gratis → odds del partido elegido, enlazado con ESPN (fetch simulado)', async (t) => {
-  const start = new Date(Date.now() + 864e5).toISOString().replace('.000', '');
-  const ev = { ...fx('oddsapi-event-props.json'), commence_time: start };
-  const board = fx('scoreboard-nba.json');
-  board.events[0].date = board.events[0].competitions[0].date = start;
-  const roster = { team: { id: '2', abbreviation: 'BOS' }, athletes: [{ id: '4065648', displayName: 'Jayson Tatum', position: { abbreviation: 'F' } }] };
-  const calls = [];
-  const reply = (body, headers = {}) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json', ...headers } });
+test('getProps(liga, partido) con fetch simulado: plantillas + game logs → props Coflas', async (t) => {
+  const reply = (body) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
   t.mock.method(globalThis, 'fetch', async (url) => {
     const u = new URL(url);
-    calls.push(u);
-    if (u.pathname.endsWith('/sports/basketball_nba/events')) return reply([{ id: ev.id, commence_time: start, home_team: ev.home_team, away_team: ev.away_team }]);
-    if (u.pathname.endsWith(`/events/${ev.id}/odds`)) return reply(ev, { 'x-requests-remaining': '488' });
-    if (u.pathname.endsWith('/scoreboard')) return reply(board);
-    if (u.pathname.endsWith('/roster')) return reply(roster);
+    if (u.pathname.endsWith('/summary')) return reply(fx('summary-nba-post.json'));
+    if (u.pathname.endsWith('/roster')) return reply(fx('roster-nba.json'));
+    if (u.pathname.endsWith('/gamelog')) return reply(u.searchParams.get('season') ? rekey(fx('gamelog-nba.json'), 'p') : fx('gamelog-nba.json'));
     return new Response('{}', { status: 404 });
   });
-  const res = await getProps('nba', '401909088', { key: 'test-key', regions: 'us', maxEvents: 2 });
-  assert.equal(res.source, 'live');
-  assert.equal(res.remaining, '488');
-  const odds = calls.find((u) => u.pathname.endsWith('/odds'));
-  assert.equal(odds.searchParams.get('regions'), 'us');
-  assert.equal(odds.searchParams.get('oddsFormat'), 'decimal');
-  assert.ok(odds.searchParams.get('markets').split(',').includes('player_points'));
-  const tatum = res.data.find((p) => p.player === 'Jayson Tatum');
-  assert.deepEqual([tatum.gameId, tatum.athleteId, tatum.team, tatum.opp], ['401909088', '4065648', 'BOS', 'DET']);
-  assert.deepEqual((await getProps('nba', '999', { key: 'test-key', regions: 'us' })).data, []); // partido sin evento en The Odds API
-});
-
-test('con clave y sin partido no gasta créditos: devuelve demo con aviso', async () => {
-  const realFetch = globalThis.fetch;
-  globalThis.fetch = () => { throw new Error('no debería llamar a la red'); };
-  try {
-    const r = await getProps('nba', null, { key: 'x' });
-    assert.equal(r.source, 'demo');
-    assert.match(r.warning, /abrir un partido/);
-  } finally {
-    globalThis.fetch = realFetch;
-  }
+  const res = await getProps('nba', '401871339');
+  assert.equal(res.source, 'coflas');
+  assert.ok(res.data.length > 0);
+  assert.ok(res.data.every((p) => p.books[0].key === 'coflas' && p.gameId === '401871339' && ['DET', 'CLE'].includes(p.team)));
+  assert.ok(res.data.some((p) => p.player === 'Mike Conley'), 'el nombre sale de la plantilla si el perfil falla');
+  await assert.rejects(getProps('xx'), { status: 400 });
 });

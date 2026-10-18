@@ -1,15 +1,14 @@
 // Partidos: lista por fecha (#/{liga}/games) y detalle (#/{liga}/games/{id}).
-// Cuotas: ESPN (pickcenter) + The Odds API emparejada por nombres de equipo. Apuestas del público: sin fuente gratuita.
+// Cuotas: solo las del modelo Coflas (/api/markets): probabilidad, cuota justa y cuota Coflas. Apuestas del público: sin fuente gratuita.
 import * as bm from '../betmath.js';
 import { leagueById } from '../leagues.js';
 import { statForMarket } from '../stats.js';
 
 const DAYS = 15; // hoy + 14
 const REFRESH_MS = 60_000;
-const MATCH_WINDOW_MS = 12 * 3600_000;
 const REC_ORDER = ['overall', 'home', 'road', 'vsconf', 'vsdiv'];
 const REC_LABEL = { overall: 'Total', home: 'Local', road: 'Visita', vsconf: 'Conferencia', vsdiv: 'División' };
-const MARKETS = { ml: 'Moneyline', spread: 'Hándicap', total: 'Total' };
+const NO_PUBLISH = 'Cuotas no publicadas: el modelo aún no supera la referencia';
 
 let ui; // ctx.ui de la vista montada (solo hay una a la vez)
 const esc = (s) => ui.esc(s ?? '');
@@ -17,105 +16,39 @@ const esc = (s) => ui.esc(s ?? '');
 // ---------- utilidades puras (exportadas para pruebas) ----------
 const pad = (n) => String(n).padStart(2, '0');
 export const ymd = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
-const norm = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-export const sameTeam = (a, b) => {
-  const x = norm(a), y = norm(b);
-  return !!x && !!y && (x === y || x.includes(y) || y.includes(x));
-};
 const signed = (x) => (x == null ? '' : x > 0 ? `+${x}` : x === 0 ? 'PK' : String(x));
-
-// Evento de The Odds API del mismo partido (ambos equipos y ±12 h). flip = local/visita invertidos.
-export function matchEvent(game, events) {
-  const t = Date.parse(game.start);
-  for (const e of events ?? []) {
-    if (Math.abs(Date.parse(e.commence_time) - t) > MATCH_WINDOW_MS) continue;
-    if (sameTeam(e.home_team, game.home.name) && sameTeam(e.away_team, game.away.name)) return { event: e, flip: false };
-    if (sameTeam(e.home_team, game.away.name) && sameTeam(e.away_team, game.home.name)) return { event: e, flip: true };
-  }
-  return null;
-}
-
-// Una fila por casa: { key, title, src, ml:{home,away,draw?}, spread:{line(local),home,away}, total:{line,over,under} } (decimal).
-export function bookRows(game, match) {
-  const rows = [];
-  if (match) {
-    const { event: ev, flip } = match;
-    const sideOf = (name) => (name === 'Draw' ? 'draw' : (name === ev.home_team) !== flip ? 'home' : 'away');
-    for (const b of ev.bookmakers ?? []) {
-      const out = (k) => b.markets?.find((m) => m.key === k)?.outcomes ?? [];
-      const row = { key: b.key, title: b.title, src: 'odds', ml: null, spread: null, total: null };
-      const h2h = out('h2h');
-      if (h2h.length) row.ml = Object.fromEntries(h2h.map((o) => [sideOf(o.name), o.price]));
-      const sp = out('spreads');
-      const sh = sp.find((o) => sideOf(o.name) === 'home'), sa = sp.find((o) => sideOf(o.name) === 'away');
-      if (sh && sa) row.spread = { line: sh.point, home: sh.price, away: sa.price };
-      const tot = out('totals');
-      const ov = tot.find((o) => o.name === 'Over'), un = tot.find((o) => o.name === 'Under');
-      if (ov && un) row.total = { line: ov.point, over: ov.price, under: un.price };
-      if (row.ml || row.spread || row.total) rows.push(row);
-    }
-  }
-  const o = game.odds;
-  const title = o?.provider || 'ESPN';
-  // La casa de ESPN puede venir también por The Odds API: se queda la de The Odds API.
-  if (o && (o.moneyline || o.spread || o.total) && !rows.some((r) => norm(r.title) === norm(title))) {
-    rows.push({ key: norm(title).replace(/ /g, '') || 'espn', title, src: 'espn', ml: o.moneyline, spread: o.spread, total: o.total });
-  }
-  return rows;
-}
-
-const mode = (xs) => {
-  const c = new Map();
-  for (const x of xs) c.set(x, (c.get(x) || 0) + 1);
-  let best = null, n = 0;
-  for (const [x, k] of c) if (k > n) [best, n] = [x, k];
-  return best;
-};
-
-// Mejor cuota por lado; en hándicap y total solo entre las casas con la línea más común.
-export function marketSummary(rows) {
-  const pick = (mk, sides, hasLine) => {
-    const have = rows.filter((r) => r[mk]);
-    const line = hasLine ? mode(have.map((r) => r[mk].line).filter((l) => l != null)) : null;
-    const at = hasLine ? have.filter((r) => r[mk].line === line) : have;
-    const best = {};
-    for (const s of sides) {
-      for (const r of at) if (r[mk][s] > 1 && r[mk][s] > (best[s]?.price ?? 0)) best[s] = { price: r[mk][s], key: r.key, title: r.title };
-    }
-    return { line, rows: at, best };
-  };
-  return { ml: pick('ml', ['home', 'away', 'draw']), spread: pick('spread', ['home', 'away'], true), total: pick('total', ['over', 'under'], true) };
-}
-
-// Probabilidad justa: promedio del devig de cada casa con todos los lados (en la línea principal).
-export function fairOf(rows, mk, sides, devig) {
-  const full = rows.filter((r) => sides.every((s) => r[mk]?.[s] > 1));
-  if (!full.length) return null;
-  const all = full.map((r) => devig(sides.map((s) => r[mk][s])));
-  return { n: full.length, probs: Object.fromEntries(sides.map((s, i) => [s, all.reduce((t, p) => t + p[i], 0) / all.length])) };
-}
-
-// Mercados de The Odds API donde betmath.analyzeEvent encuentra +EV.
-function evMarkets(event) {
-  if (!event) return [];
-  const names = { h2h: 'Moneyline', spreads: 'Hándicap', totals: 'Total' };
-  return Object.keys(names).filter((market) => {
-    try {
-      return bm.analyzeEvent(event, { market }).some((a) => a.evBets.length);
-    } catch {
-      return false;
-    }
-  }).map((k) => names[k]);
-}
+// Mercado principal de la tarjeta: 1X2 en fútbol, ganador en el resto.
+export const mainMarket = (markets) => markets?.find((m) => m.key === '1x2') ?? markets?.find((m) => m.key === 'ml') ?? null;
+export const accText = (acc) => (acc?.brier != null
+  ? `Precisión del modelo: Brier ${acc.brier.toFixed(3)} en ${acc.n} partidos (referencia ${acc.baseline?.brier?.toFixed(3) ?? '—'})`
+  : 'Precisión del modelo: sin backtest para esta liga.');
 
 // ---------- piezas de UI ----------
 const unwrap = (r) => (r && !Array.isArray(r) && 'data' in r ? r : { data: r, source: null });
 const timeOf = (iso) => new Date(iso).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
 const isLive = (g) => g.status?.state === 'in' || (g.status?.state === 'pre' && Date.parse(g.start) <= Date.now());
-const devigFn = (store) => {
-  const method = store?.get('settings')?.devigMethod || 'multiplicative';
-  return (p) => (bm.devig ? bm.devig(p, method) : bm.noVig(p));
-};
+const selName = (g, s) => (s.name === 'Local' ? g.home.abbr || g.home.name : s.name === 'Visitante' ? g.away.abbr || g.away.name : s.name);
+
+// Botón de selección: nombre, línea, probabilidad, justa y Coflas. picks = índice → pick del boleto.
+function selBtn(g, m, s, ctx, compact = false) {
+  const name = `${selName(g, s)}${s.line != null ? ` ${m.key === 'ou' ? s.line : signed(s.line)}` : ''}`;
+  const pick = { id: `coflas:${ctx.league}:${g.id}:${m.key}:${m.label}:${s.name}`, label: `${name} (${m.label}) · ${g.away.abbr || g.away.name} @ ${g.home.abbr || g.home.name}`, price: s.coflas, book: 'coflas', league: ctx.league, gameId: g.id };
+  ctx.picks.push(pick);
+  return `<button type="button" class="gm-sel${compact ? ' gm-sel-sm' : ''}" data-pick="${ctx.picks.length - 1}" aria-pressed="${ctx.store.hasPick(pick.id)}" aria-label="${esc(`${name}: probabilidad ${ui.fmtPct(s.p)}, justa ${ui.fmtOdds(s.fair)}, Coflas ${ui.fmtOdds(s.coflas)}. Agregar a Mis picks`)}">${compact ? `<b>${esc(ui.fmtOdds(s.coflas))}</b></button>` : `
+    <b>${esc(name)}</b><small>${esc(ui.fmtPct(s.p))}</small><span>Justa ${esc(ui.fmtOdds(s.fair))} · Coflas <b>${esc(ui.fmtOdds(s.coflas))}</b></span></button>`}`;
+}
+// Clic en una selección: alterna el pick en el boleto.
+function onPickClick(e, ctx) {
+  const pick = ctx.picks[e.target.closest('[data-pick]')?.dataset.pick];
+  if (!pick) return false;
+  ctx.store.hasPick(pick.id) ? ctx.store.removePick(pick.id) : ctx.store.addPick(pick);
+  return true;
+}
+// El boleto puede cambiar desde el panel: se refleja en los botones sin redibujar.
+const syncPicks = (root, ctx) => ctx.store.on('picks', (list) => {
+  const ids = new Set(list.map((p) => p.id));
+  for (const b of root.querySelectorAll('[data-pick]')) b.setAttribute('aria-pressed', String(ids.has(ctx.picks[b.dataset.pick]?.id)));
+});
 
 // Barra de tendencia: un segmento por partido (más reciente a la derecha).
 function trend(values, good, bad, what) {
@@ -134,40 +67,28 @@ function statusHtml(g) {
   return `<span>${esc(timeOf(g.start))}</span>`;
 }
 
-function priceCell(line, q) {
-  if (!q) return '<span class="gm-na">—</span>';
-  return `${line ? `<span class="gm-line">${esc(line)}</span>` : ''}<b>${esc(ui.fmtOdds(q.price))}</b>${ui.bookChip(q.title, { name: false })}`;
-}
-
-function teamRow(g, side, sum, extra) {
+function teamRow(g, side) {
   const t = g[side];
   const score = g.status?.state !== 'pre' && t.score != null ? `<b class="gm-score">${esc(t.score)}</b>` : '';
-  const sp = sum.spread, tot = sum.total;
-  const spLine = sp.line == null ? '' : signed(side === 'home' ? sp.line : -sp.line);
-  const totSide = side === 'away' ? 'over' : 'under';
-  const totLine = tot.line == null ? '' : `${side === 'away' ? 'O' : 'U'} ${tot.line}`;
-  const past = extra.detail?.lastFive?.[side];
   return `<div class="gm-team">${ui.teamLogo(t)}<span class="gm-tname"><span class="gm-tl"><b>${esc(t.abbr || t.name)}</b> <small>${esc(t.name)}</small></span>
-      <span class="gm-tl">${t.record ? `<small class="gm-rec">${esc(t.record)}</small>` : ''}<span class="gm-tr" data-trend="${side}">${past ? trend(lastResults(past, 'result'), 'W', 'L', 'Ganó') : '<span class="gm-trend gm-na" aria-hidden="true">…</span>'}</span></span></span>${score}</div>
-    <div class="gm-cell" data-label="${MARKETS.ml}">${priceCell('', sum.ml.best[side])}</div>
-    <div class="gm-cell" data-label="${MARKETS.spread}">${priceCell(spLine, sp.best[side])}</div>
-    <div class="gm-cell" data-label="${MARKETS.total}">${priceCell(totLine, tot.best[totSide])}</div>`;
+      <span class="gm-tl">${t.record ? `<small class="gm-rec">${esc(t.record)}</small>` : ''}<span class="gm-tr" data-trend="${side}"><span class="gm-trend gm-na" aria-hidden="true">…</span></span></span></span>${score}</div>`;
+}
+
+// Mercado principal del partido (o el motivo por el que no hay).
+function mainHtml(g, mk, ctx) {
+  if (!mk) return ui.loading(1);
+  if (mk.error) return `<p class="gm-src">No se pudieron cargar las cuotas del modelo (${esc(mk.error.message ?? mk.error)}).</p>`;
+  if (mk.accuracy?.publish === false) return `<p class="gm-src">${NO_PUBLISH}.</p>`;
+  const m = mainMarket(mk.by.get(String(g.id)));
+  if (!m) return '<p class="gm-src">El modelo no tiene cuotas para este partido.</p>';
+  return `<div class="gm-mkh">${esc(m.label)}</div><div class="gm-sels">${m.selections.map((s) => selBtn(g, m, s, ctx)).join('')}</div>`;
 }
 
 function cardHtml(g, league, extra) {
-  const sum = marketSummary(extra.rows);
-  const src = [...new Set(extra.rows.map((r) => (r.src === 'espn' ? `ESPN (${r.title})` : 'The Odds API')))].join(' + ');
   return `<article class="gm-card" data-id="${esc(g.id)}">
-    <div class="gm-top"><span class="gm-status" data-status>${statusHtml(g)}</span>
-      ${extra.ev.length ? `<span class="gm-ev" title="${esc(`Valor esperado positivo en: ${extra.ev.join(', ')}`)}">EV+</span>` : ''}</div>
-    <div class="gm-grid">
-      <div class="gm-corner" aria-hidden="true"></div>
-      <div class="gm-hd">${MARKETS.ml}</div><div class="gm-hd">${MARKETS.spread}</div><div class="gm-hd">${MARKETS.total}</div>
-      ${teamRow(g, 'away', sum, extra)}
-      ${teamRow(g, 'home', sum, extra)}
-      ${sum.ml.best.draw ? `<div class="gm-team gm-draw">Empate</div><div class="gm-cell">${priceCell('', sum.ml.best.draw)}</div><div></div><div></div>` : ''}
-    </div>
-    <p class="gm-src">${extra.rows.length ? `Cuotas: ${esc(src)}` : 'Sin cuotas publicadas para este partido.'}</p>
+    <div class="gm-top"><span class="gm-status" data-status>${statusHtml(g)}</span></div>
+    <div class="gm-teams">${teamRow(g, 'away')}${teamRow(g, 'home')}</div>
+    <div data-main>${mainHtml(g, extra.mk, extra.ctx)}</div>
     <div class="gm-foot">
       <details class="gm-public" data-public="${esc(g.id)}"${extra.open ? ' open' : ''}><summary>Apuestas del público</summary>
         <p>No disponible: no existe una fuente gratuita del % de apuestas ni del % del dinero del público.</p></details>
@@ -199,12 +120,11 @@ async function renderList(root, ctx, lg, state) {
   const { api } = ctx;
   root.innerHTML = `<header class="gm-header"><h1>Partidos · ${esc(lg.title)}</h1><span class="gm-badges" data-badges></span></header>
     <nav class="gm-dates" aria-label="Fechas" data-dates></nav>
-    <p class="gm-note" data-note hidden></p>
-    <div class="gm-list" data-list>${ui.loading()}</div>`;
+    <div class="gm-list" data-list>${ui.loading()}</div>
+    <p class="gm-src" data-note hidden></p>`;
 
   const today = new Date();
   const days = Array.from({ length: DAYS }, (_, i) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + i));
-  const oddsP = lg.odds ? api.odds(lg.odds).then(unwrap) : Promise.resolve(null);
   const res = await Promise.allSettled(days.map((d) => api.games(lg.id, ymd(d)).then(unwrap)));
   if (state.dead) return;
   const byDate = new Map();
@@ -219,16 +139,21 @@ async function renderList(root, ctx, lg, state) {
     return;
   }
 
-  const odds = await oddsP.catch((err) => ({ error: err }));
-  if (state.dead) return;
-  const note = root.querySelector('[data-note]');
-  const events = odds?.source === 'live' ? odds.data : null;
-  // Las cuotas demo no son reales: no se mezclan con partidos reales.
-  if (odds?.source === 'demo') note.textContent = 'Cuotas de varias casas no disponibles (modo demo, falta COFLAS_ODDS_API_KEY): solo se muestra la línea de ESPN.';
-  else if (odds?.error) note.textContent = `No se pudieron cargar las cuotas de The Odds API (${odds.error.message || odds.error}): solo se muestra la línea de ESPN.`;
-  else if (!lg.odds) note.textContent = 'The Odds API no cubre esta liga: solo se muestra la línea de ESPN.';
-  note.hidden = !note.textContent;
-  root.querySelector('[data-badges]').innerHTML = ui.sourceBadge('espn') + (events ? ui.sourceBadge(odds) : '');
+  root.querySelector('[data-badges]').innerHTML = ui.sourceBadge('espn') + ui.sourceBadge('coflas');
+  const pc = { league: lg.id, store: ctx.store, picks: [] };
+  state.cleanups.push(syncPicks(root, pc));
+  // Cuotas del modelo por fecha: se piden al elegir el día y quedan en caché.
+  const marketsOf = (date) => {
+    if (!state.markets.has(date)) {
+      state.markets.set(date, api.markets(lg.id, null, date)
+        .then((r) => ({ accuracy: r.accuracy, by: new Map((r.data ?? []).map((x) => [String(x.gameId), x.markets])) }))
+        .catch((error) => {
+          state.markets.delete(date); // se reintenta al volver a dibujar
+          return { error };
+        }));
+    }
+    return state.markets.get(date);
+  };
 
   const dates = [...byDate.keys()];
   const wanted = ctx.query?.get('date');
@@ -264,18 +189,28 @@ async function renderList(root, ctx, lg, state) {
   const drawList = () => {
     const games = [...byDate.get(state.date)].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
     const list = root.querySelector('[data-list]');
+    const date = state.date;
     io?.disconnect();
-    list.innerHTML = games.map((g) => {
-      const match = events ? matchEvent(g, events) : null;
-      return cardHtml(g, lg.id, { rows: bookRows(g, match), ev: evMarkets(match?.event), open: state.open.has(g.id), detail: null });
-    }).join('');
+    pc.picks = [];
+    list.innerHTML = games.map((g) => cardHtml(g, lg.id, { mk: null, ctx: pc, open: state.open.has(g.id) })).join('');
     for (const card of list.querySelectorAll('.gm-card')) io ? io.observe(card) : loadTrend(card);
+    const note = root.querySelector('[data-note]');
+    marketsOf(date).then((mk) => {
+      if (state.dead || date !== state.date) return;
+      for (const g of games) {
+        const slot = list.querySelector(`.gm-card[data-id="${CSS.escape(String(g.id))}"] [data-main]`);
+        if (slot) slot.innerHTML = mainHtml(g, mk, pc);
+      }
+      note.textContent = mk.error || mk.accuracy?.publish === false ? '' : accText(mk.accuracy);
+      note.hidden = !note.textContent;
+    });
   };
 
   drawDates();
   drawList();
 
   root.addEventListener('click', (e) => {
+    if (onPickClick(e, pc)) return;
     const b = e.target.closest('[data-date]');
     if (!b) return;
     state.date = b.dataset.date;
@@ -321,38 +256,27 @@ function headerHtml(d) {
     <p class="gm-hstatus">${when}</p>${pred}`;
 }
 
-function linesHtml(d, rows, sum, fairFn) {
-  if (!rows.length) return ui.empty('No hay líneas publicadas para este partido en ESPN ni en The Odds API.');
-  const A = esc(d.away.abbr), H = esc(d.home.abbr);
-  const cell = (mk, r, s, line, main) => {
-    const price = r[mk]?.[s];
-    if (!(price > 1)) return '<td class="gm-na">—</td>';
-    const best = main && sum[mk].best[s]?.price === price;
-    return `<td class="${best ? 'best' : ''}${main ? '' : ' gm-off'}">${line ? `<span class="gm-line">${esc(line)}</span> ` : ''}${esc(ui.fmtOdds(price))}${best ? '<span class="gm-sr"> (mejor cuota)</span>' : ''}</td>`;
-  };
-  const table = (mk, cols, lineOf, trends) => {
-    const have = rows.filter((r) => r[mk]);
-    if (!have.length) return `<section class="gm-mk"><h3>${MARKETS[mk]}</h3>${ui.empty('Sin cuotas para este mercado.')}</section>`;
-    const sides = cols.map((c) => c.side);
-    const fair = fairFn(sum[mk].rows, mk, sides);
-    const mainLine = sum[mk].line;
-    return `<section class="gm-mk"><h3>${MARKETS[mk]}${mainLine != null ? ` <small>línea principal ${esc(mk === 'spread' ? `${d.home.abbr} ${signed(mainLine)}` : mainLine)}</small>` : ''}</h3>
-      <div class="scroll"><table><thead><tr><th scope="col">Casa</th>${cols.map((c) => `<th scope="col">${c.label}</th>`).join('')}</tr></thead><tbody>
-      ${have.map((r) => {
-        const main = mainLine == null || r[mk].line === mainLine;
-        return `<tr><th scope="row">${ui.bookChip(r.title)}${r.src === 'espn' ? ' <small class="gm-tag">ESPN</small>' : ''}</th>${cols.map((c) => cell(mk, r, c.side, lineOf?.(r[mk], c.side), main)).join('')}</tr>`;
-      }).join('')}
-      </tbody>${fair ? `<tfoot><tr class="fair"><th scope="row">Justa <small>(sin vig, ${fair.n} ${fair.n === 1 ? 'casa' : 'casas'})</small></th>${cols.map((c) => `<td>${esc(ui.fmtOdds(1 / fair.probs[c.side]))} <small>${esc(ui.fmtPct(fair.probs[c.side], 1))}</small></td>`).join('')}</tr></tfoot>` : ''}
-      </table></div>${trends}</section>`;
-  };
+// Todos los mercados del modelo para el partido + récords ATS de ESPN.
+function linesHtml(d, mk, ctx) {
   const lf = d.lastFive ?? {};
-  const tr = (key, good, bad, what) => `<p class="gm-trends"><span>${A} ${trend(lastResults(lf.away, key), good, bad, `${d.away.abbr} ${what}`)}</span><span>${H} ${trend(lastResults(lf.home, key), good, bad, `${d.home.abbr} ${what}`)}</span><small>últimos ${Math.max(lf.away?.length ?? 0, lf.home?.length ?? 0) || 5}</small></p>`;
-  const mlCols = [{ side: 'away', label: A }, { side: 'home', label: H }];
-  if (rows.some((r) => r.ml?.draw > 1)) mlCols.push({ side: 'draw', label: 'Empate' });
-  return table('ml', mlCols, null, tr('result', 'W', 'L', 'ganó'))
-    + table('spread', [{ side: 'away', label: A }, { side: 'home', label: H }], (m, s) => signed(s === 'home' ? m.line : -m.line), tr('ats', 'W', 'L', 'cubrió el hándicap'))
-    + table('total', [{ side: 'over', label: 'Over' }, { side: 'under', label: 'Under' }], (m) => String(m.line), tr('ou', 'O', 'U', 'fue Over'))
-    + `<section class="gm-mk"><h3>Récords contra el hándicap (ATS)</h3>${d.ats ? recTable(d, d.ats) : ui.empty('ESPN no publica el récord ATS de este partido.')}</section>`;
+  const tr = (key, good, bad, what) => `<p class="gm-trends"><span>${esc(d.away.abbr)} ${trend(lastResults(lf.away, key), good, bad, `${d.away.abbr} ${what}`)}</span><span>${esc(d.home.abbr)} ${trend(lastResults(lf.home, key), good, bad, `${d.home.abbr} ${what}`)}</span><small>últimos ${Math.max(lf.away?.length ?? 0, lf.home?.length ?? 0) || 5}</small></p>`;
+  const ats = `<section class="gm-mk"><h3>Récords contra el hándicap (ATS)</h3>${d.ats ? recTable(d, d.ats) : ui.empty('ESPN no publica el récord ATS de este partido.')}</section>`;
+  if (mk.error) return ui.errorBox(mk.error) + ats;
+  if (mk.accuracy?.publish === false) return `<p class="gm-note">${NO_PUBLISH}.</p>${ats}`;
+  const markets = mk.data?.markets ?? [];
+  if (!markets.length) return ui.empty('El modelo no tiene cuotas para este partido.') + ats;
+  const head = '<thead><tr><th scope="col">Selección</th><th scope="col">Prob.</th><th scope="col">Justa</th><th scope="col">Coflas</th></tr></thead>';
+  const row = (m, s) => `<tr><th scope="row">${esc(selName(d, s))}${s.line != null ? ` <span class="gm-line">${esc(m.key === 'ou' ? s.line : signed(s.line))}</span>` : ''}</th>
+    <td>${esc(ui.fmtPct(s.p))}</td><td>${esc(ui.fmtOdds(s.fair))}</td><td>${selBtn(d, m, s, ctx, true)}</td></tr>`;
+  const trends = { ml: tr('result', 'W', 'L', 'ganó'), '1x2': tr('result', 'W', 'L', 'ganó'), spread: tr('ats', 'W', 'L', 'cubrió el hándicap'), ou: tr('ou', 'O', 'U', 'fue Over') };
+  const seen = new Set(); // la tendencia va solo en el primer mercado de cada tipo
+  return `<p class="gm-src">${ui.sourceBadge('coflas')} Justa = 1/p · Coflas = justa con 5% de margen. Toca una cuota para agregarla a Mis picks.</p>`
+    + markets.map((m) => {
+      const t = !seen.has(m.key) && trends[m.key];
+      seen.add(m.key);
+      return `<section class="gm-mk"><h3>${esc(m.label)}</h3><div class="scroll"><table class="gm-mt">${head}<tbody>${m.selections.map((s) => row(m, s)).join('')}</tbody></table></div>${t || ''}</section>`;
+    }).join('')
+    + `<p class="gm-src">${esc(accText(mk.accuracy))}</p>${ats}`;
 }
 
 function recTable(d, recs) {
@@ -374,9 +298,9 @@ function propsHtml(props, league, gameId, sport, kind) {
   const list = props.filter(pick);
   if (!list.length) {
     return ui.empty({
-      player: 'No hay props de jugador para este partido en la fuente de cuotas.',
-      team: 'Sin props de equipo: la fuente de cuotas configurada no entrega mercados de equipo (totales por equipo) para este partido.',
-      game: 'Sin props del partido: la fuente de cuotas configurada no entrega hándicap/total alternativos, resultado sin prórroga ni margen de victoria para este partido.',
+      player: 'El modelo no tiene props de jugador para este partido.',
+      team: 'El modelo aún no calcula props de equipo (totales por equipo).',
+      game: 'El modelo aún no calcula props del partido (líneas alternativas, margen de victoria).',
     }[kind]);
   }
   const top = (p) => (p.books ?? []).reduce((b, x) => (x.price > (b?.price ?? 0) ? x : b), null);
@@ -461,7 +385,7 @@ function insightsHtml(d) {
 async function renderDetail(root, ctx, lg, id, state) {
   const { api } = ctx;
   root.innerHTML = `<a class="gm-back" href="#/${esc(lg.id)}/games">← Partidos</a><div data-detail>${ui.loading()}</div>`;
-  const [dRes, oRes] = await Promise.allSettled([api.game(lg.id, id).then(unwrap), lg.odds ? api.odds(lg.odds).then(unwrap) : Promise.resolve(null)]);
+  const [dRes, mRes] = await Promise.allSettled([api.game(lg.id, id).then(unwrap), api.markets(lg.id, id)]);
   if (state.dead) return;
   const box = root.querySelector('[data-detail]');
   if (dRes.status === 'rejected' || !dRes.value.data) {
@@ -469,25 +393,16 @@ async function renderDetail(root, ctx, lg, id, state) {
     return;
   }
   const d = dRes.value.data;
-  const odds = oRes.status === 'fulfilled' ? oRes.value : null;
-  const match = odds?.source === 'live' ? matchEvent(d, odds.data) : null;
-  const rows = bookRows(d, match);
-  const sum = marketSummary(rows);
-  const devig = devigFn(ctx.store);
-  const fair = (r, mk, sides) => fairOf(r, mk, sides, devig);
-  const ev = evMarkets(match?.event);
-  const note = odds?.source === 'demo'
-    ? 'Modo demo (falta COFLAS_ODDS_API_KEY): solo la línea de ESPN; las cuotas demo no se mezclan con partidos reales.'
-    : oRes.status === 'rejected' ? `No se pudieron cargar las cuotas de The Odds API (${oRes.reason?.message ?? oRes.reason}).`
-      : !lg.odds ? 'The Odds API no cubre esta liga: solo la línea de ESPN.'
-        : !match ? 'The Odds API no tiene este partido emparejado: solo la línea de ESPN.' : '';
+  const mk = mRes.status === 'fulfilled' ? mRes.value : { error: mRes.reason };
+  const pc = { league: lg.id, store: ctx.store, picks: [] };
+  state.cleanups.push(syncPicks(root, pc));
   const lazy = (kind) => `<div data-props="${kind}">${ui.loading()}</div>`;
 
   box.innerHTML = `<header class="gm-head" data-head>${headerHtml(d)}</header>
     <div class="gm-cols">
       <section class="gm-main" aria-label="Mercados">
         ${tabsHtml('gmm', 'Mercados', [
-          { id: 'lines', label: 'Líneas', html: `${ev.length ? `<p class="gm-evline"><span class="gm-ev">EV+</span> Valor esperado positivo en: ${esc(ev.join(', '))}</p>` : ''}${note ? `<p class="gm-note">${esc(note)}</p>` : ''}${linesHtml(d, rows, sum, fair)}` },
+          { id: 'lines', label: 'Líneas', html: linesHtml(d, mk, pc) },
           { id: 'player', label: 'Props de jugador', html: lazy('player') },
           { id: 'team', label: 'Props de equipo', html: lazy('team') },
           { id: 'game', label: 'Props del partido', html: lazy('game') },
@@ -502,7 +417,7 @@ async function renderDetail(root, ctx, lg, id, state) {
       </aside>
     </div>`;
 
-  // Props: se piden al abrir la pestaña (gastan créditos de The Odds API).
+  // Props: se piden al abrir la pestaña (el modelo lee el historial de cada jugador).
   let propsP = null;
   const loadProps = async (panel) => {
     const slot = panel.querySelector('[data-props]');
@@ -519,7 +434,7 @@ async function renderDetail(root, ctx, lg, id, state) {
       propsP = null;
     }
   };
-  root.addEventListener('click', (e) => onTabClick(root, e, loadProps));
+  root.addEventListener('click', (e) => onPickClick(e, pc) || onTabClick(root, e, loadProps));
 
   state.timer = setInterval(async () => {
     if (!isLive(d)) return;
@@ -537,7 +452,7 @@ export default {
   async render(el, ctx) {
     ui = ctx.ui;
     const lg = typeof ctx.league === 'string' ? leagueById(ctx.league) : ctx.league;
-    const state = { dead: false, timer: null, date: null, details: new Map(), open: new Set(), cleanups: [] };
+    const state = { dead: false, timer: null, date: null, details: new Map(), markets: new Map(), open: new Set(), cleanups: [] };
     const cleanup = () => {
       state.dead = true;
       clearInterval(state.timer);

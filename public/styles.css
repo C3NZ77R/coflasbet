@@ -101,8 +101,7 @@ th[aria-sort] .th-sort { color: var(--text); }
 @media (prefers-reduced-motion: reduce) { .skeleton i { animation: none; } }
 .src-badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid var(--line); background: var(--panel-2); white-space: nowrap; }
 .src-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.src-live { color: var(--pos); }
-.src-demo { color: var(--warn); }
+.src-coflas { color: var(--pos); }
 .src-espn { color: var(--teal); }
 .src-na { color: var(--muted); }
 
