@@ -6,6 +6,7 @@
 // el k, σ y σ_T que imprime valen para copiar a lib/ratings.mjs solo si corrieron todas las ligas del deporte).
 // Cada JSON de ESPN que responde bien queda en .cache/espn/: una corrida cortada reanuda sin volver a pedirlo
 // (temporadas ya jugadas; borrar la carpeta para refrescar la vigente).
+// atp: sin red salvo el ranking; los partidos salen de data/atp-history.json (scripts/tennis-snapshot.mjs).
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
@@ -14,6 +15,7 @@ import { LEAGUES, leagueById } from '../public/leagues.js';
 import { getPastSeason, isCollege } from '../lib/espn.mjs';
 import { ratingsFromResults, expected, SPORT_MODEL, SIGMA, SIGMA_T, MU_SHRINK } from '../lib/ratings.mjs';
 import { marketsFor } from '../lib/markets.mjs';
+import { finished, matchProb, getRankings } from '../lib/tennis.mjs';
 
 export const LAG = 6 * 3_600_000;
 const DAY = 86_400_000;
@@ -150,15 +152,72 @@ export function fitNormal(sport, preds) {
   return { k: MU_SHRINK[sport] * kRel, kRel, sigma, residualSd: rms((p) => p.margin - kRel * p.model.mu), sigmaT };
 }
 
+// ---------- atp ----------
+const ATP_SEASON = 2026;
+const ATP = new URL('../data/atp-history.json', import.meta.url);
+
+// Réplica del paso de eloFrom (lib/tennis.mjs), que no expone la actualización de a un partido; el test comprueba que
+// la pasada incremental deja lo mismo que eloFrom.
+const K = (n) => 250 / (n + 5) ** 0.4;
+const pElo = (ra, rb) => 1 / (1 + 10 ** ((rb - ra) / 400));
+export function eloStep(elo, m) {
+  if (m.retired || !m.winner) return;
+  const get = (id) => elo.get(id) ?? elo.set(id, { all: 1500, hard: 1500, clay: 1500, grass: 1500, n: 0, ns: { hard: 0, clay: 0, grass: 0 } }).get(id);
+  const [w, l] = m.winner === 'a' ? [get(m.a.id), get(m.b.id)] : [get(m.b.id), get(m.a.id)];
+  const e = pElo(w.all, l.all);
+  [w.all, l.all] = [w.all + K(w.n) * (1 - e), l.all - K(l.n) * (1 - e)];
+  const s = m.surface;
+  const es = pElo(w[s], l[s]);
+  [w[s], l[s]] = [w[s] + K(w.ns[s]) * (1 - es), l[s] - K(l.ns[s]) * (1 - es)];
+  w.n++, l.n++, w.ns[s]++, l.ns[s]++;
+}
+
+// Una pasada cronológica: cada partido de la temporada se predice con el Elo de ese momento y después lo actualiza.
+// El Elo de un jugador solo cambia con sus partidos, así que no hay fuga. Los retiros no se miden (eloFrom los ignora).
+export function predictAtp(matches, season) {
+  const elo = new Map();
+  const out = [];
+  for (const m of finished(matches)) {
+    if (!m.retired && new Date(m.date).getUTCFullYear() === season) {
+      out.push({ id: m.id, a: m.a.id, b: m.b.id, outcome: m.winner === 'a' ? 'H' : 'A', p: matchProb(elo, m.a.id, m.b.id, m.surface) });
+    }
+    eloStep(elo, m);
+  }
+  return out;
+}
+
+// p = P(gana A), igual al ml de marketsFor('tennis'): serveFromMatchProb la reproduce en matchDist.
+export const scoreAtp = (preds) => metrics('tennis', preds.map(({ p, outcome }) => ({ outcome, p: { H: p, A: 1 - p } })));
+
+// Referencia: gana el mejor rankeado (p = 1); sin ranking cuenta como 1000 y dos iguales dan 0.5.
+export function rankBaseline(preds, rankings) {
+  const rank = new Map(rankings.map((r) => [r.player.id, r.rank]));
+  const r = (id) => rank.get(id) ?? 1000;
+  return metrics('tennis', preds.map(({ a, b, outcome }) => {
+    const H = r(a) < r(b) ? 1 : r(a) > r(b) ? 0 : 0.5;
+    return { outcome, p: { H, A: 1 - H } };
+  }));
+}
+
+async function atpEntry() {
+  const preds = predictAtp(JSON.parse(await readFile(ATP, 'utf8')).matches, ATP_SEASON);
+  const m = scoreAtp(preds);
+  const b = rankBaseline(preds, await getRankings());
+  const out = { season: ATP_SEASON, n: m.n, brier: r4(m.brier), logloss: r4(m.logloss), baseline: { brier: r4(b.brier), logloss: r4(b.logloss) } };
+  return { ...out, publish: out.brier < out.baseline.brier,
+    note: 'La referencia (gana el mejor rankeado) usa el ranking ATP actual, que ya conoce los resultados de la temporada.' };
+}
+
 const r2 = (x) => Math.round(x * 100) / 100;
 const r4 = (x) => Math.round(x * 1e4) / 1e4;
 const r1 = (x) => Math.round(x * 10) / 10;
 
 async function main(args) {
-  const ids = args.length ? args : LEAGUES.filter((l) => !isCollege(l)).map((l) => l.id);
-  const bad = ids.filter((id) => !leagueById(id) || isCollege(leagueById(id)));
+  const valid = [...new Set([...LEAGUES.filter((l) => !isCollege(l)).map((l) => l.id), 'atp'])];
+  const ids = args.length ? args : valid;
+  const bad = ids.filter((id) => !valid.includes(id));
   if (bad.length) {
-    console.error(`Sin backtest: ${bad.join(', ')}. Ligas válidas: ${LEAGUES.filter((l) => !isCollege(l)).map((l) => l.id).join(' ')}`);
+    console.error(`Sin backtest: ${bad.join(', ')}. Ligas válidas: ${valid.join(' ')}`);
     process.exitCode = 2;
     return;
   }
@@ -166,7 +225,7 @@ async function main(args) {
   const espn = politeFetch(globalThis.fetch, { dir: CACHE });
   globalThis.fetch = espn; // lib/espn.mjs pide con el fetch global
   const runs = [];
-  for (const id of ids) {
+  for (const id of ids.filter((x) => x !== 'atp')) {
     try {
       const { sport } = leagueById(id);
       const [test, prev] = [await getPastSeason(id, 1), await getPastSeason(id, 2)];
@@ -207,7 +266,17 @@ async function main(args) {
     console.log(`${id} ${season}: ${out.n} partidos de prueba, Brier ${out.brier} (referencia ${out.baseline.brier}), log-loss`
       + ` ${out.logloss} (referencia ${out.baseline.logloss}) → ${publish ? 'se publica' : 'NO se publica'}`);
   }
-  if (!runs.length) return;
+  if (ids.includes('atp')) {
+    try {
+      const a = (fresh.atp = await atpEntry());
+      console.log(`atp ${a.season}: ${a.n} partidos, Brier ${a.brier} (referencia ${a.baseline.brier}), log-loss ${a.logloss}`
+        + ` (referencia ${a.baseline.logloss}) → ${a.publish ? 'se publica' : 'NO se publica'}`);
+    } catch (err) {
+      console.error(`atp: ${err.message}`);
+      process.exitCode = 1;
+    }
+  }
+  if (!Object.keys(fresh).length) return;
   let old = {};
   try {
     old = JSON.parse(await readFile(OUT, 'utf8'));

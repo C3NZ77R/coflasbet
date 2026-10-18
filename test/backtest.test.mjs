@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { predict, score, baseline, halves, fitNormal, adjust, cutOf, LAG, SIGMAS, politeFetch } from '../scripts/backtest.mjs';
+import { readFileSync } from 'node:fs';
+import { predict, score, baseline, halves, fitNormal, adjust, cutOf, LAG, SIGMAS, politeFetch, eloStep, predictAtp, scoreAtp, rankBaseline } from '../scripts/backtest.mjs';
+import { eloFrom, finished, matchProb, normScoreboard } from '../lib/tennis.mjs';
 import { ratingsFromResults, expected, MU_SHRINK, SIGMA } from '../lib/ratings.mjs';
 
 const R = (id, date, homeId, awayId, homeScore, awayScore) => ({ id, date, homeId, awayId, homeScore, awayScore, neutral: false });
@@ -195,4 +197,43 @@ test('politeFetch: otros errores no se reintentan ni se guardan', async () => {
   } finally {
     await rm(dir, { recursive: true });
   }
+});
+
+// ---------- atp ----------
+const M = (id, date, a, b, winner, surface = 'hard', retired = false) => ({ id, date, a: { id: a }, b: { id: b }, winner, surface, retired, state: 'post' });
+
+test('atp: el paso incremental de Elo deja lo mismo que eloFrom', () => {
+  const ms = finished(normScoreboard(JSON.parse(readFileSync(new URL('./fixtures/atp-month.json', import.meta.url), 'utf8'))));
+  assert.ok(ms.length > 20 && ms.some((m) => m.retired));
+  const elo = new Map();
+  for (const m of ms) eloStep(elo, m);
+  assert.deepEqual(elo, eloFrom(ms));
+});
+
+test('atp: cada partido de la temporada se predice con el Elo de antes y sin los retiros', () => {
+  const ms = [
+    M('1', '2025-12-30T10:00Z', 'x', 'y', 'a'),
+    M('2', '2026-01-05T10:00Z', 'x', 'z', 'b', 'clay'),
+    M('3', '2026-01-06T10:00Z', 'x', 'y', 'a', 'hard', true),
+    M('4', '2026-01-07T10:00Z', 'y', 'x', 'a', 'grass'),
+  ];
+  const preds = predictAtp(ms, 2026);
+  assert.deepEqual(preds.map((p) => [p.id, p.outcome]), [['2', 'A'], ['4', 'H']]);
+  close(preds[0].p, matchProb(eloFrom(ms.slice(0, 1)), 'x', 'z', 'clay'));
+  close(preds[1].p, matchProb(eloFrom(ms.slice(0, 3)), 'y', 'x', 'grass'));
+  assert.ok(preds[0].p > 0.5 && preds[1].p < 0.5);
+});
+
+test('atp: Brier y log-loss del modelo sobre la p de A', () => {
+  const m = scoreAtp([{ p: 0.8, outcome: 'H' }, { p: 0.6, outcome: 'A' }]);
+  close(m.brier, (0.04 + 0.36) / 2);
+  close(m.logloss, -(Math.log(0.8) + Math.log(0.4)) / 2);
+});
+
+test('atp: la referencia da por ganador al mejor rankeado; sin ranking cuenta como 1000', () => {
+  const rankings = [{ rank: 1, player: { id: 'x' } }, { rank: 50, player: { id: 'y' } }];
+  const preds = [{ a: 'x', b: 'y', outcome: 'H' }, { a: 'z', b: 'y', outcome: 'H' }, { a: 'z', b: 'w', outcome: 'A' }];
+  const b = rankBaseline(preds, rankings);
+  close(b.brier, (0 + 1 + 0.25) / 3); // acierta, falla y empate de no rankeados a 0.5
+  assert.ok(b.logloss > 9); // un pronóstico seguro que falla paga −ln(1e-12)
 });

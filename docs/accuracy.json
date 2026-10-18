@@ -190,5 +190,17 @@
         "logloss": 1.0944
       }
     }
+  },
+  "atp": {
+    "season": 2026,
+    "n": 3152,
+    "brier": 0.2273,
+    "logloss": 0.645,
+    "baseline": {
+      "brier": 0.2953,
+      "logloss": 6.568
+    },
+    "publish": true,
+    "note": "La referencia (gana el mejor rankeado) usa el ranking ATP actual, que ya conoce los resultados de la temporada."
   }
 }

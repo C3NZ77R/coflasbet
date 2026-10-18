@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { marketsFor } from '../lib/markets.mjs';
 import { scoreGrid, normalOver, halfLine } from '../lib/pricing.mjs';
+import { matchDist } from '../lib/tennis.mjs';
 
 const close = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≠ ${b}`);
 const sumP = (m) => m.selections.reduce((s, x) => s + x.p, 0);
@@ -13,7 +14,9 @@ const SOCCER = { kind: 'poisson', lh: 1.4, la: 1.1 };
 const HOCKEY = { kind: 'poisson', lh: 1.3, la: 1.2 };
 const BASEBALL = { kind: 'poisson', lh: 4.6, la: 4.1 };
 const NBA = { kind: 'normal', mu: 5.2, sigma: 12, total: 226.3, sigmaT: 13.2 };
-const CASES = [['soccer', SOCCER], ['hockey', HOCKEY], ['baseball', BASEBALL], ['basketball', NBA], ['football', { ...NBA, sigma: 13.5 }]];
+const BO3 = { kind: 'tennis', dist: matchDist(0.67, 0.62, 3) };
+const BO5 = { kind: 'tennis', dist: matchDist(0.67, 0.62, 5, { slam: true }) };
+const CASES = [['soccer', SOCCER], ['hockey', HOCKEY], ['baseball', BASEBALL], ['basketball', NBA], ['football', { ...NBA, sigma: 13.5 }], ['tennis', BO3], ['tennis', BO5]];
 
 test('markets: 1x2 suma 1', () => {
   close(sumP(pick(marketsFor('soccer', SOCCER), '1x2')), 1);
@@ -131,4 +134,48 @@ test('markets: deporte o modelo desconocido es un error', () => {
   assert.throws(() => marketsFor('curling', SOCCER), TypeError);
   assert.throws(() => marketsFor('soccer', NBA), TypeError);
   assert.throws(() => marketsFor('basketball', SOCCER), TypeError);
+});
+
+test('markets: tenis trae ml, sets, totales, hándicap de games, gana un set y primer set', () => {
+  const ms = marketsFor('tennis', BO3);
+  assert.deepEqual(ms.map((m) => m.key), ['ml', 'sets', 'ou_sets', 'ou_games', 'games_hcp', 'win_set', 'win_set', 'first_set']);
+  const d = BO3.dist;
+  close(sel(pick(ms, 'ml'), 'A').p, d.pA);
+  assert.deepEqual(pick(ms, 'sets').selections.map((s) => [s.name, s.p]), Object.entries(d.sets));
+  const ous = pick(ms, 'ou_sets');
+  assert.equal(ous.selections[0].line, 2.5);
+  close(sel(ous, 'Más').p, d.sets['2-1'] + d.sets['1-2']);
+  const [a, b] = ms.filter((m) => m.key === 'win_set');
+  close(sel(a, 'Sí').p, 1 - d.sets['0-2']);
+  close(sel(b, 'Sí').p, 1 - d.sets['2-0']);
+  close(sel(pick(ms, 'first_set'), 'A').p, d.firstSet);
+});
+
+test('markets: tenis a 5 sets ofrece totales de sets 3.5 y 4.5', () => {
+  const ms = marketsFor('tennis', BO5);
+  const d = BO5.dist;
+  assert.deepEqual(ms.filter((m) => m.key === 'ou_sets').map((m) => m.selections[0].line), [3.5, 4.5]);
+  close(sel(pick(ms, 'ou_sets', 4.5), 'Más').p, d.sets['3-2'] + d.sets['2-3']);
+  close(sel(pick(ms, 'ou_sets', 3.5), 'Menos').p, d.sets['3-0'] + d.sets['0-3']);
+});
+
+test('markets: total de games en halfLine(media) y hándicap en halfLine(−margen medio)', () => {
+  const ms = marketsFor('tennis', BO3);
+  const d = BO3.dist;
+  const mean = d.games.reduce((s, p, k) => s + p * k, 0);
+  const ou = pick(ms, 'ou_games');
+  assert.equal(ou.selections[0].line, halfLine(mean));
+  close(sel(ou, 'Más').p, d.games.reduce((s, p, k) => (k > halfLine(mean) ? s + p : s), 0));
+  const D = Object.entries(d.margin).map(([k, p]) => [Number(k), p]);
+  const l = halfLine(-D.reduce((s, [k, p]) => s + k * p, 0));
+  const hcp = pick(ms, 'games_hcp');
+  assert.ok(l < 0, 'A es favorito: da games');
+  assert.equal(sel(hcp, 'A').line, l);
+  assert.equal(sel(hcp, 'B').line, -l);
+  close(sel(hcp, 'A').p, D.reduce((s, [k, p]) => (k + l > 0 ? s + p : s), 0));
+});
+
+test('markets: tenis exige un modelo de tenis', () => {
+  assert.throws(() => marketsFor('tennis', SOCCER), TypeError);
+  assert.throws(() => marketsFor('soccer', BO3), TypeError);
 });
