@@ -198,6 +198,19 @@ test('ratings: shrink = punto fijo (suma ajustada + prior·media)/(partidos + pr
   }
 });
 
+test('ratings: halfLife pesa más lo reciente; sin halfLife es igual a vida media infinita', () => {
+  const d = (m) => new Date(Date.UTC(2026, m, 1)).toISOString();
+  const rs = [['1', '2', 4, 0, 0], ['2', '1', 0, 4, 1], ['1', '2', 0, 0, 9], ['2', '1', 0, 0, 10]].map(([h, a, hs, as, m], i) =>
+    ({ id: `g${i}`, date: d(m), homeId: h, awayId: a, homeScore: hs, awayScore: as, neutral: true }));
+  const asOf = d(11);
+  const flat = ratingsFromResults(rs, { sport: 'soccer', asOf, prior: 0 });
+  assert.deepEqual(ratingsFromResults(rs, { sport: 'soccer', asOf, prior: 0, halfLife: Infinity }), flat);
+  const decayed = ratingsFromResults(rs, { sport: 'soccer', asOf, prior: 0, halfLife: 30 });
+  // '1' goleó a comienzos de año y empató 0-0 al final: con decaimiento su ataque cae hacia lo reciente.
+  assert.ok(decayed.teams.get('1').gf < flat.teams.get('1').gf);
+  for (const t of decayed.teams.values()) assert.ok(Number.isFinite(t.gf) && Number.isFinite(t.ga));
+});
+
 test('ratings: expected con ratings a mano (normal y poisson, con y sin sede)', () => {
   const nba = { teams: new Map([['A', { gf: 115, ga: 105 }], ['B', { gf: 105, ga: 115 }]]), avgHome: 111.5, avgAway: 108.5 };
   const e = expected('basketball', nba, 'A', 'B');
@@ -270,6 +283,20 @@ test('getSeasonResults: con pocos partidos suma la temporada anterior, quita dup
     const n = urls.length;
     assert.equal((await getSeasonResults('nba')).length, res.length);
     assert.equal(urls.length, n, 'la segunda llamada sale de la memoria');
+  });
+});
+
+test('getSeasonResults: fútbol suma la temporada anterior aunque la vigente ya tenga muchos partidos', async () => {
+  const cur = (teamId) => ({ requestedSeason: { year: 2026, type: 1 }, events: games(`c${teamId}-`, teamId, 15) });
+  const prev = (teamId) => ({ requestedSeason: { year: 2025, type: 1 }, events: games(`q${teamId}-`, teamId, 3) });
+  await withFetch({
+    'soccer/col.1/teams': { sports: [{ leagues: [{ teams: [{ team: { id: '1' } }, { team: { id: '2' } }] }] }] },
+    'soccer/col.1/teams/1/schedule': cur('1'),
+    'soccer/col.1/teams/2/schedule': cur('2'),
+    'soccer/col.1/teams/1/schedule?season=2025': prev('1'),
+    'soccer/col.1/teams/2/schedule?season=2025': prev('2'),
+  }, async () => {
+    assert.equal((await getSeasonResults('colombia')).length, 2 * 15 + 2 * 3);
   });
 });
 
