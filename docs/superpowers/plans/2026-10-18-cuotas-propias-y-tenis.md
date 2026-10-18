@@ -22,7 +22,7 @@
 - Solo fuentes públicas de ESPN. Nunca la API de Outlier ni de casas. `ODDSY_ODDS_API_KEY` desaparece.
 - Toda llamada externa pasa por `espn.fetchJson` (caché + timeout de 8 s). Todo error devuelve `{ error }` con un status HTTP.
 - Tenis: solo singles masculino ATP (`grouping.slug === 'mens-singles'`); el ranking se recorta al top 100.
-- Cada task termina con `npm test` en verde, commit y `git push origin main` (Vercel `coflasbet` despliega solo).
+- Cada task termina con `npm test` en verde, commit y `git push origin main` (Vercel `oddsybet` despliega solo).
 - En `vercel.json`, `includeFiles` debe cubrir todo lo que importe `lib/**` desde `public/`: `public/leagues.js`, `public/stats.js` y `public/betmath.js`.
 
 ## Review Focus
@@ -263,4 +263,4 @@
   - El render de la ficha con fixture contiene "Elo" y el nombre del jugador.
 - [ ] **Step 2–4:** FAIL → implementar → PASS.
 - [ ] **Step 5:** Preview con el recorrido ATP → partido de hoy → mercados → jugador → ranking. Consola sin errores y capturas en escritorio y móvil (`resize_window` mobile).
-- [ ] **Step 6:** Commit y push. Con el MCP de Vercel, confirmar que el deploy de `coflasbet` quedó `READY` y abrir `/api/tennis/rankings` en producción.
+- [ ] **Step 6:** Commit y push. Con el MCP de Vercel, confirmar que el deploy de `oddsybet` quedó `READY` y abrir `/api/tennis/rankings` en producción.
