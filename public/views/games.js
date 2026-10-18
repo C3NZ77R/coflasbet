@@ -25,18 +25,46 @@ const lineTxt = (m, s) => (m.key.startsWith('ou') ? s.line : signed(s.line)); //
 // Mercado principal de la tarjeta: 1X2 en fútbol, ganador en el resto.
 export const mainMarket = (markets) => markets?.find((m) => m.key === '1x2') ?? markets?.find((m) => m.key === 'ml') ?? null;
 export const accText = (acc) => (acc?.brier != null
-  ? `Precisión del modelo: Brier ${acc.brier.toFixed(3)} en ${acc.n} partidos (referencia ${acc.baseline?.brier?.toFixed(3) ?? '—'})`
+  ? `Precisión del modelo: Brier ${acc.brier.toFixed(3)} en ${acc.n} partidos (referencia ${acc.baseline?.brier?.toFixed(3) ?? '—'}; más bajo es mejor)`
   : 'Precisión del modelo: sin backtest para esta liga.');
+
+// Qué se apuesta en cada mercado (claves de lib/markets.mjs), en palabras simples. n = primera selección, t = su línea.
+const ORD = { 3: 'tercer', 4: 'cuarto', 5: 'quinto' };
+const count = (what, t) => `Se cuentan ${what}.${t % 1 ? ` Más ${t} gana si hay ${Math.ceil(t)} o más; Menos ${t}, ${t < 1 ? 'si no hay ninguno' : `si hay ${Math.floor(t)} o menos`}.` : ''}`;
+const shift = (n, t, unit) => `A ${n} se le ${t < 0 ? 'restan' : 'suman'} ${Math.abs(t)} ${unit} al final. Ganas si tu elección queda arriba después de ese ajuste.`;
+const QUARTER = ' Si la línea es entera y quedan iguales, te devuelven la apuesta. Si termina en .25 o .75, la apuesta se reparte entre las dos líneas vecinas.';
+const HOW = {
+  ml: () => 'Eliges quién gana el partido. El marcador no importa.',
+  '1x2': () => 'Eliges si gana el local, si empatan o si gana el visitante.',
+  dc: () => 'Cubres dos de los tres resultados con una sola apuesta.',
+  dnb: () => 'Eliges quién gana. Si empatan, te devuelven la apuesta.',
+  ou: (n, t, m) => count(`los ${/Total de (\S+)/.exec(m.label)?.[1] ?? 'puntos'} de los dos equipos`, t),
+  ou_home: (n, t) => count('solo los goles del local', t),
+  ou_away: (n, t) => count('solo los goles del visitante', t),
+  aou: () => `Se cuentan los goles de los dos equipos.${QUARTER}`,
+  btts: () => 'Sí gana si los dos equipos marcan al menos un gol.',
+  cs: () => 'Aciertas solo si el marcador final es exactamente ese.',
+  ah: (n, t) => shift(n, t, 'goles') + QUARTER,
+  spread: (n, t) => shift(n, t, 'puntos'),
+  rl: (n, t) => shift(n, t, 'carreras'),
+  sets: () => 'Aciertas solo si el marcador en sets es exactamente ese.',
+  ou_sets: (n, t) => `Más ${t} gana si se juega un ${ORD[Math.ceil(t)] ?? `${Math.ceil(t)}.º`} set; Menos ${t}, si el partido se acaba antes.`,
+  ou_games: (n, t) => count('todos los games del partido', t),
+  games_hcp: (n, t) => shift(n, t, 'games'),
+  win_set: () => 'Sí gana si se lleva por lo menos un set, aunque pierda el partido.',
+  first_set: () => 'Solo cuenta el primer set. Lo que pase después no importa.',
+};
 
 // ---------- piezas de UI ----------
 const unwrap = (r) => (r && !Array.isArray(r) && 'data' in r ? r : { data: r, source: null });
 const timeOf = (iso) => new Date(iso).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
 const isLive = (g) => g.status?.state === 'in' || (g.status?.state === 'pre' && Date.parse(g.start) <= Date.now());
 const selName = (g, s) => (s.name === 'Local' ? g.home.abbr || g.home.name : s.name === 'Visitante' ? g.away.abbr || g.away.name : s.name);
+const selLabel = (g, m, s) => `${selName(g, s)}${s.line != null ? ` ${lineTxt(m, s)}` : ''}`;
 
 // Botón de selección: nombre, línea, probabilidad, justa y Oddsy. picks = índice → pick del boleto.
 function selBtn(g, m, s, ctx, compact = false) {
-  const name = `${selName(g, s)}${s.line != null ? ` ${lineTxt(m, s)}` : ''}`;
+  const name = selLabel(g, m, s);
   const short = (t) => t.abbr || t.name;
   const matchup = ctx.tennis ? `${short(g.home)} vs ${short(g.away)}` : `${short(g.away)} @ ${short(g.home)}`;
   const pick = { id: `oddsy:${ctx.league}:${g.id}:${m.key}:${m.label}:${s.name}`, label: `${name} (${m.label}) · ${matchup}`, price: s.oddsy, book: 'oddsy', league: ctx.league, gameId: g.id };
@@ -279,17 +307,26 @@ function linesHtml(d, mk, ctx) {
   return marketTables(d, mk, ctx, trends) + ats;
 }
 
-// Tablas de todos los mercados del modelo; trends = HTML de tendencia por clave de mercado (solo en el primero de cada tipo).
+// Mercados del modelo como desplegables: el título muestra la opción más probable, dentro va qué se apuesta,
+// una barra por probabilidad y la cuota. trends = HTML de tendencia por clave de mercado (solo en el primero de cada tipo).
 export function marketTables(d, mk, ctx, trends = {}) {
-  const head = '<thead><tr><th scope="col">Selección</th><th scope="col">Prob.</th><th scope="col">Justa</th><th scope="col">Oddsy</th></tr></thead>';
-  const row = (m, s) => `<tr><th scope="row">${esc(selName(d, s))}${s.line != null ? ` <span class="gm-line">${esc(lineTxt(m, s))}</span>` : ''}</th>
-    <td>${esc(ui.fmtPct(s.p))}</td><td>${esc(ui.fmtOdds(s.fair))}</td><td>${selBtn(d, m, s, ctx, true)}</td></tr>`;
+  const head = '<thead><tr><th scope="col">Opción</th><th scope="col">Probabilidad</th><th scope="col">Justa</th><th scope="col">Oddsy</th></tr></thead>';
+  const row = (m, s, top) => `<tr${s === top ? ' class="gm-top1"' : ''}><th scope="row">${esc(selName(d, s))}${s.line != null ? ` <span class="gm-line">${esc(lineTxt(m, s))}</span>` : ''}${s === top ? ' <small class="gm-tag">Más probable</small>' : ''}</th>
+    <td><span class="gm-pc"><span class="gm-pbar" aria-hidden="true"><i style="width:${(s.p * 100).toFixed(1)}%"></i></span>${esc(ui.fmtPct(s.p))}</span></td><td>${esc(ui.fmtOdds(s.fair))}</td><td>${selBtn(d, m, s, ctx, true)}</td></tr>`;
   const seen = new Set();
-  return `<p class="gm-src">${ui.sourceBadge('oddsy')} Justa = 1/p · Oddsy = justa con 5% de margen. Toca una cuota para agregarla a Mis picks.</p>`
-    + mk.data.markets.map((m) => {
+  return `<p class="gm-src">${ui.sourceBadge('oddsy')} Abre un mercado para ver todas las opciones. Toca una cuota Oddsy para agregarla a Mis picks.</p>
+    <details class="gm-how"><summary>¿Cómo leer estas cuotas?</summary><dl>
+      <dt>Probabilidad</dt><dd>Qué tan seguido pasa, según el modelo de Oddsy.</dd>
+      <dt>Justa</dt><dd>La cuota sin margen: 1 dividido por la probabilidad.</dd>
+      <dt>Oddsy</dt><dd>La cuota justa con un margen del 5%.</dd></dl></details>`
+    + mk.data.markets.map((m, i) => {
       const t = !seen.has(m.key) && trends[m.key];
       seen.add(m.key);
-      return `<section class="gm-mk"><h3>${esc(m.label)}</h3><div class="scroll"><table class="gm-mt">${head}<tbody>${m.selections.map((s) => row(m, s)).join('')}</tbody></table></div>${t || ''}</section>`;
+      const top = m.selections.reduce((a, b) => (b.p > a.p ? b : a));
+      const first = m.selections[0];
+      const how = HOW[m.key]?.(selName(d, first), first.line, m);
+      return `<details class="gm-mk gm-acc"${i ? '' : ' open'}><summary><h3>${esc(m.label)}</h3><span class="gm-fav" title="Opción más probable">${esc(selLabel(d, m, top))} · ${esc(ui.fmtPct(top.p))}</span></summary>
+        ${how ? `<p class="gm-hint">${esc(how)}</p>` : ''}<div class="scroll"><table class="gm-mt">${head}<tbody>${m.selections.map((s) => row(m, s, top)).join('')}</tbody></table></div>${t || ''}</details>`;
     }).join('')
     + `<p class="gm-src">${esc(accText(mk.accuracy))}</p>`;
 }
@@ -305,7 +342,7 @@ async function renderTennisDetail(root, ctx, lg, id, state) {
   state.cleanups.push(syncPicks(root, pc));
   const player = (t, cls) => `<div class="gm-hteam ${cls}">${ui.teamLogo(t, { size: 40 })}<div><a class="tn-player" href="#/tennis-player/${encodeURIComponent(t.id)}"><b>${esc(t.name)}</b></a>
       <small>${esc(t.record ? `Ranking ${t.record}` : 'Sin ranking')}</small></div>${g.status?.state !== 'pre' && t.score != null ? `<span class="gm-hscore">${esc(t.score)}</span>` : ''}</div>`;
-  const where = [g.tournament, g.round, SURF[g.surface], g.bestOf && `a ${g.bestOf} sets`].filter(Boolean).join(' · ');
+  const where = [g.tournament, g.round, SURF[g.surface], g.bestOf && `al mejor de ${g.bestOf} sets`].filter(Boolean).join(' · ');
   const markets = mk.accuracy?.publish === false ? `<p class="gm-note">${NO_PUBLISH}.</p>`
     : mk.data.markets.length ? marketTables(g, mk, pc) : ui.empty('El modelo no tiene cuotas para este partido.');
   root.querySelector('[data-detail]').innerHTML = `<header class="gm-head"><div class="gm-hrow">${player(g.home, 'gm-away')}<span class="gm-at">vs</span>${player(g.away, 'gm-home')}</div>

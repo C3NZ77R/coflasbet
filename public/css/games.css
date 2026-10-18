@@ -1,5 +1,6 @@
 /* Partidos: lista (#/{liga}/games) y detalle (#/{liga}/games/{id}). Todo bajo .gm */
 .gm { display: grid; gap: 14px; min-width: 0; }
+.gm > * { min-width: 0; } /* sin esto una tabla ancha estira la página en vez de desplazarse en su .scroll */
 .gm h3 { font-size: 15px; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .gm h3 small, .gm h4 small { color: var(--muted); font-weight: 500; font-size: 12px; }
 .gm h4 { font-size: 13px; color: var(--muted); margin: 12px 0 6px; text-transform: uppercase; letter-spacing: .05em; }
@@ -87,6 +88,26 @@
 .gm-mk { min-width: 0; }
 .gm-mk table td, .gm-mk table th, .gm-player table td, .gm-player table th { padding: 7px 8px; font-variant-numeric: tabular-nums; }
 .gm-mk tbody th, .gm-player tbody th { font-weight: 600; color: var(--text); font-size: 13px; }
+/* Mercados del modelo: desplegable con la opción más probable a la vista y barra de probabilidad */
+.gm-acc { border-top: 1px solid var(--line); padding-top: 10px; }
+.gm-acc > summary { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; cursor: pointer; list-style: none; }
+.gm-acc > summary::-webkit-details-marker { display: none; }
+.gm-acc > summary::after { content: "▾"; color: var(--muted); transition: transform .15s; }
+.gm-acc:not([open]) > summary::after { transform: rotate(-90deg); }
+.gm-acc > summary h3 { margin: 0; flex: 1; }
+.gm-acc > summary:hover h3 { color: var(--teal); }
+.gm-fav { font-size: 12px; font-weight: 700; color: var(--teal); background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-variant-numeric: tabular-nums; }
+.gm-hint { margin: 8px 0 4px; color: var(--muted); font-size: 13px; }
+.gm-pc { display: inline-flex; align-items: center; gap: 6px; }
+.gm-pbar { flex: none; width: clamp(22px, 6vw, 72px); height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.gm-pbar i { display: block; height: 100%; background: var(--muted); }
+.gm-top1 .gm-pbar i { background: var(--teal); }
+.gm-tag { color: var(--teal); font-size: 11px; font-weight: 700; }
+.gm-how { font-size: 13px; }
+.gm-how summary { cursor: pointer; color: var(--teal); font-weight: 600; font-size: 12px; }
+.gm-how dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 8px 0 0; color: var(--muted); }
+.gm-how dt { color: var(--text); font-weight: 600; }
+.gm-how dd { margin: 0; }
 .gm-rank { color: var(--muted); }
 .gm-rt td { text-align: center; }
 
@@ -120,4 +141,5 @@
   .gm-hteam.gm-home { flex-direction: row; text-align: left; }
   .gm-hteam .gm-hscore, .gm-hteam.gm-home .gm-hscore { margin: 0 0 0 auto; font-size: 24px; }
   .gm-main, .gm-side { padding: 10px; }
+  .gm-tag { display: block; }
 }
