@@ -58,7 +58,7 @@ test('ratings: aplazados, cancelados y pretemporada no son resultados; neutral s
   assert.equal(res.find((r) => r.id === json.events[4].id).neutral, true);
 });
 
-test('ratings: NHL en prórroga o shootout cuenta como empate de tiempo regular; fútbol con prórroga se descarta', () => {
+test('ratings: NHL conserva el marcador final y marca ot; fútbol con prórroga se descarta', () => {
   const json = fx('schedule-nba.json');
   const set = (i, period, h, a) => {
     const c = json.events[i].competitions[0];
@@ -71,13 +71,26 @@ test('ratings: NHL en prórroga o shootout cuenta como empate de tiempo regular;
   set(2, 3, 5, 2); // tiempo regular
   const hockey = normSchedule(json, 'hockey');
   const pick = (res, i) => res.find((r) => r.id === json.events[i].id);
-  assert.deepEqual([pick(hockey, 0).homeScore, pick(hockey, 0).awayScore], [3, 3]);
-  assert.deepEqual([pick(hockey, 1).homeScore, pick(hockey, 1).awayScore], [1, 1]);
-  assert.deepEqual([pick(hockey, 2).homeScore, pick(hockey, 2).awayScore], [5, 2]);
+  const final = (r) => [r.homeScore, r.awayScore, r.ot];
+  assert.deepEqual(final(pick(hockey, 0)), [3, 4, true]);
+  assert.deepEqual(final(pick(hockey, 1)), [2, 1, true]);
+  assert.deepEqual(final(pick(hockey, 2)), [5, 2, false]);
   const soccer = normSchedule(json, 'soccer');
   assert.equal(soccer.length, 7); // en fútbol los periodos 3-5 son prórroga y penales
   assert.ok(!pick(soccer, 2) && pick(soccer, 3));
-  assert.deepEqual([pick(normSchedule(json, 'basketball'), 1).homeScore], [2]); // fuera del hockey el marcador no se toca
+  assert.ok(!('ot' in pick(normSchedule(json, 'basketball'), 1))); // ot solo existe en hockey
+});
+
+test('ratings: NHL con ot cuenta como empate de tiempo regular; sin ot o fuera del hockey, el final', () => {
+  const ot = (r) => ({ ...r, ot: true });
+  const base = [R('1', '2026-01-01', 'A', 'B', 4, 1), R('2', '2026-01-02', 'B', 'C', 2, 2), R('3', '2026-01-03', 'C', 'A', 0, 3)];
+  const withOt = [...base, ot(R('4', '2026-01-04', 'A', 'C', 3, 4)), ot(R('5', '2026-01-05', 'B', 'A', 2, 1))];
+  const asTies = [...base, R('4', '2026-01-04', 'A', 'C', 3, 3), R('5', '2026-01-05', 'B', 'A', 1, 1)];
+  const asFinal = [...base, R('4', '2026-01-04', 'A', 'C', 3, 4), R('5', '2026-01-05', 'B', 'A', 2, 1)];
+  assert.deepEqual(ratingsFromResults(withOt, { sport: 'hockey' }), ratingsFromResults(asTies, { sport: 'hockey' }));
+  assert.notDeepEqual(ratingsFromResults(withOt, { sport: 'hockey' }), ratingsFromResults(asFinal, { sport: 'hockey' }));
+  assert.deepEqual(ratingsFromResults(withOt, { sport: 'soccer' }), ratingsFromResults(asFinal, { sport: 'soccer' }));
+  assert.equal(withOt[3].awayScore, 4); // no muta la entrada
 });
 
 test('ratings: equipo sin partidos = media de liga', () => {
