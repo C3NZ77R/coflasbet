@@ -35,8 +35,11 @@ Conclusiones: el modelo ya le gana a la referencia por ~5% de Brier y calibra bi
 
 1. **Mercados + backtest con BetPlay incluida** (Task 3 del plan general). `lib/markets.mjs`, `scripts/backtest.mjs`, `docs/accuracy.json` con `colombia`.
 2. **Más historia para fútbol**: `getSeasonResults` trae siempre la temporada anterior en ligas de fútbol con dos torneos por año. Criterio: el Brier de `colombia` en el backtest no empeora.
+2–3 hechos en la rama `betplay-ratings`.
 3. **Peso por antigüedad** (decaimiento exponencial, vida media a calibrar entre 180 y 720 días) en `ratingsFromResults`. Se queda solo si baja el Brier.
+   - Resultado: **vida media de 365 días** para fútbol. Brier 2025: 0.6097 → 0.6090; 2026: 0.6179 → 0.6168. Con menos de 180 días empeora.
 4. **Localía por equipo** con shrink a la de la liga (altura). Se queda solo si baja el Brier.
+   - Resultado: **descartado**. Con k = (casa/visita)^(1/4) y shrink de 5 a 80 goles ficticios, en 2025 empeora el Brier en todos los casos (0.6090 sin k → 0.6093 en el mejor) y en 2026 apenas mejora (0.6168 → 0.6157). Los k no siguen la altura (Santa Fe 0.95, Boyacá Chicó 1.17): es ruido.
 5. **Recién ascendidos**: equipo sin partidos en la liga arranca bajo la media (cuartil bajo), no en la media.
 6. **Rutas y vistas** (Tasks 4–5): Partidos → Liga BetPlay → detalle con 1X2, doble oportunidad, más/menos, ambos marcan, hándicap y marcador exacto; precisión medida visible.
 7. **Córners y tarjetas** desde el `summary` (medias por equipo, binomial negativa). Mercado muy pedido en Colombia.
