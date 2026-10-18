@@ -1,0 +1,100 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { h, esc, raw, fmtOdds, fmtPct, bookInfo, bookChip, hitBar, barChart } from '../public/ui.js';
+import { store, encodePicks, decodePicks } from '../public/store.js';
+
+test('fmtOdds: americano por defecto y decimal', () => {
+  assert.equal(fmtOdds(2.5, 'american'), '+150');
+  assert.equal(fmtOdds(1.5, 'american'), '-200');
+  assert.equal(fmtOdds(2, 'american'), '+100');
+  assert.equal(fmtOdds(1.909, 'decimal'), '1.91');
+  assert.equal(fmtOdds(2.5), '+150'); // settings.oddsFormat por defecto = american
+  for (const bad of [null, undefined, 1, 0.5, NaN, 'x']) assert.equal(fmtOdds(bad), '—');
+  store.set('settings', { ...store.get('settings'), oddsFormat: 'decimal' });
+  assert.equal(fmtOdds(2.5), '2.50');
+  store.set('settings', { ...store.get('settings'), oddsFormat: 'american' });
+});
+
+test('fmtPct', () => {
+  assert.equal(fmtPct(0.5), '50.0%');
+  assert.equal(fmtPct(0.666, 0), '67%');
+  assert.equal(fmtPct(null), '—');
+});
+
+test('h escapa los valores, no anida dos veces y une arrays', () => {
+  const evil = '<img src=x onerror="alert(1)">';
+  assert.equal(String(h`<p>${evil}</p>`), '<p>&lt;img src=x onerror=&quot;alert(1)&quot;&gt;</p>');
+  assert.equal(String(h`<a title="${"' & \""}">`), '<a title="&#39; &amp; &quot;">');
+  assert.equal(String(h`<ul>${['<a>', 'b'].map((x) => h`<li>${x}</li>`)}</ul>`), '<ul><li>&lt;a&gt;</li><li>b</li></ul>');
+  assert.equal(String(h`${null}${undefined}${false}${0}`), '0');
+  assert.equal(String(h`${raw('<b>ok</b>')}`), '<b>ok</b>');
+  assert.equal(esc(h`<i>x</i>`), '<i>x</i>'); // un Safe no se vuelve a escapar
+});
+
+test('bookInfo normaliza claves y títulos; bookChip escapa casas desconocidas', () => {
+  assert.equal(bookInfo('williamhill_us').name, 'Caesars');
+  assert.equal(bookInfo('DraftKings').key, 'draftkings');
+  assert.equal(bookInfo('LowVig.ag').key, 'lowvig');
+  assert.equal(bookInfo('unibet_eu').key, 'unibet');
+  assert.equal(bookInfo('').name, 'Sin casa');
+  const chip = String(bookChip('<script>'));
+  assert.ok(!chip.includes('<script>'));
+  assert.ok(chip.includes('&lt;script&gt;'));
+});
+
+test('hitBar: 10 segmentos y % de acierto sin contar pushes', () => {
+  const s = String(hitBar([true, false, null, true], { label: true }));
+  assert.equal((s.match(/<i class=/g) || []).length, 10);
+  assert.match(s, /Acierto 67% \(2 de 3\)/);
+  assert.match(String(hitBar(0.7)), /Acierto 70%/);
+  assert.match(String(hitBar(null)), /Sin datos/);
+});
+
+test('barChart: título accesible, línea discontinua y colores por lado', () => {
+  const s = String(barChart({ values: [10, 30, 24.5], labels: ['a', 'b', 'c'], line: 24.5, title: 'Puntos <L3>' }));
+  assert.match(s, /<title id="[^"]+">Puntos &lt;L3&gt;<\/title>/);
+  assert.match(s, /stroke-dasharray/);
+  assert.match(s, /fill="var\(--err\)"/);
+  assert.match(s, /fill="var\(--pos\)"/);
+  assert.match(s, /fill="var\(--muted\)"/); // igual a la línea = push
+});
+
+test('compartir: encode/decode ida y vuelta con tildes', () => {
+  const picks = [
+    { id: 'p1', label: 'Peña Más de 2.5 goles', price: 1.91, book: 'wplay', league: 'colombia', gameId: '123', addedAt: 1 },
+    { id: 'p2', label: 'LeBron James Over 24.5', price: 2.1, book: 'fanduel', league: 'nba', gameId: null },
+  ];
+  const s = encodePicks(picks);
+  assert.match(s, /^[A-Za-z0-9_-]+$/); // seguro en una URL
+  assert.deepEqual(decodePicks(s), picks.map(({ addedAt, ...p }) => p));
+});
+
+test('compartir: decode descarta entradas inválidas', () => {
+  const enc = (v) => btoa(JSON.stringify(v));
+  assert.deepEqual(decodePicks('%%%no-base64'), []);
+  assert.deepEqual(decodePicks(enc({ a: 1 })), []);
+  assert.deepEqual(decodePicks(''), []);
+  assert.deepEqual(decodePicks(enc([['id', 'label', 'no-num'], ['id2', 'ok', 0.5], [5, 'x', 2], ['id3', 'bien', 3, { x: 1 }]])), [
+    { id: 'id3', label: 'bien', price: 3, book: null, league: null, gameId: null },
+  ]);
+  assert.equal(decodePicks(enc(Array.from({ length: 80 }, (_, i) => [`id${i}`, 'x', 2]))).length, 50);
+});
+
+test('store: addPick reemplaza por id, removePick y track', () => {
+  store.set('picks', []);
+  store.addPick({ id: 'a', label: 'A', price: 2 });
+  store.addPick({ id: 'a', label: 'A2', price: 2.2 });
+  assert.equal(store.get('picks').length, 1);
+  assert.equal(store.get('picks')[0].label, 'A2');
+  assert.ok(store.hasPick('a'));
+  let seen = null;
+  const off = store.on('picks', (v) => { seen = v; });
+  store.removePick('a');
+  off();
+  assert.deepEqual(seen, []);
+  store.track('k1', 'view');
+  store.track('k1', 'add');
+  store.track('k1', 'view');
+  assert.equal(store.get('views').k1.view, 2);
+  assert.equal(store.get('views').k1.add, 1);
+});

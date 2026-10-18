@@ -1,0 +1,49 @@
+/* Insights (#/{liga}/insights) */
+.ins-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; margin-bottom: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; }
+.ins-flt { position: relative; }
+.ins-flt > summary { list-style: none; cursor: pointer; padding: 7px 12px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; color: var(--text); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.ins-flt > summary::-webkit-details-marker { display: none; }
+.ins-flt > summary::after { content: '▾'; margin-left: 6px; color: var(--muted); }
+.ins-flt[open] > summary { border-color: var(--teal); }
+.ins-n { color: var(--teal); }
+.ins-opts { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; display: grid; gap: 2px; min-width: 220px; max-width: min(340px, calc(100vw - 32px)); max-height: 320px; overflow: auto; padding: 8px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, .55); }
+.ins-opts label { color: var(--text); padding: 5px 6px; border-radius: 6px; font-size: 13px; }
+.ins-opts label:hover { background: var(--panel); }
+.ins-opts input[type="checkbox"] { width: auto; margin: 0; accent-color: var(--teal); }
+.ins-range label { justify-content: space-between; }
+.ins-range input { width: 96px; }
+.ins-none { color: var(--muted); padding: 4px 6px; }
+.ins-sel { font-size: 13px; }
+.ins-sel select { padding: 6px 8px; font-size: 13px; }
+.ins-reset { background: none; border: 1px solid var(--line); border-radius: 10px; padding: 7px 12px; color: var(--muted); font-size: 13px; font-weight: 600; }
+.ins-reset:hover { color: var(--text); border-color: var(--teal); }
+.ins-count { margin-left: auto; color: var(--muted); font-size: 13px; font-weight: 700; white-space: nowrap; }
+.ins-progress { min-height: 1.5em; margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+
+.ins-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 12px; }
+.ins-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; }
+.ins-card:hover { border-color: #2a5a52; }
+.ins-ent { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ins-img { flex: none; display: flex; gap: 2px; align-items: center; }
+.ins-img img.headshot { border-radius: 50%; object-fit: cover; background: var(--panel-2); }
+.ins-img img.team-logo { object-fit: contain; }
+.ins-who { display: grid; flex: 1; min-width: 0; }
+.ins-who a, .ins-who b { color: var(--text); font-weight: 700; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ins-who a:hover { color: var(--teal); }
+.ins-who small, .ins-ent time { color: var(--muted); font-size: 12px; font-weight: 600; }
+.ins-ent time { flex: none; text-align: right; }
+.ins-text { margin: 0; flex: 1; font-size: 14px; }
+.ins-out { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.ins-pick { flex: 1 1 100%; font-weight: 700; font-size: 14px; }
+.ins-hit, .ins-odds { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.ins-hit small, .ins-odds small { color: var(--muted); }
+.ins-add { margin-left: auto; flex: none; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--teal); background: var(--panel-2); color: var(--teal); font-size: 18px; font-weight: 800; line-height: 1; }
+.ins-add[aria-pressed="true"] { background: var(--grad); border-color: transparent; color: var(--on-accent); }
+.ins-add:disabled { opacity: .35; cursor: not-allowed; }
+.ins-more { grid-column: 1 / -1; justify-self: center; padding: 9px 20px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; color: var(--text); font-weight: 600; }
+
+@media (max-width: 700px) {
+  .ins-flt[open] { flex-basis: 100%; }
+  .ins-opts { position: static; max-width: none; margin-top: 6px; box-shadow: none; }
+  .ins-count { margin-left: 0; flex-basis: 100%; }
+}

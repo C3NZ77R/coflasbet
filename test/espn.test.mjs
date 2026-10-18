@@ -1,0 +1,179 @@
+// Normalizadores de ESPN con respuestas reales recortadas (test/fixtures/). Sin red.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import * as e from '../lib/espn.mjs';
+import { LEAGUES, leagueById } from '../public/leagues.js';
+import { STATS, statOf, statForMarket, propMarkets } from '../public/stats.js';
+
+const fx = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
+
+test('ligas: ids únicos y búsqueda', () => {
+  assert.equal(new Set(LEAGUES.map((l) => l.id)).size, LEAGUES.length);
+  assert.equal(leagueById('laliga').espn, 'esp.1');
+  assert.equal(leagueById('nope'), null);
+  for (const l of LEAGUES) assert.ok(STATS[l.sport], `STATS para ${l.sport}`);
+});
+
+test('cuota americana de ESPN → decimal', () => {
+  assert.equal(e.americanToDec('-110'), 1.9091);
+  assert.equal(e.americanToDec('+150'), 2.5);
+  assert.equal(e.americanToDec(120), 2.2);
+  assert.equal(e.americanToDec('EVEN'), 2);
+  assert.equal(e.americanToDec('OFF'), null);
+  assert.equal(e.americanToDec(null), null);
+});
+
+test('scoreboard NBA → Game con cuotas de DraftKings', () => {
+  const [g] = e.normScoreboard(fx('scoreboard-nba.json'), 'nba');
+  assert.equal(g.id, '401909088');
+  assert.equal(g.league, 'nba');
+  assert.equal(g.start, '2026-10-20T19:00:00.000Z');
+  assert.equal(g.status.state, 'pre');
+  assert.deepEqual([g.home.abbr, g.away.abbr], ['DET', 'BOS']);
+  assert.equal(g.home.record, '0-0');
+  assert.equal(g.home.score, null);
+  assert.equal(g.home.color, '#1d428a');
+  assert.match(g.home.logo, /^https:\/\/a\.espncdn\.com\//);
+  assert.equal(g.odds.provider, 'DraftKings');
+  assert.deepEqual(g.odds.moneyline, { home: 1.9259, away: 1.8929 });
+  assert.deepEqual(g.odds.spread, { line: 1.5, home: 1.8475, away: 1.9804 }); // línea del local (+1.5)
+  assert.deepEqual(g.odds.total, { line: 222.5, over: 1.9524, under: 1.8696 });
+});
+
+test('scoreboard de fútbol: empate y cuotas en vivo ("current")', () => {
+  const [live, pre] = e.normScoreboard(fx('scoreboard-laliga.json'), 'laliga');
+  assert.equal(live.status.state, 'in');
+  assert.equal(live.home.score, 2);
+  assert.equal(live.odds.moneyline.home, 1.005); // -20000 en vivo, no el cierre
+  assert.equal(live.odds.moneyline.draw, 20);
+  assert.equal(pre.odds.moneyline.draw, 3.65);
+  assert.equal(pre.home.score, null);
+});
+
+test('summary NFL + core API → GameDetail', () => {
+  const d = e.normSummary(fx('summary-nfl.json'), 'nfl', { records: { home: fx('core-record-nfl.json') }, stats: { home: fx('core-stats-nfl.json') } });
+  assert.equal(d.id, '401872999');
+  assert.deepEqual([d.home.abbr, d.away.abbr], ['ATL', 'CHI']);
+  assert.equal(d.odds.spread.line, 1.5);
+  assert.deepEqual(d.records.home.map((r) => `${r.key}:${r.summary}`), ['overall:2-3', 'home:0-2', 'road:2-1', 'vsdiv:1-1', 'vsconf:2-1']);
+  assert.equal(d.records.away[0].key, 'overall'); // respaldo: récords del header del summary
+  const pts = d.teamStats.home.find((s) => s.key === 'totalPointsPerGame');
+  assert.deepEqual(pts, { key: 'totalPointsPerGame', label: 'Puntos por partido', value: 23.8, display: '23.8', rank: 13 });
+  assert.ok(d.teamStats.away.length > 0, 'respaldo con las estadísticas del boxscore');
+  assert.equal(d.teamStatsSeason, 2026);
+  assert.equal(d.injuries.length, 4);
+  assert.deepEqual(Object.keys(d.injuries[0]).sort(), ['athlete', 'comment', 'date', 'detail', 'returnDate', 'status', 'teamAbbr', 'teamId']);
+  assert.equal(d.injuries[0].athlete.id, '3043168');
+  assert.equal(d.injuries[0].status, 'Questionable');
+  const l5 = d.lastFive.home;
+  assert.ok(l5.length === 3 && l5[0].date > l5[2].date, 'del más reciente al más antiguo');
+  assert.deepEqual({ opp: l5[0].opp.abbr, home: l5[0].home, score: l5[0].score, result: l5[0].result }, { opp: 'GB', home: false, score: '35-14', result: 'W' });
+  assert.deepEqual(d.predictor, { homeWinPct: 0.337, awayWinPct: 0.661 });
+  assert.equal(d.ats, null);
+  assert.equal(d.starters, null);
+  assert.equal(d.publicBetting, null);
+});
+
+test('summary NBA terminado: titulares y marcador', () => {
+  const d = e.normSummary(fx('summary-nba-post.json'), 'nba');
+  assert.equal(d.status.state, 'post');
+  assert.deepEqual([d.home.score, d.away.score], [94, 125]);
+  assert.deepEqual([d.starters.home.length, d.starters.away.length], [5, 5]);
+  assert.equal(d.starters.home[0].teamAbbr, 'DET');
+  assert.ok(d.starters.home.every((a) => /^\d+$/.test(a.id) && a.name));
+});
+
+test('summary de fútbol: alineaciones y plantilla desde rosters', () => {
+  const d = e.normSummary(fx('summary-laliga.json'), 'laliga');
+  assert.deepEqual([d.starters.home.length, d.starters.away.length], [11, 11]);
+  assert.equal(d.rosters.home.length, 13);
+  assert.equal(d.starters.home[0].pos, 'G');
+  assert.ok(d.odds.moneyline.draw > 1);
+  assert.deepEqual(d.injuries, []);
+});
+
+test('estadísticas de equipo: ranking del total y valores por partido', () => {
+  const s = e.normTeamStats(fx('core-stats-nba.json'), 'basketball');
+  const pts = s.find((x) => x.key === 'avgPoints');
+  assert.equal(pts.rank, 3); // avgPoints no trae ranking: se usa el de points
+  const paint = s.find((x) => x.key === 'pointsInPaint');
+  assert.equal(paint.display, '44.2'); // total / partidos jugados
+});
+
+test('game log NBA: claves cortas, derivadas y contexto del partido', () => {
+  const games = e.normGamelog(fx('gamelog-nba.json'), 'basketball');
+  const g = games[0];
+  assert.equal(g.eventId, '401869410');
+  assert.equal(g.season, 2026);
+  assert.deepEqual(g.opp, { id: '20', abbr: 'PHI' });
+  assert.equal(g.home, false);
+  assert.deepEqual([g.result, g.margin, g.teamScore, g.oppScore, g.minutes], ['L', -13, 93, 106, 29]);
+  assert.deepEqual([g.stats.fgm, g.stats.fga, g.stats['3pm'], g.stats.pts, g.stats.reb, g.stats.ast], [6, 13, 2, 17, 11, 3]);
+  assert.equal(g.stats.pra, 31);
+  assert.equal(g.stats.dd, 1);
+  assert.ok(games.every((x, i) => i === 0 || games[i - 1].date >= x.date));
+});
+
+test('game logs de otros deportes', () => {
+  const qb = e.normGamelog(fx('gamelog-nfl-qb.json'), 'football')[0].stats;
+  assert.deepEqual([qb.pass_yds, qb.pass_int, qb.sacked, qb.sacks], [138, 1, 3, undefined]);
+  assert.equal(qb.pass_rush_yds, 180);
+  const p = e.normGamelog(fx('gamelog-mlb-pitcher.json'), 'baseball')[0].stats;
+  assert.deepEqual([p.outs, p.k, p.ha, p.er, p.hits], [15, 7, 5, 2, undefined]);
+  const nhl = e.normGamelog(fx('gamelog-nhl.json'), 'hockey')[0];
+  assert.equal(nhl.minutes, 19.87); // "19:52"
+  assert.deepEqual([nhl.stats.goals, nhl.stats.assists, nhl.stats.sog, nhl.stats.ppp], [2, 3, 2, 1]);
+  const soc = e.normGamelog(fx('gamelog-soccer.json'), 'soccer')[0];
+  assert.deepEqual([soc.stats.shots, soc.stats.sot, soc.result, soc.minutes], [3, 2, 'W', null]);
+});
+
+test('game log: se descarta la pretemporada', () => {
+  const json = fx('gamelog-wnba-pre.json');
+  const pre = json.seasonTypes.find((s) => /Preseason/.test(s.displayName)).categories[0].events[0].eventId;
+  const games = e.normGamelog(json, 'basketball');
+  assert.ok(games.length > 0);
+  assert.ok(!games.some((g) => g.eventId === pre));
+});
+
+test('buildGameLog: une temporadas sin duplicar y solo lista estadísticas calculables', () => {
+  const games = e.normGamelog(fx('gamelog-nba.json'), 'basketball');
+  const log = e.buildGameLog({ id: '4065648' }, 'basketball', [games, games.slice(0, 2)]);
+  assert.equal(log.games.length, games.length);
+  assert.ok(log.statKeys.includes('pra') && log.statKeys.includes('3pm'));
+  assert.equal(log.labels.pra, 'PTS+REB+AST');
+  const so = e.buildGameLog({ id: '1' }, 'soccer', [e.normGamelog(fx('gamelog-soccer.json'), 'soccer')]);
+  assert.deepEqual(so.statKeys, ['goals', 'assists', 'shots', 'sot', 'fc', 'fs', 'yc']);
+});
+
+test('plantillas, lesiones, búsqueda y perfil', () => {
+  const nfl = e.normRoster(fx('roster-nfl.json'));
+  assert.equal(nfl.length, 10); // grupos offense/defense/... aplanados
+  assert.deepEqual(Object.keys(nfl[0]).sort(), ['headshot', 'id', 'jersey', 'name', 'pos', 'short', 'teamAbbr', 'teamId']);
+  assert.ok(nfl.every((a) => a.teamAbbr === 'ATL'));
+  assert.equal(e.normRoster(fx('roster-nba.json')).length, 3);
+  const inj = e.normInjuries(fx('injuries-nba.json').injuries);
+  assert.equal(inj[0].athlete.id, '5105571'); // la liga no trae id: se saca del enlace del jugador
+  assert.equal(inj[0].teamAbbr, 'ATL');
+  assert.equal(inj[0].detail, 'Knee · Right');
+  const found = e.normSearch(fx('search-nba.json'), 'nba');
+  assert.deepEqual(found.map((a) => [a.id, a.teamAbbr]), [['1966', 'PHI'], ['4683774', 'LAL']]);
+  assert.deepEqual(e.normAthleteProfile(fx('athlete-nba.json')), { id: '1966', name: 'LeBron James', short: 'L. James', pos: 'F', jersey: '23', headshot: 'https://a.espncdn.com/i/headshots/nba/players/full/1966.png', teamId: '20', teamAbbr: 'PHI' });
+});
+
+test('stats.js: derivadas, mercados y alternativos', () => {
+  assert.equal(statOf('basketball', 'pra', { pts: 20, reb: 5, ast: 7 }), 32);
+  assert.equal(statOf('basketball', 'pra', { reb: 5 }), null);
+  assert.equal(statOf('basketball', 'dd', { pts: 12, reb: 10, ast: 3, stl: 0, blk: 0 }), 1);
+  assert.equal(statOf('basketball', 'td', { pts: 12, reb: 10, ast: 9 }), 0);
+  assert.equal(statOf('baseball', 'tb', { hits: 2, '2b': 1, hr: 1 }), 6); // un doble (2) + un jonrón (4)
+  assert.equal(statOf('football', 'rush_rec_yds', { rec_yds: 40 }), null); // sin acarreos no es un corredor
+  assert.equal(statOf('football', 'rush_rec_yds', { rush_yds: 50, rec_yds: 40 }), 90);
+  assert.equal(statOf('soccer', 'goals', null), null);
+  assert.equal(statForMarket('basketball', 'player_points_alternate').key, 'pts');
+  assert.equal(statForMarket('hockey', 'player_goal_scorer_anytime').key, 'goals');
+  assert.equal(statForMarket('baseball', 'pitcher_strikeouts').key, 'k');
+  assert.equal(statForMarket('basketball', 'player_first_basket'), null);
+  assert.ok(propMarkets('football').includes('player_reception_yds'));
+  assert.equal(new Set(propMarkets('basketball')).size, propMarkets('basketball').length);
+});
