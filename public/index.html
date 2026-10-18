@@ -7,7 +7,16 @@
   <meta name="description" content="Investigación de apuestas deportivas: props, partidos y EV+ con cuotas propias sobre datos reales." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%2311161f'/><path d='M22 10a8 8 0 1 0 0 12' stroke='%23c6f432' stroke-width='4' fill='none' stroke-linecap='round'/></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+  <!-- Módulos base: el navegador los pide en paralelo en vez de descubrirlos import por import. -->
+  <link rel="modulepreload" href="app.js" />
+  <link rel="modulepreload" href="api.js" />
+  <link rel="modulepreload" href="store.js" />
+  <link rel="modulepreload" href="ui.js" />
+  <link rel="modulepreload" href="leagues.js" />
+  <link rel="modulepreload" href="betmath.js" />
+  <link rel="modulepreload" href="stats.js" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="css/shell.css" />
   <link rel="stylesheet" href="css/props.css" />
