@@ -6,7 +6,7 @@ import { ymd } from './games.js';
 // "Local o empate" → "Millonarios o empate"; el tenis ya trae los nombres de los jugadores.
 const named = (text, g) => String(text).replace(/\bLocal\b/g, g.home?.name ?? 'Local').replace(/\bVisitante\b/g, g.away?.name ?? 'Visitante');
 const signed = (x) => (x > 0 ? `+${x}` : `${x}`);
-const HCP = { spread: 'Spread', rl: 'Run line', games_hcp: 'Hándicap de games' };
+const HCP = { spread: 'hándicap', rl: 'hándicap de carreras', games_hcp: 'hándicap de games' };
 const pickText = (p, g) => named(HCP[p.market] ? `${p.name} ${signed(p.line)} (${HCP[p.market]})`
   : p.market === '1x2' || p.market === 'ml' ? (p.name === 'Empate' ? 'Empate' : `Gana ${p.name}`)
     : `${p.label}: ${p.name}`, g);
@@ -32,8 +32,8 @@ export default {
     const rows = res.flatMap(([, pk]) => pk.data ?? []).map((x) => [games.get(x.gameId), x.picks])
       .filter(([g, ps]) => g?.status?.state === 'pre' && ps.length).sort(([a], [b]) => a.start.localeCompare(b.start));
     el.innerHTML = h`<header class="view-head"><div><h1>Mejores apuestas · ${lg.title}</h1>
-      <p class="hint">Lo más probable de cada partido según el modelo, de hoy a dos días. Apuesta solo si tu casa paga <b>igual o más</b> que la cuota mínima: por debajo pierdes plata a la larga aunque aciertes seguido. «Se cumplió» es cuántas veces pasó ese tipo de predicción en la temporada pasada, en partidos que el modelo no había visto.</p></div></header>
-      ${acc?.publish === false ? empty('En esta liga el modelo todavía no le gana a la referencia del backtest: no mostramos apuestas.')
-        : rows.length ? rows.map(([g, ps]) => gameCard(g, ps)) : empty('No hay partidos próximos con apuestas de 55% o más.')}`;
+      <p class="hint">Las apuestas más probables de cada partido según Oddsy, para hoy y los próximos dos días. Apuesta solo si tu casa paga <b>la cuota mínima o más</b>. Si paga menos, a la larga pierdes plata aunque aciertes seguido. «Se cumplió» dice cuántas veces acertó ese tipo de apuesta en la temporada pasada, en partidos que Oddsy no había visto antes.</p></div></header>
+      ${acc?.publish === false ? empty('Todavía no mostramos apuestas en esta liga: Oddsy aún no predice mejor que usar los resultados de la temporada pasada.')
+        : rows.length ? rows.map(([g, ps]) => gameCard(g, ps)) : empty('No hay partidos próximos con apuestas de 50% o más.')}`;
   },
 };
