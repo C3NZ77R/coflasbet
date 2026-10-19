@@ -1,0 +1,23 @@
+/* En vivo (public/views/live.js) */
+.lv-game { display: grid; gap: 10px; margin-bottom: 14px; }
+.lv-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; }
+.lv-teams { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 17px; }
+.lv-team { display: inline-flex; align-items: center; gap: 6px; }
+.lv-pts { font-variant-numeric: tabular-nums; font-size: 20px; }
+.lv-vs { color: var(--muted); }
+.lv-status, .lv-play, .lv-wp { margin: 0; color: var(--muted); font-size: 13px; }
+.lv-wp b { color: var(--text); }
+.lv-stop { margin: 0; padding: 4px 12px; border-radius: 999px; background: rgba(246,200,124,.12); color: var(--warn); font-size: 13px; }
+.lv-sigs { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); }
+.lv-sig { display: grid; gap: 6px; align-content: start; padding: 12px; border: 1px solid var(--line); border-left: 4px solid var(--warn); border-radius: 12px; background: var(--panel-2); }
+.lv-l2 { border-left-color: var(--mint); }
+.lv-l3 { border-left-color: var(--teal); }
+.lv-sig h3 { margin: 0; font-size: 15px; }
+.lv-side { color: var(--teal); white-space: nowrap; }
+.lv-tag { margin: 0; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+.lv-nums { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; font-size: 13px; }
+.lv-why { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+.lv-calc { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-top: 4px; }
+.lv-calc label { display: grid; gap: 4px; color: var(--muted); font-size: 12px; }
+.lv-calc input { min-width: 0; width: 100%; }
+.lv-calc output { grid-column: 1 / -1; font-size: 13px; }

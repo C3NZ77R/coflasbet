@@ -15,7 +15,7 @@ Funcionalidad objetivo: todo lo de `docs/outlier-spec.md`.
 - **Mercados de predicción sin clave** (opcional, como "casas" adicionales en líneas de partido): Kalshi `https://api.elections.kalshi.com/trade-api/v2/markets?series_ticker=...` / Polymarket gamma `https://gamma-api.polymarket.com/events?tag_slug=...`. Solo si se emparejan bien con los partidos de ESPN.
 - Nunca se llama a la API de Outlier.
 
-Todas las llamadas externas pasan por server.mjs, con una caché en memoria por URL (TTL: 60 s en vivo, 5 min para scoreboard/summary, 30 min para gamelog/roster/stats). Todo error devuelve `{error}` con un status HTTP. Con un timeout de 8 s por fetch.
+Todas las llamadas externas pasan por server.mjs, con una caché en memoria por URL (TTL: 15 s en vivo, 5 min para scoreboard/summary, 30 min para gamelog/roster/stats). Todo error devuelve `{error}` con un status HTTP. Con un timeout de 8 s por fetch.
 
 ## Ligas (`public/leagues.js`, compartido por servidor y cliente)
 `export const LEAGUES = [{ id:'nba', title:'NBA', sport:'basketball', espn:'nba' }, { id:'nfl', ... espn:'nfl' }, { id:'mlb', sport:'baseball', espn:'mlb' }, { id:'wnba', sport:'basketball', espn:'wnba' }, { id:'laliga', title:'LaLiga', sport:'soccer', espn:'esp.1' }, { id:'epl', title:'Premier League', sport:'soccer', espn:'eng.1' }, { id:'ucl', title:'Champions', sport:'soccer', espn:'uefa.champions' }, { id:'libertadores', title:'Libertadores', sport:'soccer', espn:'conmebol.libertadores' }, { id:'colombia', title:'Liga BetPlay', sport:'soccer', espn:'col.1' }]`
@@ -27,6 +27,7 @@ Todas las llamadas externas pasan por server.mjs, con una caché en memoria por 
 - `GET /api/accuracy` → `docs/accuracy.json`
 - `GET /api/games?league=nba&date=YYYYMMDD` → `Game[]`
 - `GET /api/game?league=nba&id=ESPN_EVENT_ID` → `GameDetail`
+- `GET /api/live?league=nfl` → `LiveGame[]` = los partidos en juego de hoy: `Game & { progress /*0..1 del tiempo reglamentario*/, stop: { kind, label, at }|null /*pausa: tiempo muerto, fin de periodo…*/, winProb /*local, de ESPN*/|null, lastPlay, lastPlayAt /*hora real de la jugada*/, players: [{ id, name, teamId, stats }] /*boxscore con las claves de STATS*/ }` (caché de borde 10 s)
 - `GET /api/gamelog?league=nba&athlete=ID[&season=YYYY]` → `GameLog` (temporada actual + anterior combinadas si no se pasa season)
 - `GET /api/roster?league=nba&team=ID` → `Athlete[]`
 - `GET /api/injuries?league=nba` → `Injury[]`
@@ -72,17 +73,18 @@ Middles: `findMiddles(lines: [{ side:'Over'|'Under'|team, line, price, book }], 
 Acierto y splits: `hitRate(values: number[], line, side) → { hits, pushes, n, pct }`; `splitGames(games, { window:'l5'|'l10'|'l20'|'h2h'|'season'|'prev', oppId, location:'home'|'away'|'all', minMinutes, maxMinutes, daysRest, withAthlete, withoutAthlete, result:'W'|'L'|'all', maxMargin })`; `summarize(values) → { avg, median, min, max }`; `streak(values, line, side) → n`.
 Insights: `insightsFor({ athlete, gamelog, prop, statDef, league }) → [{ type, text, side, line, pct, k, n }]` con plantillas en español equivalentes a las de Outlier (racha seguida, k de los últimos n, local/visita, promedio); `teamInsights(gameDetail) → [...]` (ATS local/visita, como favorito/no favorito, over/under en los últimos 5).
 Calculadoras (ver docs/spec-calculators.json): `roundRobin, prizepicksEv, bonusBetConversion, hedge, hold, vigCost, predictionMarket, halfPoint, spreadToMoneyline (normal CDF), poisson`, más `normCdf, poissonPmf/Cdf`.
+En vivo (`public/live.js`, lo usan la vista y lib/espn.mjs): `progress`, `remaining` (lo que le falta: el promedio previo pesa como 1 partido frente al ritmo de hoy en un jugador y como 3 en el marcador), `liveOver`, `paceZ`, `strength` (temprana/moderada/fuerte), `scriptFor` (contexto: marcador, faltas), `propSignals`, `totalSignal` (contra la línea previa de Oddsy, nunca la de una casa), `stopOf`, `windowLeft` e `isActive` (pausas y cuenta regresiva estimada: ESPN publica cada jugada ~6 min tarde en la NFL, medido el 2026-10-18, así que solo el medio tiempo sigue activo cuando llega).
 
 ## Frontend
 - `public/index.html` = solo el shell (header, nav lateral/inferior, `<main id="view">`, panel del boleto).
 - `public/app.js` = router por hash, montaje de vistas, chips de liga, boleto. Rutas:
-  `#/{league}/props`, `#/{league}/props/{propKey}` (detalle), `#/{league}/games`, `#/{league}/games/{gameId}`, `#/{league}/insights`, `#/{league}/popular`, `#/pro/ev`, `#/pro/arbitrage`, `#/pro/middles`, `#/pro/boosts`, `#/comparador` (actual), `#/calculadoras`. La ruta por defecto es `#/nba/props`.
+  `#/{league}/props`, `#/{league}/props/{propKey}` (detalle), `#/{league}/games`, `#/{league}/games/{gameId}`, `#/{league}/live`, `#/{league}/insights`, `#/{league}/popular`, `#/pro/ev`, `#/pro/arbitrage`, `#/pro/middles`, `#/pro/boosts`, `#/comparador` (actual), `#/calculadoras`. La ruta por defecto es `#/nba/props`.
 - Contrato de una vista: `export default { title, render(el, ctx) }`, donde `ctx = { league, params: {id?}, query: URLSearchParams, api, store, ui, navigate(hash) }`; `render` puede ser async y devolver una función `cleanup`.
 - `public/api.js` = `api.get(path, params)` con caché en sessionStorage de 60 s y errores legibles; `api.leagues()`, `api.games(league, date)`, `api.game(league, id)`, `api.gamelog(league, athleteId)`, `api.props(league, gameId?)`, `api.odds(sportKey)`, `api.injuries(league)`, `api.roster(league, team)`, `api.search(league, q)`.
 - `public/store.js` = estado del usuario en localStorage, siempre dentro de try/catch: `picks` (boleto: [{ id, label, price, book, league, gameId, addedAt }]), `settings` ({ oddsFormat: 'american'|'decimal', books: key[], bankroll, kellyMult, devigMethod }), `views` (contador local por propKey para "Populares"), presets guardados por vista. API: `store.get(k)`, `store.set(k, v)`, `store.on(k, fn)`, `store.addPick(p)`, `store.removePick(id)`, `store.track(propKey, 'view'|'add')`.
 - `public/ui.js` = helpers compartidos: `esc, h(strings...)` (template con escape), `fmtOdds(decimal)` (según settings.oddsFormat), `fmtPct(x, d)`, `when(iso)`, `hitBar(results: boolean[] | pct)` (10 segmentos), `bookChip(key|title)`, `teamLogo(team)`, `headshot(athlete)`, `dropdown({ label, options, value, multi, onChange })`, `toggle`, `tabs`, `sortableTable({ columns, rows, sortKey })`, `empty(msg)`, `loading()`, `errorBox(err)`, `sourceBadge(source)` (live/demo/espn), `barChart({ values, labels, line, colorFn })` (SVG inline accesible), `modal`.
 - Estilos: `public/styles.css` = tokens y layout globales (se conserva la estética actual: fondo negro, degradado teal/mint/peach); cada vista tiene su propio `public/css/{vista}.css` y el shell los enlaza todos.
-- Vistas en `public/views/`: `props.js` (lista + detalle), `games.js` (lista + detalle), `insights.js`, `popular.js`, `ev.js`, `arbitrage.js`, `middles.js`, `boosts.js`, `odds.js` (el comparador actual), `calculators.js`.
+- Vistas en `public/views/`: `props.js` (lista + detalle), `games.js` (lista + detalle), `live.js` (En vivo), `insights.js`, `popular.js`, `ev.js`, `arbitrage.js`, `middles.js`, `boosts.js`, `odds.js` (el comparador actual), `calculators.js`.
 
 ## Reglas
 - Sin dependencias npm ni CDN de JS. Escapar todo el texto externo (`esc`). Accesible: botones reales, aria-pressed/selected, labels. Responsive a 375 px.

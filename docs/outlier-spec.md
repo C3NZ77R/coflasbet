@@ -59,3 +59,12 @@ Ligas: NBA, NFL, MLB, NCAAFB, WNBA, Soccer, NHL, NCAAMB.
 
 ## Calculadoras
 Ver `docs/spec-calculators.json`: 16 calculadoras con entradas, salidas, fórmulas y un ejemplo resuelto cada una.
+
+## React Live (react.live, app aparte incluida en Outlier Pro)
+Fuente: landing pública y bundle de app.react.live sin sesión, observados con REA el 2026-10-18 (no se entró: login por teléfono).
+- App web React (Vite + Redux). Rutas: `/:leagueId/games` (feed), `/:leagueId/games/:eventId` (partido), popouts de jugadas y de jugador, `/onboarding/books` (elegir casas); acceso según `subscriptionState.hasReact`. Tiempo real por Ably (`/api/me/ably-token`), "odds en menos de 1 s".
+- Señal = gap entre la línea en vivo y la estimación del modelo, con el porqué ("estimamos 57.5 yardas, 11 por debajo de la línea"). No es un pick. Hoy solo NFL yardas (pase, carrera, recepción): "línea fuera de ritmo con el partido" y "sobrerreacción tras una jugada grande" (solo Under de carrera).
+- Fuerza Early / Moderate / Strong según tamaño y confianza; "2/2 aligned" = modelos que coinciden. Razones con mini-gráfico: ritmo vs línea, correlación de mercado, movimiento de la línea. La señal sube o baja con el partido y desaparece cuando cierra el mercado.
+- Pausas (timeouts, revisiones, lesiones, aviso de dos minutos, fin de periodo) suben la señal en el feed con una cuenta regresiva estimada: la TV va ~30 s atrás y las casas suspenden menos.
+- Mejor precio entre las casas del usuario y "Place bet" que abre el boleto en la casa. Básquet: Game Flow, mapa de tiros, Player Pulse (producción, proyección, línea), comparaciones históricas, impacto del quinteto, rotaciones.
+- Oddsy (#/<liga>/live): mismo enfoque con datos gratis de ESPN, sin precios de casas (Ruling 11): proyección por ritmo contra la línea previa de Oddsy, la línea en vivo la escribe el usuario. ESPN publica cada jugada ~5.7 min después de que ocurre (wallclock vs. aparición en el summary, 4 muestras en el SNF del 2026-10-18, max-age ≤ 10 s): no podemos ir delante de la TV como React Live, y las pausas cortas ya terminaron cuando llegan.

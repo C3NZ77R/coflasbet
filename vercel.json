@@ -1,1 +1,1 @@
-{ "functions": { "api/**/*.mjs": { "includeFiles": "{lib/**,data/**,docs/accuracy.json,public/leagues.js,public/stats.js,public/betmath.js}" } } }
+{ "functions": { "api/**/*.mjs": { "includeFiles": "{lib/**,data/**,docs/accuracy.json,public/leagues.js,public/stats.js,public/betmath.js,public/live.js}" } } }
