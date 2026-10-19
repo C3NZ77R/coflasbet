@@ -15,7 +15,7 @@ import { LEAGUES, leagueById } from '../public/leagues.js';
 import { getPastSeason, thinSeason } from '../lib/espn.mjs';
 import { ratingsFromResults, expected, SPORT_MODEL, SIGMA, SIGMA_T, MU_SHRINK } from '../lib/ratings.mjs';
 import { marketsFor } from '../lib/markets.mjs';
-import { finished, matchProb, getRankings } from '../lib/tennis.mjs';
+import { finished, matchProb, getRankings, eloStep } from '../lib/tennis.mjs';
 
 export const LAG = 6 * 3_600_000;
 const DAY = 86_400_000;
@@ -197,21 +197,7 @@ export function fitNormal(sport, preds) {
 const ATP_SEASON = 2026;
 const ATP = new URL('../data/atp-history.json', import.meta.url);
 
-// Réplica del paso de eloFrom (lib/tennis.mjs), que no expone la actualización de a un partido; el test comprueba que
-// la pasada incremental deja lo mismo que eloFrom.
-const K = (n) => 250 / (n + 5) ** 0.4;
-const pElo = (ra, rb) => 1 / (1 + 10 ** ((rb - ra) / 400));
-export function eloStep(elo, m) {
-  if (m.retired || !m.winner) return;
-  const get = (id) => elo.get(id) ?? elo.set(id, { all: 1500, hard: 1500, clay: 1500, grass: 1500, n: 0, ns: { hard: 0, clay: 0, grass: 0 } }).get(id);
-  const [w, l] = m.winner === 'a' ? [get(m.a.id), get(m.b.id)] : [get(m.b.id), get(m.a.id)];
-  const e = pElo(w.all, l.all);
-  [w.all, l.all] = [w.all + K(w.n) * (1 - e), l.all - K(l.n) * (1 - e)];
-  const s = m.surface;
-  const es = pElo(w[s], l[s]);
-  [w[s], l[s]] = [w[s] + K(w.ns[s]) * (1 - es), l[s] - K(l.ns[s]) * (1 - es)];
-  w.n++, l.n++, w.ns[s]++, l.ns[s]++;
-}
+export { eloStep }; // el test comprueba que la pasada incremental deja lo mismo que eloFrom
 
 // Una pasada cronológica: cada partido de la temporada se predice con el Elo de ese momento y después lo actualiza.
 // El Elo de un jugador solo cambia con sus partidos, así que no hay fuga. Los retiros no se miden (eloFrom los ignora).

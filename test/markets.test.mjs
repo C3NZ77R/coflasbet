@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { marketsFor } from '../lib/markets.mjs';
 import { scoreGrid, normalOver, halfLine } from '../lib/pricing.mjs';
-import { matchDist } from '../lib/tennis.mjs';
+import { matchDist, setGames } from '../lib/tennis.mjs';
 
 const close = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≠ ${b}`);
 const sumP = (m) => m.selections.reduce((s, x) => s + x.p, 0);
@@ -149,6 +149,22 @@ test('markets: tenis trae ml, sets, totales, hándicap de games, gana un set y p
   close(sel(a, 'Sí').p, 1 - d.sets['0-2']);
   close(sel(b, 'Sí').p, 1 - d.sets['2-0']);
   close(sel(pick(ms, 'first_set'), 'A').p, d.firstSet);
+});
+
+test('markets: con set1, total de games del 1er set en 8.5, 9.5, 10.5 y 12.5; mejores apuestas solo la línea más pareja', async () => {
+  const { picksOf } = await import('../lib/markets.mjs');
+  const set1 = setGames(0.66, 0.62);
+  const ms = marketsFor('tennis', { ...BO3, dist: { ...BO3.dist, set1 } });
+  const s1 = ms.filter((m) => m.key === 'ou_set1');
+  assert.deepEqual(s1.map((m) => m.selections[0].line), [8.5, 9.5, 10.5, 12.5]);
+  close(sel(s1[3], 'Más').p, set1[13]); // más de 12.5 = tiebreak
+  close(sel(s1[1], 'Menos').p, set1.slice(0, 10).reduce((s, p) => s + p, 0));
+  for (let i = 1; i < s1.length; i++) assert.ok(sel(s1[i], 'Más').p < sel(s1[i - 1], 'Más').p);
+  const even = s1.reduce((a, b) => (Math.abs(b.selections[0].p - 0.5) < Math.abs(a.selections[0].p - 0.5) ? b : a));
+  const ps = picksOf('tennis', ms).filter((x) => x.market === 'ou_set1');
+  assert.equal(ps.length, 1);
+  assert.equal(ps[0].label, even.label);
+  assert.ok(!marketsFor('tennis', BO3).some((m) => m.key === 'ou_set1')); // sin set1 (sets cortos) no hay mercado
 });
 
 test('markets: tenis a 5 sets ofrece totales de sets 3.5 y 4.5', () => {

@@ -53,6 +53,7 @@ const HOW = {
   games_hcp: (n, t) => shift(n, t, 'games'),
   win_set: () => 'Sí gana si se lleva por lo menos un set, aunque pierda el partido.',
   first_set: () => 'Solo cuenta el primer set. Lo que pase después no importa.',
+  ou_set1: (n, t) => `${count('solo los games del primer set', t)} Si el set se define en tiebreak (7-6), son 13.`,
 };
 
 // ---------- piezas de UI ----------

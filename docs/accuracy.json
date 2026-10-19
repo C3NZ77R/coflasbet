@@ -181,7 +181,50 @@
       "logloss": 6.568
     },
     "publish": true,
-    "note": "La referencia (gana el mejor rankeado) usa el ranking ATP actual, que ya conoce los resultados de la temporada."
+    "note": "La referencia (gana el mejor rankeado) usa el ranking ATP actual, que ya conoce los resultados de la temporada.",
+    "set1": {
+      "season": 2026,
+      "n": 3220,
+      "logloss": 1.7608,
+      "rps": 0.0834,
+      "brier": {
+        "8.5": 0.1727,
+        "9.5": 0.2481,
+        "10.5": 0.2007,
+        "12.5": 0.1536
+      },
+      "mean": 10.0108,
+      "actual": 9.9317,
+      "baseline": {
+        "hist": {
+          "n": 3220,
+          "logloss": 1.771,
+          "rps": 0.0838,
+          "brier": {
+            "8.5": 0.1748,
+            "9.5": 0.2494,
+            "10.5": 0.2011,
+            "12.5": 0.1541
+          },
+          "mean": 9.9704,
+          "actual": 9.9317
+        },
+        "fixed": {
+          "n": 3220,
+          "logloss": 1.7804,
+          "rps": 0.0847,
+          "brier": {
+            "8.5": 0.1771,
+            "9.5": 0.2524,
+            "10.5": 0.2027,
+            "12.5": 0.155
+          },
+          "mean": 10.2026,
+          "actual": 9.9317
+        }
+      },
+      "publish": true
+    }
   },
   "colombia": {
     "season": 2025,
@@ -901,6 +944,70 @@
           "n": 2,
           "said": 0.8218,
           "hit": 0.5
+        }
+      ]
+    },
+    "tennis": {
+      "ou_set1": [
+        {
+          "from": 0,
+          "n": 24,
+          "said": 0.0801,
+          "hit": 0
+        },
+        {
+          "from": 10,
+          "n": 3055,
+          "said": 0.1729,
+          "hit": 0.1784
+        },
+        {
+          "from": 20,
+          "n": 5461,
+          "said": 0.2491,
+          "hit": 0.2457
+        },
+        {
+          "from": 30,
+          "n": 1401,
+          "said": 0.3365,
+          "hit": 0.3348
+        },
+        {
+          "from": 40,
+          "n": 2939,
+          "said": 0.4556,
+          "hit": 0.4614
+        },
+        {
+          "from": 50,
+          "n": 2939,
+          "said": 0.5444,
+          "hit": 0.5386
+        },
+        {
+          "from": 60,
+          "n": 1401,
+          "said": 0.6635,
+          "hit": 0.6652
+        },
+        {
+          "from": 70,
+          "n": 5461,
+          "said": 0.7509,
+          "hit": 0.7543
+        },
+        {
+          "from": 80,
+          "n": 3055,
+          "said": 0.8271,
+          "hit": 0.8216
+        },
+        {
+          "from": 90,
+          "n": 24,
+          "said": 0.9199,
+          "hit": 1
         }
       ]
     }

@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SURFACE, normScoreboard, normRankings, eloFrom, ratingOf, matchProb, serveFromMatchProb, matchDist } from '../lib/tennis.mjs';
+import { SURFACE, normScoreboard, normRankings, eloFrom, ratingOf, matchProb, serveFromMatchProb, matchDist, winProb, setGames, gapOf, setLengthFrom, firstSetGames } from '../lib/tennis.mjs';
 
 const fx = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const close = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≠ ${b}`);
@@ -84,6 +84,47 @@ test('tenis: serveFromMatchProb reproduce la probabilidad pedida', () => {
     const { sa, sb } = serveFromMatchProb(p, bo);
     close(matchDist(sa, sb, bo).pA, p, 1e-4);
   }
+});
+
+test('tenis: winProb es la pA de matchDist y serveFromMatchProb acepta otro centro', () => {
+  for (const [sa, sb, bo] of [[0.7, 0.6, 3], [0.66, 0.62, 5], [0.58, 0.63, 3]]) close(winProb(sa, sb, bo), matchDist(sa, sb, bo).pA, 1e-12);
+  const { sa, sb } = serveFromMatchProb(0.8, 3, undefined, 0.6);
+  close((sa + sb) / 2, 0.6);
+  close(matchDist(sa, sb, 3).pA, 0.8, 1e-4);
+});
+
+test('tenis: games de un set suman 1, van de 6 a 13 y crecen con el saque', () => {
+  const g = setGames(0.64, 0.64);
+  close(sum(g), 1);
+  assert.equal(g.findIndex((p) => p > 0), 6);
+  assert.equal(g[11], 0); // 6-5 no termina un set
+  const mean = (P) => P.reduce((s, p, k) => s + p * k, 0);
+  assert.ok(mean(setGames(0.68, 0.68)) > mean(g) && setGames(0.68, 0.68)[13] > g[13]);
+  assert.ok(mean(setGames(0.7, 0.58)) < mean(g)); // con la misma media, la brecha acorta el set
+});
+
+test('tenis: gapOf aproxima la brecha de serveFromMatchProb a menos de 3%', () => {
+  for (const [p, c, bo] of [[0.6, 0.62, 3], [0.8, 0.66, 3], [0.9, 0.6, 5], [0.3, 0.64, 3]]) {
+    const { sa } = serveFromMatchProb(p, bo, { slam: bo === 5 }, c);
+    assert.ok(Math.abs(gapOf(p, c, bo) - (sa - c)) < 0.03 * Math.abs(sa - c), `${p} ${c} ${bo}`);
+  }
+});
+
+test('tenis: el largo del set separa sacadores de restadores y el 1er set suma 1', () => {
+  // s1, s2 siempre van a tiebreak; r1, r2 juegan 6-2. Cruces parejos (6-4) para que no se confunda con el torneo.
+  const sets = { s: [[7, 6, 7, 5], [6, 7, 4, 7], [7, 6, 7, 3]], r: [[6, 2], [6, 2]], x: [[6, 4], [6, 4]] };
+  const ms = [];
+  for (let i = 0; i < 40; i++) {
+    const [a, b, k] = [['s1', 's2', 's'], ['r1', 'r2', 'r'], ['s1', 'r1', 'x'], ['s2', 'r2', 'x']][i % 4];
+    ms.push({ id: String(i), date: new Date(Date.UTC(2026, 0, 1 + i)).toISOString(), state: 'post', winner: 'a', retired: false, surface: 'hard', tournament: 'T', bestOf: 3, a: { id: a }, b: { id: b }, sets: sets[k] });
+  }
+  const fit = setLengthFrom(ms, { asOf: Date.UTC(2026, 3, 1) });
+  assert.ok(fit.D.get('s1') > 0 && fit.D.get('s2') > 0 && fit.D.get('r1') < 0 && fit.D.get('r2') < 0);
+  const m = (a, b, tournament = 'T') => ({ a: { id: a }, b: { id: b }, surface: 'hard', tournament, bestOf: 3 });
+  const [big, small] = [firstSetGames(fit, m('s1', 's2'), 0.5), firstSetGames(fit, m('r1', 'r2'), 0.5)];
+  close(sum(big), 1, 1e-6); // pesos de Gauss-Hermite con 9 decimales
+  assert.ok(big[13] > small[13]);
+  assert.equal(firstSetGames(fit, m('s1', 's2', 'Next Gen ATP Finals'), 0.5), null);
 });
 
 const M = (id, date, aId, bId, winner, extra = {}) => ({ id, date, surface: 'hard', a: { id: aId }, b: { id: bId }, winner, retired: false, ...extra });
