@@ -47,7 +47,8 @@ test('remaining: mezcla el promedio previo con el ritmo de hoy', () => {
 
 test('scoringShare: curva de anotación de la NFL por cuarto; lineal donde no hay curva', () => {
   for (const [f, w] of [[0, 0], [0.125, 0.095], [0.25, 0.19], [0.5, 0.5], [0.75, 0.71], [0.875, 0.855], [1, 1]]) near(L.scoringShare('football', f), w, 1e-12);
-  assert.equal(L.scoringShare('basketball', 0.3), 0.3);
+  near(L.scoringShare('basketball', 0.3), 0.3, 1e-12); // en la NBA solo el 4.º cuarto se aparta de lo lineal
+  near(L.scoringShare('basketball', 0.75), 0.753, 1e-12);
   assert.equal(L.scoringShare('soccer', 0.6), 0.6);
 });
 

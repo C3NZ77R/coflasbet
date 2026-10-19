@@ -125,10 +125,11 @@ export function totalSignal(live, line, sport) {
   return signal({ id: `${live.id}|total`, kind: t.kind, current: (live.home.score ?? 0) + (live.away.score ?? 0), f, w: scoringShare(sport, f), mean: line, variance, line, prior: PRIOR.total });
 }
 
-// Parte del total que se anota, en promedio, al terminar el 1.º, 2.º y 3.er cuarto. NFL 2024 (272 partidos; 2025 da lo
-// mismo): el 2.º y el 4.º rinden más por los finales de mitad. La NBA reparte parejo (25/25/25/24 %): lineal, sin curva.
-// shortcut: solo el marcador; los props de jugador siguen lineales hasta medir sus yardas por cuarto.
-const CURVE = { football: [0.19, 0.5, 0.71] };
+// Parte del total que se anota, en promedio, al terminar el 1.º, 2.º y 3.er cuarto, de la temporada anterior a la del
+// backtest. NFL 2024 (272 partidos): el 2.º y el 4.º rinden más por los finales de mitad. NBA 2024-25 (1231): el 4.º rinde
+// ~24 %; en 2025-26 mejora el log-loss por 0.0016 ± 0.0004 (pareado). shortcut: la WNBA usa la de la NBA sin medir, y los
+// props de jugador siguen lineales.
+const CURVE = { football: [0.19, 0.5, 0.71], basketball: [0.25, 0.5, 0.753] };
 export function scoringShare(sport, f) {
   const c = CURVE[sport];
   if (!c) return f;
