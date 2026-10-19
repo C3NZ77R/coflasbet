@@ -27,8 +27,9 @@ export function progress(sport, league, { period, clock, detail } = {}) {
 
 // Cuántos partidos vale el promedio previo frente al ritmo de hoy. Marcador 8: scripts/live-backtest.mjs (NFL 2025, NBA
 // 2025-26) da el menor log-loss con 8 en la NFL, donde el ritmo del marcador casi no informa, y en la NBA de 2 a 8 empatan.
-// shortcut: jugador 1 sin backtest (las jugadas de la NFL no traen atletas), calibrar cuando haya historial de props en vivo.
-const PRIOR = { player: 1, total: 8 };
+// Jugador 5: scripts/live-props-backtest.mjs (puntos, rebotes y asistencias de la NBA 2025-26) le gana a 1 por 7 errores
+// estándar; de 3 a 13 empatan. shortcut: medido solo en la NBA (las jugadas de la NFL no traen atletas).
+const PRIOR = { player: 5, total: 8 };
 
 // Lo que falta: el ritmo mezcla lo esperado antes del partido (mean) con lo que lleva (current) en la fracción jugada.
 // La varianza de lo que falta conserva la dispersión del jugador (varianza / media).

@@ -32,9 +32,9 @@ test('remaining: mezcla el promedio previo con el ritmo de hoy', () => {
   near(even.mean, 30);
   near(even.projected, 60);
   near(even.variance, 300); // dispersión 600/60 = 10 × lo que falta
-  // Va al doble: el ritmo empuja, pero el promedio previo frena (no proyecta 120).
+  // Va al doble: el ritmo empuja, pero el promedio previo (5 partidos, scripts/live-props-backtest.mjs) frena: no proyecta 120.
   const hot = L.remaining({ current: 60, progress: 0.5, mean: 60, variance: 600 });
-  near(hot.projected, 60 + 0.5 * (120 / 1.5));
+  near(hot.projected, 60 + 0.5 * ((5 * 60 + 60) / 5.5));
   assert.equal(L.remaining({ current: 50, progress: 1, mean: 60, variance: 600 }).mean, 0);
   // Marcador: el previo pesa 8 partidos (scripts/live-backtest.mjs), así que un 0-0 temprano baja poco la proyección.
   near(L.remaining({ current: 0, progress: 0.1, mean: 53.5, variance: 174, prior: 8 }).mean, 0.9 * (8 * 53.5) / 8.1);
