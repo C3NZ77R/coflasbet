@@ -36,10 +36,10 @@ test('remaining: mezcla el promedio previo con el ritmo de hoy', () => {
   const hot = L.remaining({ current: 60, progress: 0.5, mean: 60, variance: 600 });
   near(hot.projected, 60 + 0.5 * (120 / 1.5));
   assert.equal(L.remaining({ current: 50, progress: 1, mean: 60, variance: 600 }).mean, 0);
-  // Marcador: el previo pesa 3 partidos, así que un 0-0 temprano baja poco la proyección.
-  near(L.remaining({ current: 0, progress: 0.1, mean: 53.5, variance: 174, prior: 3 }).mean, 0.9 * (3 * 53.5) / 3.1);
+  // Marcador: el previo pesa 8 partidos (scripts/live-backtest.mjs), así que un 0-0 temprano baja poco la proyección.
+  near(L.remaining({ current: 0, progress: 0.1, mean: 53.5, variance: 174, prior: 8 }).mean, 0.9 * (8 * 53.5) / 8.1);
   const s = L.totalSignal({ id: 'g', progress: 0.1, home: { score: 0 }, away: { score: 0 } }, 53.5, 'football');
-  near(s.projected, 0.9 * (3 * 53.5) / 3.1);
+  near(s.projected, 0.9 * (8 * 53.5) / 8.1);
 });
 
 test('liveOver: ya superada, sin tiempo y caso normal', () => {
