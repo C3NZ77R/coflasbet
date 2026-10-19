@@ -268,3 +268,33 @@ test('atp: la referencia da por ganador al mejor rankeado; sin ranking cuenta co
   close(b.brier, (0 + 1 + 0.25) / 3); // acierta, falla y empate de no rankeados a 0.5
   assert.ok(b.logloss > 9); // un pronóstico seguro que falla paga −ln(1e-12)
 });
+
+test('backtest: settle liquida cada mercado con el marcador final (null = devolución)', async () => {
+  const { settle } = await import('../scripts/backtest.mjs');
+  const g = { homeScore: 2, awayScore: 1 };
+  const d = { homeScore: 1, awayScore: 1 };
+  assert.equal(settle('1x2', { name: 'Local' }, g), true);
+  assert.equal(settle('1x2', { name: 'Empate' }, d), true);
+  assert.equal(settle('dnb', { name: 'Visitante' }, g), false);
+  assert.equal(settle('dnb', { name: 'Local' }, d), null);
+  assert.equal(settle('dc', { name: 'Empate o visitante' }, d), true);
+  assert.equal(settle('dc', { name: 'Local o visitante' }, d), false);
+  assert.equal(settle('ou', { name: 'Más', line: 2.5 }, g), true);
+  assert.equal(settle('ou', { name: 'Menos', line: 3 }, g), null);
+  assert.equal(settle('ou_away', { name: 'Más', line: 0.5 }, g), true);
+  assert.equal(settle('btts', { name: 'No' }, g), false);
+  assert.equal(settle('spread', { name: 'Visitante', line: 1.5 }, g), true);
+  assert.equal(settle('spread', { name: 'Local', line: -1 }, g), null);
+  assert.equal(settle('cs', { name: '2-1' }, g), undefined);
+});
+
+test('backtest: hitBins agrupa por tramo y cuenta aciertos', async () => {
+  const { hitBins } = await import('../scripts/backtest.mjs');
+  const pr = (homeScore, awayScore) => ({ homeScore, awayScore, model: { kind: 'poisson', lh: 2.2, la: 0.6 } });
+  const b = hitBins('soccer', [pr(2, 0), pr(0, 1), pr(1, 1)]);
+  const dnb = b.dnb.reduce((s, x) => s + x.n, 0);
+  assert.equal(dnb, 4); // el empate devuelve: 2 partidos × 2 lados
+  const fav = b['1x2'].find((x) => x.said > 0.6);
+  assert.equal(fav.n, 3);
+  assert.equal(fav.hit, 0.3333);
+});

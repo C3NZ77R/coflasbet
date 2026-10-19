@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { LEAGUES, leagueById } from './public/leagues.js';
 import * as espn from './lib/espn.mjs';
 import { getProps } from './lib/props.mjs';
-import { getMarkets, getAccuracy, getTennisGames, atpElo } from './lib/markets.mjs';
+import { getMarkets, getPicks, getAccuracy, getTennisGames, atpElo } from './lib/markets.mjs';
 import { getRankings, getPlayer } from './lib/tennis.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -49,6 +49,7 @@ function teamLeague(url) {
 const ROUTES = {
   '/api/leagues': async () => ({ source: 'espn', data: LEAGUES }),
   '/api/markets': async (url) => getMarkets(leagueParam(url), { game: param(url, 'game', RX.id), date: param(url, 'date', RX.date) }),
+  '/api/picks': async (url) => getPicks(leagueParam(url), { date: param(url, 'date', RX.date) }),
   '/api/accuracy': async () => ({ source: 'oddsy', data: getAccuracy() }),
   '/api/games': async (url) => {
     const lg = leagueParam(url);
@@ -88,7 +89,7 @@ const ROUTES = {
 };
 
 // Caché compartida en la CDN de Vercel (la memoria de cada instancia no se comparte): los ratings piden un calendario por equipo.
-const EDGE_S = { '/api/markets': 1800, '/api/props': 1800, '/api/accuracy': 86400, '/api/tennis/rankings': 3600, '/api/tennis/player': 1800 };
+const EDGE_S = { '/api/markets': 1800, '/api/picks': 1800, '/api/props': 1800, '/api/accuracy': 86400, '/api/tennis/rankings': 3600, '/api/tennis/player': 1800 };
 const json = (res, status, body, edge = 0) => res.writeHead(status, {
   'content-type': 'application/json; charset=utf-8',
   'cache-control': edge ? `public, max-age=0, s-maxage=${edge}, stale-while-revalidate=${edge * 4}` : 'no-store',

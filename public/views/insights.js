@@ -23,7 +23,7 @@ export function oddsyOf(props) {
   return p ? { price: p.books[0].price, fair: p.fair, p: p.p, book: 'oddsy' } : null;
 }
 // Cuota Oddsy y justa en una celda.
-export const oddsHtml = (ui, o) => (o?.price ? `<b title="Cuota Oddsy (con margen)">${ui.esc(ui.fmtOdds(o.price))}</b>${o.fair ? `<small title="Cuota justa (1/p)">Justa ${ui.esc(ui.fmtOdds(o.fair))}</small>` : ''}` : '<small>sin cuota</small>');
+export const oddsHtml = (ui, o) => (o?.price ? `<b title="Cuota Oddsy, con margen">${ui.esc(ui.fmtOdds(o.price))}</b>${o.fair ? `<small title="Cuota justa, sin margen">Justa ${ui.esc(ui.fmtOdds(o.fair))}</small>` : ''}` : '<small>sin cuota</small>');
 
 // Ejecuta run(item) con a lo sumo `limit` en paralelo; run no debe lanzar.
 export async function pool(items, limit, run, alive) {
@@ -64,7 +64,7 @@ export async function loadUpcoming(api, league) {
 
 // --- Clasificación de cada insight para los filtros ---
 
-const CATS = { racha: 'Racha seguida', kden: 'k de los últimos n', loc: 'Local / visita', prom: 'Promedio', ats: 'Equipo ATS', ml: 'Equipo favorito / no favorito', ou: 'Over/Under de equipo' };
+const CATS = { racha: 'Racha seguida', kden: 'Casi siempre en los últimos partidos', loc: 'Local / visita', prom: 'Promedio', ats: 'Equipo contra el hándicap', ml: 'Equipo como favorito o no favorito', ou: 'Total del partido (más o menos)' };
 const SPLITS = { home: 'Local', away: 'Visita' };
 
 // El tipo lo pone betmath; si no trae el split, se deduce del tipo y, en último caso, de la frase.
@@ -103,7 +103,7 @@ const PAGE = 60;
 const fresh = () => ({ cat: new Set(), game: new Set(), player: new Set(), team: new Set(), stat: new Set(), oMin: null, oMax: null, minPct: 0, split: 'all', side: 'all', sort: 'pct' });
 
 export default {
-  title: 'Insights',
+  title: 'Tendencias',
   render(el, { league, api, store, ui }) {
     const { esc } = ui;
     const lg = leagueById(league);
@@ -122,18 +122,18 @@ export default {
     const multi = (name, label) => `<details class="ins-flt" data-name="${name}"><summary>${label}<span class="ins-n"></span></summary><div class="ins-opts" role="group" aria-label="${label}"></div></details>`;
     const sel = (name, label, opts) => `<label class="ins-sel">${label} <select name="${name}">${opts.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label>`;
     el.innerHTML = `<section class="ins">
-      <h1>Insights ${esc(lg.title)}</h1>
-      <p class="hint">Tendencias calculadas con los game logs de ESPN para los partidos de hoy y los próximos 3 días.</p>
-      <form class="ins-bar" aria-label="Filtros de insights">
-        ${multi('cat', 'Tipo de insight')}${multi('game', 'Partidos')}${multi('player', 'Jugadores')}${multi('team', 'Equipos')}
+      <h1>Tendencias ${esc(lg.title)}</h1>
+      <p class="hint">Lo que han hecho jugadores y equipos en sus últimos partidos, para los juegos de hoy y de los próximos 3 días. Datos de ESPN.</p>
+      <form class="ins-bar" aria-label="Filtros de tendencias">
+        ${multi('cat', 'Tipo')}${multi('game', 'Partidos')}${multi('player', 'Jugadores')}${multi('team', 'Equipos')}
         <details class="ins-flt" data-name="odds"><summary>Cuotas<span class="ins-n"></span></summary><div class="ins-opts ins-range">
           <label>Desde (americana) <input name="oMin" type="number" step="1" placeholder="-300" inputmode="numeric"></label>
           <label>Hasta (americana) <input name="oMax" type="number" step="1" placeholder="+200" inputmode="numeric"></label>
         </div></details>
-        ${multi('stat', 'Propositions')}
+        ${multi('stat', 'Estadísticas')}
         ${sel('minPct', 'Acierto mínimo', [['0', 'Cualquiera'], ['50', '50 %'], ['60', '60 %'], ['70', '70 %'], ['80', '80 %'], ['90', '90 %'], ['100', '100 %']])}
-        ${sel('split', 'Splits', [['all', 'Todos'], ['home', 'Local'], ['away', 'Visita']])}
-        ${sel('side', 'Over/Under', [['all', 'Ambos'], ['Over', 'Más de'], ['Under', 'Menos de']])}
+        ${sel('split', 'Local o visita', [['all', 'Todos'], ['home', 'Local'], ['away', 'Visita']])}
+        ${sel('side', 'Más/Menos', [['all', 'Ambos'], ['Over', 'Más de'], ['Under', 'Menos de']])}
         ${sel('sort', 'Orden', [['pct', 'Acierto'], ['odds', 'Cuota'], ['time', 'Hora']])}
         <button type="button" class="ins-reset">Limpiar</button>
         <output class="ins-count" aria-live="polite"></output>
@@ -227,14 +227,14 @@ export default {
     function draw() {
       if (!alive()) return;
       shown = items.filter(pass).sort(SORTS[f.sort] ?? SORTS.pct);
-      form.querySelector('.ins-count').textContent = `${shown.length}/${items.length} insights`;
+      form.querySelector('.ins-count').textContent = `${shown.length}/${items.length} tendencias`;
       const inSlip = slip();
       const rest = shown.length - page;
       listEl.innerHTML = shown.length
         ? shown.slice(0, page).map((it, i) => card(it, i, inSlip)).join('') + (rest > 0 ? `<button type="button" class="ins-more">Mostrar más (${rest})</button>` : '')
-        : prog.loading ? '' : H(ui.empty(items.length ? 'Ningún insight cumple estos filtros.' : 'No hay insights para los partidos próximos de esta liga.'));
+        : prog.loading ? '' : H(ui.empty(items.length ? 'Ninguna tendencia cumple estos filtros.' : 'No hay tendencias para los próximos partidos de esta liga.'));
       // Sin props de jugador (solo cubren los próximos 3 partidos de hoy) quedan solo los insights de equipo.
-      if (!prog.loading && !prog.props) listEl.insertAdjacentHTML('afterbegin', `<p class="hint">Sin props de jugador para los próximos partidos de hoy. Abre un partido para ver sus props: <a href="#/${esc(league)}/games">ver partidos</a>.</p>`);
+      if (!prog.loading && !prog.props) listEl.insertAdjacentHTML('afterbegin', `<p class="hint">Por ahora solo hay tendencias de equipos. Las de jugadores salen para los próximos 3 partidos de hoy; para otros, abre el partido: <a href="#/${esc(league)}/games">ver partidos</a>.</p>`);
       root.querySelector('.ins-progress').innerHTML = prog.loading
         ? `Analizando ${prog.done} de ${prog.total || '…'} (partidos y jugadores)…`
         : `${prog.games} partidos y ${prog.players} jugadores analizados${prog.failed ? ` · ${prog.failed} sin datos` : ''}. ${prog.source ? H(ui.sourceBadge(prog.source)) : ''}`;
@@ -322,7 +322,7 @@ export default {
         const t = teamOf(gd, ins);
         const ou = ins.side === 'Over' || ins.side === 'Under';
         const cat = ou ? 'ou' : /ats|spread|hand/i.test(ins.type) ? 'ats' : 'ml';
-        const outcome = ou ? `${ins.side === 'Over' ? 'Más' : 'Menos'} · total del partido` : t ? `${t.abbr} ${cat === 'ats' ? '· hándicap' : 'gana · moneyline'}` : ins.side ?? '';
+        const outcome = ou ? `Total del partido: ${ins.side === 'Over' ? 'más' : 'menos'}` : t ? `${t.abbr} ${cat === 'ats' ? 'con hándicap' : 'gana'}` : ins.side ?? '';
         items.push({
           kind: 'team', cat, split: splitOf(ins), text: ins.text, side: ou ? ins.side : null, pct: pctOf(ins), k: ins.k, n: ins.n ?? 0,
           price: null, book: null, start: gd.start, gameId: gd.id, gameLabel,

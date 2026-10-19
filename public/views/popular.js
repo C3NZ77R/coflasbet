@@ -4,7 +4,7 @@ import { leagueById } from '../leagues.js';
 import { statOf } from '../stats.js';
 import { SIDE, H, propKey, statDef, statName, matchup, oddsyOf, oddsHtml, pool, logFor, loadUpcoming } from './insights.js';
 
-const TABS = { view: 'Más investigados', add: 'Más agregados' };
+const TABS = { view: 'Más vistos', add: 'Más agregados' };
 const TOP = 20;
 
 const parseKey = (k) => {
@@ -139,7 +139,7 @@ export default {
           </span>
         </a>
         <div class="pop-foot">
-          <span class="pop-hit">${hit ? `${H(ui.hitBar(hit.results))}<small>L10 · ${hit.hits}/${hit.n}</small>` : `<small>${logs.has(athKey(p)) ? 'Sin game log' : 'Cargando acierto…'}</small>`}</span>
+          <span class="pop-hit">${hit ? `${H(ui.hitBar(hit.results))}<small>Últ. 10 · ${hit.hits}/${hit.n}</small>` : `<small>${logs.has(athKey(p)) ? 'Sin historial' : 'Cargando acierto…'}</small>`}</span>
           <span class="pop-odds">${oddsHtml(ui, top)}</span>
         </div>
         ${r.view != null ? `<small class="pop-counts">${plural(r.view, 'vista', 'vistas')} · ${plural(r.add, 'agregado', 'agregados')}</small>` : ''}
@@ -158,15 +158,15 @@ export default {
         rows = rows.sort((a, b) => b.hit.pct - a.hit.pct || b.hit.n - a.hit.n).slice(0, TOP);
       }
       root.querySelector('.pop-note').innerHTML = mode === 'act'
-        ? `<b>Según tu actividad en este dispositivo</b> (props que abriste o agregaste al boleto). No hay datos de popularidad global de otros usuarios.`
-        : `Aún no hay actividad en este dispositivo para <b>${esc(TABS[tab].toLowerCase())}</b> en esta liga: mostramos las <b>mejores rachas</b> (acierto en los últimos 10 partidos) de los props disponibles.`;
+        ? 'Según lo que has hecho en este dispositivo: los props que más abriste o agregaste al boleto. No vemos lo que hacen otros usuarios.'
+        : `Todavía no has ${tab === 'view' ? 'abierto' : 'agregado al boleto'} props de esta liga en este dispositivo. Mientras tanto, te mostramos los que más se han cumplido en los últimos 10 partidos.`;
       root.querySelector('.pop-progress').innerHTML = loadingLogs
-        ? `Calculando acierto L10: faltan ${loadingLogs} jugadores…`
+        ? `Calculando aciertos: faltan ${loadingLogs} jugadores…`
         : data.source ? H(ui.sourceBadge(data.source)) : '';
       listEl.innerHTML = rows.length
         ? rows.map(card).join('')
-        : loadingLogs ? '' : data.props.length ? H(ui.empty('No hay game logs para calcular rachas.'))
-          : `${H(ui.empty('Abre un partido para ver sus props.'))}<p class="pop-note">Esta lista cubre solo los próximos 3 partidos de hoy. <a href="#/${esc(league)}/games">Ver partidos</a></p>`;
+        : loadingLogs ? '' : data.props.length ? H(ui.empty('No hay historial de jugadores para calcular rachas.'))
+          : `${H(ui.empty('Abre un partido para ver sus props.'))}<p class="pop-note">Aquí solo salen los próximos 3 partidos de hoy. <a href="#/${esc(league)}/games">Ver partidos</a></p>`;
     }
 
     // Al cambiar de pestaña o de modo, se cargan los game logs que falten para lo que se va a mostrar.

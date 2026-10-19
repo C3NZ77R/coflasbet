@@ -52,7 +52,7 @@ export function hitsHtml(rows, stat, line) {
   return h`<ul class="tn-hits">${[5, 10, 20].map((n) => {
     const last = valid.slice(0, n);
     const k = last.filter((r) => r[stat] > line).length;
-    return h`<li><b>L${n}</b>${hitBar(last.length ? k / last.length : null, { label: true })}<small>${k} de ${last.length}</small></li>`;
+    return h`<li><b>Últ. ${n}</b>${hitBar(last.length ? k / last.length : null, { label: true })}<small>${k} de ${last.length}</small></li>`;
   })}</ul>`;
 }
 
@@ -63,7 +63,7 @@ const COLUMNS = [
   { key: 'tournament', label: 'Torneo', defaultDir: 'asc', render: (r) => h`${r.tournament}${r.round ? h`<br><small class="tn-muted">${r.round}</small>` : ''}` },
   { key: 'surface', label: 'Superficie', defaultDir: 'asc', render: (r) => SURF[r.surface] ?? r.surface },
   { key: 'won', label: 'Resultado', sort: (r) => Number(r.won), render: (r) => h`<b class="${r.won ? 'tn-w' : 'tn-l'}">${r.won ? 'Ganó' : 'Perdió'}</b>` },
-  { key: 'score', label: 'Marcador', sortable: false, render: (r) => `${r.score}${r.retired ? ' (ret.)' : ''}` },
+  { key: 'score', label: 'Marcador', sortable: false, render: (r) => `${r.score}${r.retired ? ' (retiro)' : ''}` },
   { key: 'total_games', label: statName('total_games'), align: 'right' },
   { key: 'games_won', label: statName('games_won'), align: 'right' },
   { key: 'sets', label: 'Sets', sortable: false, align: 'right' },
@@ -77,7 +77,7 @@ export default {
     const state = { surface: '', stat: 'total_games', line: LINES.total_games[0] };
     el.innerHTML = h`<a class="gm-back" href="#/tennis-rankings">← Ranking ATP</a>
       ${headHtml(data)}
-      <div class="toolbar" data-bar><span class="tn-muted">${sourceBadge('espn')} Elo de Oddsy sobre los últimos 24 meses</span></div>
+      <div class="toolbar" data-bar><span class="tn-muted">${sourceBadge('espn')} Elo: nivel del jugador según Oddsy, con sus partidos de los últimos 24 meses</span></div>
       <section class="card tn-sec"><h2 data-title></h2><div data-hits></div></section>
       <section class="tn-sec"><h2>Últimos partidos</h2><div data-table></div></section>`;
     const table = sortableTable({ columns: COLUMNS, sortKey: 'date', sortDir: 'desc', pageSize: 25, caption: `Últimos partidos de ${data.player.name}`, emptyText: 'Sin partidos en esta superficie.' });

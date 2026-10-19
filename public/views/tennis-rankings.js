@@ -10,7 +10,7 @@ const COLUMNS = [
   { key: 'player', label: 'Jugador', sort: (r) => r.player.name, defaultDir: 'asc',
     render: (r) => h`<a class="tn-player" href="#/tennis-player/${encodeURIComponent(r.player.id)}">${teamLogo({ logo: r.player.flag, name: r.player.name }, { size: 20 })}${r.player.name}</a>` },
   { key: 'points', label: 'Puntos', align: 'right', render: (r) => r.points?.toLocaleString('es-CO') },
-  { key: 'trend', label: 'Tendencia', align: 'right', sort: trend, render: (r) => trendHtml(trend(r)) },
+  { key: 'trend', label: 'Cambio semanal', align: 'right', sort: trend, render: (r) => trendHtml(trend(r)) },
   { key: 'elo', label: 'Elo', align: 'right', render: (r) => (r.elo == null ? null : Math.round(r.elo)) },
 ];
 
@@ -19,7 +19,7 @@ export default {
   async render(el, { api, navigate }) {
     const { data } = await api.tennisRankings();
     el.innerHTML = h`<header class="view-head"><div><h1>Ranking ATP</h1>
-      <p class="hint">Top 100 de singles. Elo de Oddsy sobre los últimos 24 meses; toca un jugador para ver su ficha.</p></div>${sourceBadge('espn')}</header>
+      <p class="hint">Los 100 mejores en individuales. El Elo mide el nivel de cada jugador con sus partidos de los últimos 24 meses. Toca un jugador para ver su ficha.</p></div>${sourceBadge('espn')}</header>
       <p><a class="gm-more" href="#/atp/games">Partidos ATP →</a></p>`;
     el.append(sortableTable({ columns: COLUMNS, rows: data, sortKey: 'rank', sortDir: 'asc', caption: 'Ranking ATP', onRowClick: (r) => navigate(`#/tennis-player/${encodeURIComponent(r.player.id)}`) }));
   },

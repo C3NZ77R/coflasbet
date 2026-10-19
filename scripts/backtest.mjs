@@ -85,8 +85,8 @@ const outcomeOf = (r) => (r.homeScore > r.awayScore ? 'H' : r.homeScore < r.away
 const binary = (sport) => sport !== 'soccer'; // en los demás deportes el ganador no tiene empate: se ignoran
 const sum = (xs, f) => xs.reduce((s, x) => s + f(x), 0);
 
-// Igual que en vivo (getSeasonResults): la temporada evaluada hasta el corte, más la anterior solo mientras sea corta
-// (thinSeason, Ruling 6), y expected() con la sede.
+// Igual que en vivo (getSeasonResults): la temporada evaluada hasta el corte, más la anterior (fútbol siempre; el resto
+// solo mientras la vigente sea corta, thinSeason) y expected() con la sede.
 export function predict(sport, prev, games) {
   const teams = [...new Set(games.flatMap((g) => [g.homeId, g.awayId]))];
   const out = [];
@@ -98,12 +98,48 @@ export function predict(sport, prev, games) {
     const c = cutOf(g.date);
     if (c !== cut) {
       const done = games.filter((r) => Date.parse(r.date) < c);
-      [cut, ratings] = [c, ratingsFromResults(thinSeason(done, teams) ? [...prev, ...done] : done, { sport, asOf: c })];
+      [cut, ratings] = [c, ratingsFromResults(sport === 'soccer' || thinSeason(done, teams) ? [...prev, ...done] : done, { sport, asOf: c })];
     }
-    out.push({ id: g.id, outcome, margin: g.homeScore - g.awayScore, points: g.homeScore + g.awayScore,
+    out.push({ id: g.id, outcome, homeScore: g.homeScore, awayScore: g.awayScore, margin: g.homeScore - g.awayScore, points: g.homeScore + g.awayScore,
       model: expected(sport, ratings, g.homeId, g.awayId, { neutral: g.neutral }) });
   }
   return out;
+}
+
+// ¿Ganó la selección con el marcador final? true, false o null (devolución); undefined = mercado sin liquidación directa
+// (asiáticos de cuarto, marcador exacto), que queda fuera del registro de aciertos.
+export function settle(key, s, { homeScore: h, awayScore: a }) {
+  const m = h - a;
+  const side = s.name === 'Visitante' ? -1 : 1;
+  const over = (x) => (x === s.line ? null : (x > s.line) === (s.name === 'Más'));
+  switch (key) {
+    case '1x2': return s.name === 'Empate' ? m === 0 : side * m > 0;
+    case 'ml': return side * m > 0;
+    case 'dnb': return m === 0 ? null : side * m > 0;
+    case 'dc': return { 'Local o empate': m >= 0, 'Local o visitante': m !== 0, 'Empate o visitante': m <= 0 }[s.name];
+    case 'spread': case 'rl': return side * m + s.line === 0 ? null : side * m + s.line > 0;
+    case 'ou': return over(h + a);
+    case 'ou_home': return over(h);
+    case 'ou_away': return over(a);
+    case 'btts': return (h > 0 && a > 0) === (s.name === 'Sí');
+    default: return undefined;
+  }
+}
+
+// Registro de aciertos por mercado y tramo de probabilidad de 10 en 10: cuántas veces el modelo dijo ~p (said, promedio)
+// y en qué fracción se cumplió (hit). Las devoluciones no cuentan.
+export function hitBins(sport, preds) {
+  const bins = {};
+  for (const pr of preds) for (const mk of marketsFor(sport, pr.model)) for (const s of mk.selections) {
+    const won = settle(mk.key, s, pr);
+    if (won == null) continue;
+    const b = ((bins[mk.key] ??= {})[Math.min(9, Math.floor(s.p * 10))] ??= { n: 0, said: 0, hit: 0 });
+    b.n++;
+    b.said += s.p;
+    b.hit += won;
+  }
+  return Object.fromEntries(Object.entries(bins).map(([k, bs]) => [k, Object.entries(bs)
+    .map(([i, b]) => ({ from: Number(i) * 10, n: b.n, said: r4(b.said / b.n), hit: r4(b.hit / b.n) }))]));
 }
 
 export const halves = (xs) => [xs.slice(0, Math.floor(xs.length / 2)), xs.slice(Math.floor(xs.length / 2))];
@@ -281,6 +317,12 @@ async function main(args) {
       process.exitCode = 1;
     }
   }
+  // Aciertos por deporte con las mitades de prueba de todas sus ligas (más casos por tramo que liga por liga).
+  const bins = {};
+  for (const sport of new Set(runs.map((r) => r.sport))) {
+    const f = fits[sport];
+    bins[sport] = hitBins(sport, runs.filter((r) => r.sport === sport).flatMap((r) => halves(f ? adjust(r.preds, f) : r.preds)[1]));
+  }
   if (!Object.keys(fresh).length) return;
   let old = {};
   try {
@@ -288,7 +330,7 @@ async function main(args) {
   } catch (err) {
     if (err.code !== 'ENOENT') throw err;
   }
-  await writeFile(OUT, `${JSON.stringify({ ...old, ...fresh }, null, 2)}\n`);
+  await writeFile(OUT, `${JSON.stringify({ ...old, ...fresh, _bins: { ...old._bins, ...bins } }, null, 2)}\n`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main(process.argv.slice(2));

@@ -159,6 +159,9 @@ export function hitBar(results, { label = false } = {}) {
   return h`<span class="hitbar hb-${tone}" role="img" aria-label="${aria}"><span class="hb-segs">${raw(segs.map((s) => `<i class="${s}"></i>`).join(''))}</span>${label ? h`<b class="hb-pct">${fmtPct(pct, 0)}</b>` : ''}</span>`;
 }
 
+// Estado de lesión de ESPN (en inglés) en palabras simples.
+export const INJURY = { Out: 'Fuera', Questionable: 'Duda', Doubtful: 'Dudoso', 'Day-To-Day': 'Día a día', Probable: 'Probable', Suspension: 'Suspendido' };
+
 // ---------- estados ----------
 export const empty = (msg = 'No hay resultados.') => h`<p class="empty">${msg}</p>`;
 export const loading = (rows = 5) => raw(`<div class="skeleton" role="status"><span class="sr-only">Cargando…</span>${'<i></i>'.repeat(rows)}</div>`);
@@ -167,7 +170,7 @@ export const errorBox = (err) => h`<div class="error-box" role="alert"><b>No se 
 
 export function sourceBadge(source, remaining) {
   if (source && typeof source === 'object') ({ source, remaining } = source);
-  const M = { oddsy: ['Modelo Oddsy', 'Cuotas propias calculadas con el modelo de Oddsy sobre datos de ESPN'], espn: ['ESPN', 'Datos públicos de ESPN'] };
+  const M = { oddsy: ['Modelo Oddsy', 'Cuotas que calcula Oddsy con datos de ESPN'], espn: ['ESPN', 'Datos públicos de ESPN'] };
   const [txt, tip] = M[source] ?? ['Fuente desconocida', ''];
   const extra = remaining != null && remaining !== '' ? ` · ${remaining} créditos` : '';
   return h`<span class="src-badge src-${M[source] ? source : 'na'}" title="${tip}">${txt}${extra}</span>`;
@@ -385,5 +388,5 @@ export function modal({ title = '', body = '', onClose, className = '' } = {}) {
   return d;
 }
 
-export const ui = { esc, h, raw, fmtOdds, fmtPct, fmtMoney, when, ago, hitBar, bookChip, bookInfo, BOOKS, teamLogo, headshot, dropdown, toggle, tabs, sortableTable, empty, loading, errorBox, sourceBadge, barChart, modal };
+export const ui = { INJURY, esc, h, raw, fmtOdds, fmtPct, fmtMoney, when, ago, hitBar, bookChip, bookInfo, BOOKS, teamLogo, headshot, dropdown, toggle, tabs, sortableTable, empty, loading, errorBox, sourceBadge, barChart, modal };
 export default ui;

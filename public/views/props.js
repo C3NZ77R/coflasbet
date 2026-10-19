@@ -11,7 +11,6 @@ const TTL = 10 * 60 * 1000;
 const WINS = ['l5', 'l10', 'l20', 'h2h', 'season', 'prev'];
 const SIDE = { Over: 'Más de', Under: 'Menos de' };
 const MATCHUP = { favorable: 'Favorable', neutral: 'Neutral', desfavorable: 'Desfavorable' };
-const STATUS = { Out: 'Fuera', Questionable: 'Duda', Doubtful: 'Dudoso', 'Day-To-Day': 'Día a día', Probable: 'Probable', Suspension: 'Suspendido' };
 // Equipos por liga, para saber si un ranking defensivo está en el tercio alto o bajo.
 const TEAMS = { nba: 30, nfl: 32, mlb: 30, wnba: 15, laliga: 20, epl: 20, ucl: 36, libertadores: 32, colombia: 20 };
 // Palabra de las claves de ESPN (en inglés) con la que se busca "lo que permite" la defensa rival.
@@ -34,7 +33,7 @@ const propText = (side, line, def, stat) => `${SIDE[side] ?? side} ${fmtLine(lin
 const who = (p) => (p.athleteId != null ? String(p.athleteId) : `n:${norm(p.player)}`);
 const oddsy = (p) => p.books[0]; // única cuota: la del modelo Oddsy (con margen)
 const MIN_GAMES = 8; // mismo mínimo que lib/props.mjs
-const THIN = 'Muestra insuficiente (menos de 8 partidos)';
+const THIN = 'Tiene menos de 8 partidos: muy pocos para calcular una línea.';
 const skel = '<span class="pp-skel" aria-label="Cargando"></span>';
 const inSlip = (store, id) => store.get('picks').some((x) => x.id === id);
 const valsOf = (games, sport, stat) => games.map((g) => S.statOf(sport, stat, g.stats)).filter(Number.isFinite);
@@ -147,8 +146,8 @@ function playerSearch(root, ctx, defaultStat) {
       try { list = dataOf(await ctx.api.search(ctx.league, q)) ?? []; } catch (err) { if (mine === seq) out.innerHTML = str(ui.errorBox(err)); return; }
       if (mine !== seq || !root.isConnected) return;
       out.innerHTML = list.length
-        ? `<p class="pp-muted">Abrir con línea personalizada:</p><ul class="pp-results">${list.slice(0, 8).map((a) => `<li><a href="#/${esc(ctx.league)}/props/${esc(propKey({ athleteId: a.id, player: a.name, stat: defaultStat, line: null, side: 'Over', gameId: null }))}">${str(ui.headshot(a, { size: 32 }))}<span><b>${esc(a.name)}</b><small>${esc([a.teamAbbr, a.pos].filter(Boolean).join(' · '))}</small></span></a></li>`).join('')}</ul>`
-        : '<p class="pp-muted">Sin resultados en ESPN.</p>';
+        ? `<p class="pp-muted">Ábrelo y pon tu propia línea:</p><ul class="pp-results">${list.slice(0, 8).map((a) => `<li><a href="#/${esc(ctx.league)}/props/${esc(propKey({ athleteId: a.id, player: a.name, stat: defaultStat, line: null, side: 'Over', gameId: null }))}">${str(ui.headshot(a, { size: 32 }))}<span><b>${esc(a.name)}</b><small>${esc([a.teamAbbr, a.pos].filter(Boolean).join(' · '))}</small></span></a></li>`).join('')}</ul>`
+        : '<p class="pp-muted">ESPN no encontró a ningún jugador con ese nombre.</p>';
     }, 350);
   });
 }
@@ -171,7 +170,7 @@ function mount(el) {
 // ======================= LISTA =======================
 const memory = {}; // filtros por liga mientras dure la pestaña
 const defaults = () => ({ stats: [], players: [], games: [], side: 'all', minOdds: '', maxOdds: '', minHit: '', hitWin: 'l10', matchup: [], sort: 'l10', dir: 'desc' });
-const WIN_HEAD = { l5: ['L5', 'Últimos 5'], l10: ['L10', 'Últimos 10'], l20: ['L20', 'Últimos 20'], h2h: ['H2H', 'Contra este rival'], season: ['Temp.', 'Temporada actual'], prev: ['Temp. ant.', 'Temporada anterior'] };
+const WIN_HEAD = { l5: ['Últ. 5', 'Últimos 5'], l10: ['Últ. 10', 'Últimos 10'], l20: ['Últ. 20', 'Últimos 20'], h2h: ['Vs rival', 'Contra este rival'], season: ['Temp.', 'Temporada actual'], prev: ['Temp. ant.', 'Temporada anterior'] };
 
 async function renderList(el, ctx) {
   const { league, api, store } = ctx;
@@ -259,7 +258,7 @@ async function renderList(el, ctx) {
   }
   const rowHtml = (r) => `<tr data-k="${esc(r.key)}" data-a="${esc(r.p.athleteId ?? '')}" data-g="${esc(r.p.gameId ?? '')}">${rowInner(r)}</tr>`;
   function head() {
-    const cols = [['player', 'Proposición'], ['line', 'Línea', 'Línea Oddsy: mediana de los últimos 20 partidos'], ['p', 'Prob.', 'Probabilidad del modelo Oddsy'], ['fair', 'Justa', 'Cuota justa (1/p), sin margen'], ['odds', 'Oddsy', 'Cuota Oddsy (con margen del 5 %)'], ['opp', 'Rango rival', 'Ranking de la defensa rival en esa estadística'], ...WINS.map((w) => [w, ...WIN_HEAD[w]])];
+    const cols = [['player', 'Jugador'], ['line', 'Línea', 'Línea Oddsy: el valor del medio en sus últimos 20 partidos'], ['p', 'Prob.', 'Probabilidad según Oddsy'], ['fair', 'Justa', 'Cuota sin margen: 1 dividido por la probabilidad'], ['odds', 'Oddsy', 'Cuota Oddsy, con un margen del 5 %'], ['opp', 'Defensa rival', 'Puesto de la defensa rival en esa estadística (1 = la que menos permite)'], ...WINS.map((w) => [w, ...WIN_HEAD[w]])];
     return `<tr><th scope="col"><span class="sr-only">Boleto</span></th>${cols.map(([k, label, title]) => {
       const on = f.sort === k;
       return `<th scope="col" aria-sort="${on ? (f.dir === 'asc' ? 'ascending' : 'descending') : 'none'}"><button type="button" class="pp-sort" data-act="sort" data-sort="${k}"${title ? ` title="${esc(title)}"` : ''}>${esc(label)}${on ? (f.dir === 'asc' ? ' ▲' : ' ▼') : ''}</button></th>`;
@@ -271,7 +270,7 @@ async function renderList(el, ctx) {
     const vis = sorted(visible());
     root.querySelector('[data-count]').textContent = `${vis.length}/${rows.length} props`;
     if (!rows.length) {
-      box.innerHTML = `${pr.error ? str(ui.errorBox(pr.error)) : `${str(ui.empty('Abre un partido para ver sus props.'))}<p class="pp-muted">Esta lista cubre solo los próximos 3 partidos de hoy. <a href="#/${esc(league)}/games">Ver partidos</a></p>`}<p class="pp-muted">Igual puedes buscar cualquier jugador y analizar su historial con una línea propia.</p>${searchBox()}`;
+      box.innerHTML = `${pr.error ? str(ui.errorBox(pr.error)) : `${str(ui.empty('Abre un partido para ver sus props.'))}<p class="pp-muted">Aquí solo salen los próximos 3 partidos de hoy. <a href="#/${esc(league)}/games">Ver partidos</a></p>`}<p class="pp-muted">También puedes buscar cualquier jugador y revisar su historial con la línea que quieras.</p>${searchBox()}`;
       return;
     }
     const page = vis.slice(0, shown);
@@ -324,7 +323,7 @@ async function renderList(el, ctx) {
   }
   function presetsHtml() {
     return `<ul class="pp-presets">${presets().map((x, i) => `<li><button type="button" class="pp-link" data-act="load" data-i="${i}">${esc(x.name)}</button><button type="button" class="pp-x" data-act="del" data-i="${i}" aria-label="Borrar ${esc(x.name)}">×</button></li>`).join('') || '<li class="pp-muted">Aún no hay filtros guardados.</li>'}</ul>
-      <div class="pp-row"><label class="pp-field">Nombre <input data-pname maxlength="40" placeholder="Mis props"></label><button type="button" class="pp-btn" data-act="save">Guardar actuales</button></div>`;
+      <div class="pp-row"><label class="pp-field">Nombre <input data-pname maxlength="40" placeholder="Mis props"></label><button type="button" class="pp-btn" data-act="save">Guardar filtros actuales</button></div>`;
   }
   function toolbar() {
     const statN = rows.reduce((m, r) => m.set(r.p.stat, (m.get(r.p.stat) ?? 0) + 1), new Map());
@@ -338,14 +337,14 @@ async function renderList(el, ctx) {
     const radio = (v, label) => `<label class="pp-check"><input type="radio" name="pp-side" data-f="side" value="${v}"${f.side === v ? ' checked' : ''}> <span>${label}</span></label>`;
     const winOpts = WINS.map((w) => `<option value="${w}"${f.hitWin === w ? ' selected' : ''}>${WIN_HEAD[w][1]}</option>`).join('');
     return `<div class="pp-bar" role="group" aria-label="Filtros de props">
-      ${dd('presets', 'Guardados', presetsHtml())}
-      ${dd('stats', 'Propositions', `<div class="pp-list">${stats || '<p class="pp-muted">Sin props.</p>'}</div>`)}
+      ${dd('presets', 'Filtros guardados', presetsHtml())}
+      ${dd('stats', 'Estadísticas', `<div class="pp-list">${stats || '<p class="pp-muted">Sin props.</p>'}</div>`)}
       ${dd('players', 'Jugadores', searchBox(`<div class="pp-list" data-plist>${players}</div>`), 'pp-wide')}
       ${dd('games', 'Partidos', `<div class="pp-list">${games || '<p class="pp-muted">Sin partidos.</p>'}</div>`)}
-      ${dd('side', 'Over/Under', `${radio('all', 'Ambos')}${radio('Over', 'Más de (Over)')}${radio('Under', 'Menos de (Under)')}`)}
-      ${dd('odds', 'Cuotas', `<p class="pp-muted">Rango en americano, p. ej. −300 a +200.</p><div class="pp-row"><label class="pp-field">Mínima <input type="number" step="5" data-f="minOdds" value="${esc(f.minOdds)}" placeholder="-300"></label><label class="pp-field">Máxima <input type="number" step="5" data-f="maxOdds" value="${esc(f.maxOdds)}" placeholder="200"></label></div>`)}
-      ${dd('hit', 'Acierto', `<div class="pp-row"><label class="pp-field">Mínimo % <input type="number" min="0" max="100" step="5" data-f="minHit" value="${esc(f.minHit)}" placeholder="60"></label><label class="pp-field">Ventana <select data-f="hitWin">${winOpts}</select></label></div>`)}
-      ${dd('matchup', 'Matchup del rival', `${Object.entries(MATCHUP).map(([k, label]) => check('matchup', k, `<i class="pp-dot pp-${k}"></i>${label}`, f.matchup.includes(k))).join('')}<p class="pp-muted">Según el ranking de la defensa rival en esa estadística. Solo hay ranking cuando ESPN lo publica.</p>`)}
+      ${dd('side', 'Más/Menos', `${radio('all', 'Ambos')}${radio('Over', 'Más de (Over)')}${radio('Under', 'Menos de (Under)')}`)}
+      ${dd('odds', 'Cuotas', `<p class="pp-muted">Escribe el rango en formato americano, por ejemplo de −300 a +200.</p><div class="pp-row"><label class="pp-field">Mínima <input type="number" step="5" data-f="minOdds" value="${esc(f.minOdds)}" placeholder="-300"></label><label class="pp-field">Máxima <input type="number" step="5" data-f="maxOdds" value="${esc(f.maxOdds)}" placeholder="200"></label></div>`)}
+      ${dd('hit', 'Acierto', `<div class="pp-row"><label class="pp-field">Mínimo % <input type="number" min="0" max="100" step="5" data-f="minHit" value="${esc(f.minHit)}" placeholder="60"></label><label class="pp-field">Periodo <select data-f="hitWin">${winOpts}</select></label></div>`)}
+      ${dd('matchup', 'Defensa rival', `${Object.entries(MATCHUP).map(([k, label]) => check('matchup', k, `<i class="pp-dot pp-${k}"></i>${label}`, f.matchup.includes(k))).join('')}<p class="pp-muted">Según el puesto de la defensa rival en esa estadística. Solo aparece cuando ESPN publica ese ranking.</p>`)}
       <button type="button" class="pp-link" data-act="reset">Limpiar</button>
       <span class="pp-count" data-count role="status"></span>
     </div>`;
@@ -458,28 +457,28 @@ async function renderDetail(el, ctx) {
   const def = () => defOf(sport, s.stat);
   const team = sd?.team?.abbr ?? athlete.teamAbbr ?? '';
   const winTitle = { l5: 'Últimos 5', l10: 'Últimos 10', l20: 'Últimos 20', h2h: `H2H${sd ? ` vs ${sd.oppTeam.abbr}` : ''}`, season: `Temporada ${hasCur ? cur : 'actual'}`, prev: `Temporada ${hasCur ? cur - 1 : 'anterior'}` };
-  const winShort = { l5: 'L5', l10: 'L10', l20: 'L20', h2h: 'H2H', season: hasCur ? String(cur) : 'Temp.', prev: hasCur ? String(cur - 1) : 'Temp. ant.' };
+  const winShort = { l5: 'Últ. 5', l10: 'Últ. 10', l20: 'Últ. 20', h2h: 'Vs rival', season: hasCur ? String(cur) : 'Temp.', prev: hasCur ? String(cur - 1) : 'Temp. ant.' };
   const seg = (key, opts, label) => `<div class="pp-seg" role="group" aria-label="${label}">${opts.map(([v, text]) => `<button type="button" data-sv="${key}:${v}" aria-pressed="${String(s[key]) === String(v)}">${text}</button>`).join('')}</div>`;
 
   el.innerHTML = `<div class="pp pp-detail">
     <a class="pp-back" href="#/${esc(league)}/props">← Props</a>
     <section class="pp-dhead">
       <div class="pp-who">${str(ui.headshot(athlete, { size: 56 }))}<div><h1>${esc(pk.player)}</h1>
-        <p class="pp-muted">${esc([athlete.pos, team].filter(Boolean).join(' · '))}${gd?.home ? ` · ${esc(`${gd.away.abbr} @ ${gd.home.abbr}`)} · ${esc(ui.when(gd.start))}` : ' · Sin partido próximo encontrado'}</p></div></div>
+        <p class="pp-muted">${esc([athlete.pos, team].filter(Boolean).join(' · '))}${gd?.home ? ` · ${esc(`${gd.away.abbr} @ ${gd.home.abbr}`)} · ${esc(ui.when(gd.start))}` : ' · Sin partido próximo'}</p></div></div>
       <div class="pp-hctl" data-hctl></div>
-      <label class="pp-field pp-line">Línea personalizada <input type="number" step="0.5" min="0" inputmode="decimal" data-line value="${esc(s.line)}"></label>
+      <label class="pp-field pp-line">Tu línea <input type="number" step="0.5" min="0" inputmode="decimal" data-line value="${esc(s.line)}"></label>
     </section>
     <div class="pp-stabs" role="tablist" aria-label="Estadística">${statsHere.map((d) => `<button type="button" role="tab" aria-controls="pp-ana" data-sv="stat:${esc(d.key)}" aria-selected="${d.key === s.stat}" title="${esc(statName(d, d.key))}">${esc(d.label ?? d.key)}</button>`).join('')}</div>
     <div class="pp-grid">
       <section class="pp-main" aria-label="Historial">
         <div class="pp-winbar">
-          ${seg('win', WINS.map((w) => [w, winShort[w]]), 'Ventana')}
+          ${seg('win', WINS.map((w) => [w, winShort[w]]), 'Periodo')}
           <label class="pp-field">Ubicación <select data-s="loc"><option value="all">Local y visita</option><option value="home">Solo local</option><option value="away">Solo visita</option></select></label>
           ${dd('f', 'Filtros', `
-            <label class="pp-field">Días de descanso <select data-s="rest"><option value="all">Todos</option><option value="0">0 (seguidos)</option><option value="1">1</option><option value="2">2</option><option value="3+">3 o más</option></select></label>
+            <label class="pp-field">Días de descanso <select data-s="rest"><option value="all">Todos</option><option value="0">0 (jugó el día anterior)</option><option value="1">1</option><option value="2">2</option><option value="3+">3 o más</option></select></label>
             <label class="pp-field">Compañero <select data-s="mate"><option value="">Ninguno</option>${mates.map((a) => `<option value="${esc(a.id)}">${esc(a.name)}${a.pos ? ` (${esc(a.pos)})` : ''}</option>`).join('')}</select></label>
             ${seg('mateMode', [['with', 'Con él'], ['without', 'Sin él']], 'Con o sin el compañero')}
-            <label class="pp-field">Margen máximo <input type="range" min="0" max="20" step="1" data-s="margin" value="20"><output data-o="margin"></output></label>
+            <label class="pp-field">Diferencia máxima en el marcador <input type="range" min="0" max="20" step="1" data-s="margin" value="20"><output data-o="margin"></output></label>
             ${seg('result', [['all', 'Todos'], ['W', 'Ganados'], ['L', 'Perdidos']], 'Resultado')}
             ${minutesMax > 0 ? `<label class="pp-field">Minutos mínimos <input type="range" min="0" max="${minutesMax}" step="1" data-s="minMin" value="0"><output data-o="minMin"></output></label>` : ''}
             <button type="button" class="pp-link" data-act="freset">Quitar filtros</button>`, 'pp-filters')}
@@ -487,7 +486,7 @@ async function renderDetail(el, ctx) {
         <div id="pp-ana" data-ana aria-live="polite"></div>
       </section>
       <aside class="pp-side" aria-label="Partido">
-        <div class="pp-ptabs" role="tablist" aria-label="Panel del partido">${[['matchup', 'Matchup'], ['lineup', 'Lineup'], ['insights', 'Insights']].map(([v, text]) => `<button type="button" role="tab" id="pp-tab-${v}" aria-controls="pp-panel" data-sv="tab:${v}" aria-selected="${s.tab === v}">${text}</button>`).join('')}</div>
+        <div class="pp-ptabs" role="tablist" aria-label="Panel del partido">${[['matchup', 'Enfrentamiento'], ['lineup', 'Alineaciones'], ['insights', 'Tendencias']].map(([v, text]) => `<button type="button" role="tab" id="pp-tab-${v}" aria-controls="pp-panel" data-sv="tab:${v}" aria-selected="${s.tab === v}">${text}</button>`).join('')}</div>
         <div id="pp-panel" class="pp-panel" role="tabpanel" data-panel></div>
       </aside>
     </div></div>`;
@@ -499,7 +498,7 @@ async function renderDetail(el, ctx) {
     const sideBtn = (side, p) => `<button type="button" data-sv="side:${side}" aria-pressed="${s.side === side}">${SIDE[side]} ${esc(fmtLine(s.line))} <b>${p ? esc(ui.fmtOdds(oddsy(p).price)) : '—'}</b></button>`;
     // Sin línea pero con historial de esa estadística: menos de MIN_GAMES partidos.
     const thin = ours == null && log && valsOf(games, sport, s.stat).length < MIN_GAMES;
-    const why = thin ? THIN : gameId == null ? 'Sin partido próximo: no hay línea Oddsy.' : 'Sin línea Oddsy para esta estadística.';
+    const why = thin ? THIN : gameId == null ? 'No tiene partido próximo, así que Oddsy no da línea.' : 'Oddsy no tiene línea para esta estadística.';
     return `<p class="pp-market">${esc(propText(s.side, s.line, d, s.stat))}</p>
       <div class="pp-seg pp-sides" role="group" aria-label="Lado">${sideBtn('Over', over)}${sideBtn('Under', under)}</div>
       ${ours == null ? `<p class="pp-muted">${esc(why)}</p>`
@@ -535,20 +534,20 @@ async function renderDetail(el, ctx) {
         <p class="pp-avg">Promedio <b>${fmt1(sm.avg)}</b> · Mediana <b>${fmt1(sm.median)}</b> · Línea <b>${esc(fmtLine(s.line))}</b></p>
       </div>
       <figure class="pp-chart">${chart}</figure>
-      <h2 class="pp-h">Estadísticas de apoyo</h2>
+      <h2 class="pp-h">Minutos jugados</h2>
       ${mins.length ? `<p class="pp-avg">Minutos: promedio <b>${fmt1(ms.avg)}</b> · mediana <b>${fmt1(ms.median)}</b></p><figure class="pp-chart">${str(ui.barChart({ values: mins.map((x) => x.g.minutes), labels: mins.map((x) => gameLabel(x.g)), line: Math.round(ms.avg * 10) / 10, title: 'Minutos por partido', colorFn: () => 'var(--teal)' }))}</figure>` : '<p class="pp-muted">ESPN no publica minutos para estos partidos.</p>'}
-      <h2 class="pp-h">Insights</h2>
-      ${ins.length ? `<ul class="pp-ins">${ins.slice(0, 8).map((x) => `<li>${esc(x.text)}</li>`).join('')}</ul>` : '<p class="pp-muted">Sin insights destacados para esta línea.</p>'}`;
+      <h2 class="pp-h">Tendencias</h2>
+      ${ins.length ? `<ul class="pp-ins">${ins.slice(0, 8).map((x) => `<li>${esc(x.text)}</li>`).join('')}</ul>` : '<p class="pp-muted">No hay tendencias claras para esta línea.</p>'}`;
   }
 
   function matchupPanel() {
-    if (!gd?.home) return '<p class="pp-muted">No encontramos el partido de este jugador, así que no hay matchup.</p>';
+    if (!gd?.home) return '<p class="pp-muted">No encontramos el partido de este jugador, así que no hay datos del rival.</p>';
     const d = def(), a = gd.away, hm = gd.home;
     const al = sd ? matchupFrom(allowedStat(gd.teamStats?.[sd.opp], s.stat), league, s.side) : null;
     const defense = sd ? `<h3>Defensa de ${esc(sd.oppTeam.abbr)} en ${esc(statName(d, s.stat).toLowerCase())}</h3>${al
-      ? `<p>Permite <b>${esc(al.stat.display ?? fmt1(al.stat.value))}</b> por partido${al.rank != null ? ` · <span class="pp-rank pp-${al.cls}">${al.rank}°</span> (${MATCHUP[al.cls].toLowerCase()} para el ${s.side})` : ' · ranking no disponible'}</p>`
-      : `<p class="pp-muted">No disponible: ESPN no publica ${esc(statName(d, s.stat).toLowerCase())} permitidos por equipo.</p>`}
-      <p class="pp-muted">Por posición: no disponible (no hay una fuente gratuita).</p>
+      ? `<p>Permite <b>${esc(al.stat.display ?? fmt1(al.stat.value))}</b> por partido${al.rank != null ? ` · <span class="pp-rank pp-${al.cls}">${al.rank}°</span> (${MATCHUP[al.cls].toLowerCase()} para ${SIDE[s.side].toLowerCase()})` : ' · ESPN no da su puesto'}</p>`
+      : `<p class="pp-muted">ESPN no publica cuántos ${esc(statName(d, s.stat).toLowerCase())} permite cada equipo.</p>`}
+      <p class="pp-muted">Por posición del jugador: no hay una fuente gratuita con este dato.</p>
       <p class="pp-legend">${Object.entries(MATCHUP).map(([c, text]) => `<span><i class="pp-dot pp-${c}"></i>${text}</span>`).join('')}</p>` : '';
     const table = (title, A, B, cell) => {
       const keys = [...new Map([...(A ?? []), ...(B ?? [])].map((x) => [x.key, x.label ?? x.key]))];
@@ -561,8 +560,8 @@ async function renderDetail(el, ctx) {
     return `${defense}
       ${table('Rankings de la temporada', gd.teamStats?.away, gd.teamStats?.home, statCell) || '<p class="pp-muted">ESPN no publica estadísticas de equipo para este partido.</p>'}
       ${table('Récords', gd.records?.away, gd.records?.home, recCell)}
-      ${gd.ats ? table('Contra el hándicap (ATS)', gd.ats.away, gd.ats.home, recCell) : ''}
-      <h3>Apuestas del público</h3><p class="pp-muted">No disponible: no existe una fuente gratuita de % de apuestas y de dinero.</p>`;
+      ${gd.ats ? table('Contra el hándicap', gd.ats.away, gd.ats.home, recCell) : ''}
+      <h3>Apuestas del público</h3><p class="pp-muted">No lo mostramos: no hay una fuente gratuita que diga cuánta gente ni cuánto dinero va a cada lado.</p>`;
   }
   function lineupPanel() {
     if (!gd?.home) return '<p class="pp-muted">Sin partido: no hay alineaciones ni lesiones que mostrar.</p>';
@@ -573,14 +572,14 @@ async function renderDetail(el, ctx) {
       return `<section class="pp-team"><h3>${str(ui.teamLogo(t))} ${esc(t.name ?? t.abbr)}</h3>
         <h4>Titulares</h4>${starters.length ? `<ul class="pp-people">${starters.map(person).join('')}</ul>` : '<p class="pp-muted">Titulares aún no confirmados por ESPN.</p>'}
         ${roster.length ? `<details class="pp-roster"><summary>Plantilla (${roster.length})</summary><ul class="pp-people">${roster.map(person).join('')}</ul></details>` : ''}
-        <h4>Lesiones</h4>${inj.length ? `<ul class="pp-inj">${inj.map((i) => `<li><b>${esc(i.athlete?.name ?? '')}</b> <span class="pp-pos">${esc(i.athlete?.pos ?? '')}</span> <span class="pp-st pp-st-${esc(norm(i.status))}">${esc(STATUS[i.status] ?? i.status ?? '')}</span><small>${esc(i.detail ?? '')}${i.date ? ` · ${esc(ui.ago(i.date))}` : ''}</small></li>`).join('')}</ul>` : '<p class="pp-muted">Sin lesiones reportadas.</p>'}
+        <h4>Lesiones</h4>${inj.length ? `<ul class="pp-inj">${inj.map((i) => `<li><b>${esc(i.athlete?.name ?? '')}</b> <span class="pp-pos">${esc(i.athlete?.pos ?? '')}</span> <span class="pp-st pp-st-${esc(norm(i.status))}">${esc(ui.INJURY[i.status] ?? i.status ?? '')}</span><small>${esc(i.detail ?? '')}${i.date ? ` · ${esc(ui.ago(i.date))}` : ''}</small></li>`).join('')}</ul>` : '<p class="pp-muted">Sin lesiones reportadas.</p>'}
       </section>`;
     }).join('');
   }
   function insightsPanel() {
     let list = [];
     try { list = gd ? bm.teamInsights(gd) : []; } catch (err) { console.warn('teamInsights', err); }
-    return list.length ? `<ul class="pp-ins">${list.map((x) => `<li>${esc(x.text)}</li>`).join('')}</ul>` : '<p class="pp-muted">Sin insights de equipo para este partido.</p>';
+    return list.length ? `<ul class="pp-ins">${list.map((x) => `<li>${esc(x.text)}</li>`).join('')}</ul>` : '<p class="pp-muted">No hay tendencias de equipo para este partido.</p>';
   }
 
   function paint() {

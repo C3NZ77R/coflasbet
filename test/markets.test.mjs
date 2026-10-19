@@ -102,7 +102,7 @@ test('markets: béisbol sin empate; el empate se reparte según lh/(lh+la)', () 
 
 test('markets: run line con visitante favorito y total de carreras sin gol extra', () => {
   const ms = marketsFor('baseball', { kind: 'poisson', lh: 3.9, la: 4.8 });
-  assert.equal(pick(ms, 'rl').label, 'Run line');
+  assert.equal(pick(ms, 'rl').label, 'Hándicap de carreras');
   assert.equal(sel(pick(ms, 'rl'), 'Visitante').line, -1.5);
   assert.equal(sel(pick(ms, 'rl'), 'Local').line, 1.5);
   const g = scoreGrid(3.9, 4.8, { rho: 0, max: 20 });
@@ -178,4 +178,23 @@ test('markets: total de games en halfLine(media) y hándicap en halfLine(−marg
 test('markets: tenis exige un modelo de tenis', () => {
   assert.throws(() => marketsFor('tennis', SOCCER), TypeError);
   assert.throws(() => marketsFor('soccer', BO3), TypeError);
+});
+
+test('mejores apuestas: una por mercado, escalera del resultado y solo la línea principal de goles', async () => {
+  const { picksOf, minOdds } = await import('../lib/markets.mjs');
+  assert.equal(minOdds(0.5), 2.1);
+  assert.equal(minOdds(0.8), 1.32); // 1.3125 redondeado hacia arriba: nunca por debajo de la justa + 5%
+  assert.equal(minOdds(0.7), 1.5); // 105/0.7 = 150.0000…02 en coma flotante: no debe subir a 1.51
+  const ps = picksOf('soccer', marketsFor('soccer', { kind: 'poisson', lh: 2.2, la: 0.7 }));
+  const keys = ps.map((p) => p.market);
+  assert.equal(new Set(keys).size, keys.length);
+  for (const k of ['1x2', 'dnb', 'dc']) assert.ok(keys.includes(k), k);
+  assert.ok(!keys.includes('ou_home') && !keys.includes('cs') && !keys.includes('ah'));
+  assert.equal(keys.filter((k) => k === 'ou').length, 1);
+  const p = (k) => ps.find((x) => x.market === k).p;
+  assert.ok(p('dc') > p('dnb') && p('dnb') > p('1x2')); // blindar sube la probabilidad
+  for (let i = 0; i < ps.length; i++) {
+    assert.ok(ps[i].p >= 0.5 && ps[i].minOdds >= 1.05 / ps[i].p - 1e-9);
+    if (i) assert.ok(ps[i - 1].p >= ps[i].p);
+  }
 });

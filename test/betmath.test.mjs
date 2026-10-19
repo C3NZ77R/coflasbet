@@ -177,10 +177,10 @@ test('teamInsights: ATS, favorito/no favorito, over/under y forma en los último
     'Los Angeles Lakers va 5-1 (83%) contra el hándicap como no favorito',
     'Los Angeles Lakers va 7-3 (70%) como no favorito esta temporada',
     'Boston Celtics va 4-1 contra el hándicap en sus últimos 5 partidos',
-    'El over se dio en 4 de los últimos 5 partidos de Boston Celtics',
+    'Los partidos de Boston Celtics terminaron por encima del total en 4 de los últimos 5',
     'Boston Celtics ganó 4 de sus últimos 5 partidos',
     'Los Angeles Lakers va 1-1-1 contra el hándicap en sus últimos 3 partidos',
-    'El under se dio en 2 de los últimos 3 partidos de Los Angeles Lakers',
+    'Los partidos de Los Angeles Lakers terminaron por debajo del total en 2 de los últimos 3',
   ]) assert.ok(texts.includes(t), t);
   assert.ok(!texts.some((t) => /Conferencia|30-11/.test(t)));
   const ou = ins.find((i) => i.type === 'ou' && i.team === 'home');

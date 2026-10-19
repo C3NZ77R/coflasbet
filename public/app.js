@@ -8,7 +8,7 @@ import { parlayOdds } from './betmath.js';
 const $ = (s) => document.querySelector(s);
 const LEAGUE_VIEWS = ['props', 'games', 'insights', 'popular'];
 const DETAIL_VIEWS = ['props', 'games'];
-const NAMES = { props: 'Props', games: 'Partidos', insights: 'Insights', popular: 'Populares', 'tennis-rankings': 'Ranking ATP', 'tennis-player': 'Jugador ATP' };
+const NAMES = { props: 'Props', games: 'Partidos', insights: 'Tendencias', popular: 'Populares', 'tennis-rankings': 'Ranking ATP', 'tennis-player': 'Jugador ATP' };
 const lastLeague = () => leagueById(store.get('league')) ?? LEAGUES[0];
 // El tenis solo tiene Partidos (sin props, insights ni populares).
 const viewsOf = (lg) => (lg.sport === 'tennis' ? ['games'] : LEAGUE_VIEWS);
@@ -119,7 +119,7 @@ function importShare(query) {
   if (add.length) store.set('picks', [...store.get('picks'), ...add]);
   toast(incoming.length
     ? `Se agregaron ${add.length} de ${incoming.length} picks del enlace compartido.`
-    : 'El enlace compartido no trae picks válidos.');
+    : 'Este enlace no tiene picks válidos.');
   if (incoming.length) openSlip();
   location.replace(defaultHash());
 }
@@ -147,7 +147,7 @@ function renderSlip() {
   $('#fabCount').textContent = picks.length;
   const body = $('#slipBody'), foot = $('#slipFoot');
   if (!picks.length) {
-    body.innerHTML = empty('Tu boleto está vacío. Agrega picks con el botón + en Props, Partidos o Insights.');
+    body.innerHTML = empty('Tu boleto está vacío. Toca una cuota o el botón + en Props, Partidos o Tendencias para agregar picks.');
     foot.innerHTML = '';
     return;
   }
@@ -168,9 +168,9 @@ function renderSlip() {
   foot.innerHTML = h`<dl class="slip-total">
       <div><dt>Picks</dt><dd>${picks.length}</dd></div>
       <div><dt>Cuota combinada</dt><dd>${fmtOdds(total)}</dd></div>
-      <div><dt>Prob. implícita</dt><dd>${fmtPct(total ? 1 / total : null, 1)}</dd></div>
+      <div><dt>Probabilidad según la cuota</dt><dd>${fmtPct(total ? 1 / total : null, 1)}</dd></div>
     </dl>
-    <p class="slip-note">La combinada es informativa: patas del mismo partido están correlacionadas y cada casa tiene sus reglas.</p>
+    <p class="slip-note">La cuota combinada es solo una referencia. Si juntas picks del mismo partido, unos dependen de otros, y cada casa tiene sus propias reglas para combinarlos.</p>
     <div class="slip-actions"><button type="button" class="btn btn-primary" data-share>Compartir</button><button type="button" class="btn" data-clear>Vaciar</button></div>`;
 }
 
@@ -202,13 +202,13 @@ function openSettings() {
   form.method = 'dialog';
   form.className = 'settings-form';
   form.innerHTML = h`<fieldset><legend>Mis casas</legend>
-      <p class="hint">Se usan para filtrar cuotas y armar el boleto. Si no marcas ninguna, se muestran todas.</p>
+      <p class="hint">Marca las casas de apuestas donde juegas. Si no marcas ninguna, se muestran todas.</p>
       <div class="book-grid">${Object.keys(BOOKS).map((k) => h`<label class="book-opt"><input type="checkbox" name="books" value="${k}"${s.books.includes(k) ? raw(' checked') : ''}> ${bookChip(k)}</label>`)}</div>
     </fieldset>
     <div class="settings-row">
-      <label>Bankroll <input name="bankroll" type="number" min="1" step="1" required value="${s.bankroll}"></label>
-      <label>Multiplicador de Kelly <select name="kellyMult">${Object.entries(KELLY).map(([v, t]) => h`<option value="${v}"${Number(v) === Number(s.kellyMult) ? raw(' selected') : ''}>${t}</option>`)}</select></label>
-      <label>Método de devig <select name="devigMethod">${Object.entries(DEVIG).map(([v, t]) => h`<option value="${v}"${v === s.devigMethod ? raw(' selected') : ''}>${t}</option>`)}</select></label>
+      <label>Bankroll (dinero para apostar) <input name="bankroll" type="number" min="1" step="1" required value="${s.bankroll}"></label>
+      <label>Tamaño de apuesta (Kelly) <select name="kellyMult">${Object.entries(KELLY).map(([v, t]) => h`<option value="${v}"${Number(v) === Number(s.kellyMult) ? raw(' selected') : ''}>${t}</option>`)}</select></label>
+      <label>Cómo quitar el margen de la casa (devig) <select name="devigMethod">${Object.entries(DEVIG).map(([v, t]) => h`<option value="${v}"${v === s.devigMethod ? raw(' selected') : ''}>${t}</option>`)}</select></label>
     </div>
     <div class="modal-actions"><button type="submit" class="btn" value="cancel" formnovalidate>Cancelar</button><button type="submit" class="btn btn-primary" value="save">Guardar</button></div>`;
   form.addEventListener('submit', (e) => {

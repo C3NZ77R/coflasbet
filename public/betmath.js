@@ -272,7 +272,7 @@ export function teamInsights(game) {
     if (ou.length >= 3) {
       const o = count(ou, 'ou', 'O'), u = count(ou, 'ou', 'U');
       const [k, side] = o >= u ? [o, 'Over'] : [u, 'Under'];
-      if (k / ou.length >= 0.6) out.push({ ...base, type: 'ou', market: 'total', side, k, n: ou.length, pct: k / ou.length, text: `El ${side.toLowerCase()} se dio en ${k} de los últimos ${ou.length} partidos de ${name}` });
+      if (k / ou.length >= 0.6) out.push({ ...base, type: 'ou', market: 'total', side, k, n: ou.length, pct: k / ou.length, text: `Los partidos de ${name} terminaron ${side === 'Over' ? 'por encima' : 'por debajo'} del total en ${k} de los últimos ${ou.length}` });
     }
     const su = last.filter((g) => g.result === 'W' || g.result === 'L');
     const w = count(su, 'result', 'W'), l = su.length - w;
