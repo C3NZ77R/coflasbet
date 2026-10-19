@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { leagueById } from '../public/leagues.js';
 import { getPastSeason, mapLimit } from '../lib/espn.mjs';
 import { marketsFor } from '../lib/markets.mjs';
-import { remaining, liveOver, paceZ, strength, TOTAL } from '../public/live.js';
+import { remaining, liveOver, paceZ, strength, scoringShare, TOTAL } from '../public/live.js';
 import { politeFetch, predict } from './backtest.mjs';
 
 export const PRIORS = [1, 2, 3, 5, 8];
@@ -32,10 +32,11 @@ export function cutTotals(comp, final) {
   return CUTS.map((k) => sum(qs.flatMap((q) => q.slice(0, k))));
 }
 
-// P(Más) que daría la vista con lo que van (current) a la fracción f, igual que totalSignal pero con el peso prior.
+// P(Más) que daría la vista con lo que van (current) a la fracción f, igual que totalSignal (con la curva de anotación)
+// pero con el peso prior.
 export function overAt(sport, { current, f, line }, prior) {
   const { kind, sd } = TOTAL[sport];
-  return liveOver(kind, current, remaining({ current, progress: f, mean: line, variance: sd ** 2, prior }), line);
+  return liveOver(kind, current, remaining({ current, progress: scoringShare(sport, f), mean: line, variance: sd ** 2, prior }), line);
 }
 
 const loss = (p, won) => -Math.log(Math.max(won ? p : 1 - p, EPS));
@@ -58,7 +59,7 @@ export function calibration(rows) {
 export function levels(sport, rows) {
   const out = [1, 2, 3].map((level) => ({ level, n: 0, hit: 0 }));
   for (const r of rows) {
-    const z = paceZ({ current: r.current, progress: r.f, mean: r.line, variance: TOTAL[sport].sd ** 2 });
+    const z = paceZ({ current: r.current, progress: scoringShare(sport, r.f), mean: r.line, variance: TOTAL[sport].sd ** 2 });
     const lv = strength(z);
     if (lv) out[lv - 1].n++, (out[lv - 1].hit += (z >= 0) === r.won);
   }
@@ -107,7 +108,7 @@ function entry({ sport, season, skipped, rows }) {
   const priors = Object.fromEntries(PRIORS.map((p) => [p, { brier: all[p].brier, logloss: all[p].logloss, ...(p !== best && { vsBest: paired(sport, rows, p, best) }) }]));
   const cuts = CUTS.map((k) => {
     const rs = rows.filter((r) => r.f === k / 4);
-    const zs = rs.map((r) => paceZ({ current: r.current, progress: r.f, mean: r.line, variance: TOTAL[sport].sd ** 2 }));
+    const zs = rs.map((r) => paceZ({ current: r.current, progress: scoringShare(sport, r.f), mean: r.line, variance: TOTAL[sport].sd ** 2 }));
     const mean = sum(zs) / zs.length;
     return { f: k / 4, z: { mean, sd: Math.sqrt(sum(zs.map((z) => (z - mean) ** 2)) / (zs.length - 1)) },
       priors: Object.fromEntries(PRIORS.map((p) => [p, (({ brier, logloss }) => ({ brier, logloss }))(fit(rs, p))])) };

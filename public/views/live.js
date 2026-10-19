@@ -20,7 +20,7 @@ const stopOn = (g) => (g.stop && isActive(g.stop) ? g.stop : null); // las pausa
 const leftText = (s) => (s == null ? 'buen momento para mirar tu casa' : s > 0 ? `el juego seguiría en ~${mmss(s)}` : 'el juego debería seguir ya');
 
 function paceText(sig, sport) {
-  const pct = fmtPct(sig.progress, 0), exp = r1(sig.progress * sig.mean);
+  const pct = fmtPct(sig.progress, 0), exp = r1(sig.expected);
   return sig.player
     ? `Lleva ${sig.current} con el ${pct} del partido jugado; lo normal a esta altura serían ${exp}.`
     : `Van ${sig.current} ${UNIT[sport]} con el ${pct} jugado; lo esperado a esta altura eran ${exp}.`;

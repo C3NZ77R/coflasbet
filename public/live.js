@@ -76,15 +76,16 @@ export function scriptFor(sport, stat, side, { margin, progress: f, fouls = 0 })
 const NO_PACE = /_long$|^(dd|td)$/; // la más larga y el doble-doble no se acumulan con el tiempo
 const MIN_F = 0.1, MAX_F = 0.95; // al inicio el ritmo es ruido; al final ya no hay líneas
 
-function signal({ id, kind, current, f, mean, variance, line, script, prior }) {
-  const base = { current, progress: f, mean, variance, prior };
+// f = fracción del reloj (lo que se muestra); w = fracción de la producción esperada a esta altura (curva de anotación).
+function signal({ id, kind, current, f, w = f, mean, variance, line, script, prior }) {
+  const base = { current, progress: w, mean, variance, prior };
   const z = paceZ(base);
   const side = z >= 0 ? 'Over' : 'Under';
   const sc = script?.(side) ?? null;
   const level = strength(z, sc?.s ?? 0);
   if (!level) return null;
   const rem = remaining(base);
-  return { id, kind, side, current, progress: f, mean, line, z, level, rem, projected: rem.projected, pOver: liveOver(kind, current, rem, line), script: sc, aligned: [1 + (sc?.s > 0), 1 + !!sc] };
+  return { id, kind, side, current, progress: f, expected: w * mean, mean, line, z, level, rem, projected: rem.projected, pOver: liveOver(kind, current, rem, line), script: sc, aligned: [1 + (sc?.s > 0), 1 + !!sc] };
 }
 
 // Señales de props de un partido en vivo. props = Prop[] de /api/props (Over y Under de cada línea); live = normLive.
@@ -120,7 +121,18 @@ export function totalSignal(live, line, sport) {
   const t = TOTAL[sport], f = live.progress;
   if (!t || !(line > 0) || f < MIN_F || f > MAX_F) return null;
   const variance = t.kind === 'normal' ? t.sd ** 2 : t.disp * line;
-  return signal({ id: `${live.id}|total`, kind: t.kind, current: (live.home.score ?? 0) + (live.away.score ?? 0), f, mean: line, variance, line, prior: PRIOR.total });
+  return signal({ id: `${live.id}|total`, kind: t.kind, current: (live.home.score ?? 0) + (live.away.score ?? 0), f, w: scoringShare(sport, f), mean: line, variance, line, prior: PRIOR.total });
+}
+
+// Parte del total que se anota, en promedio, al terminar el 1.º, 2.º y 3.er cuarto. NFL 2024 (272 partidos; 2025 da lo
+// mismo): el 2.º y el 4.º rinden más por los finales de mitad. La NBA reparte parejo (25/25/25/24 %): lineal, sin curva.
+// shortcut: solo el marcador; los props de jugador siguen lineales hasta medir sus yardas por cuarto.
+const CURVE = { football: [0.19, 0.5, 0.71] };
+export function scoringShare(sport, f) {
+  const c = CURVE[sport];
+  if (!c) return f;
+  const pts = [0, ...c, 1], i = Math.min(3, Math.floor(f * 4));
+  return pts[i] + (pts[i + 1] - pts[i]) * (f * 4 - i);
 }
 
 // ---------- pausas: momento para apostar ----------

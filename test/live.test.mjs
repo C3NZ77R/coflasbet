@@ -39,7 +39,16 @@ test('remaining: mezcla el promedio previo con el ritmo de hoy', () => {
   // Marcador: el previo pesa 8 partidos (scripts/live-backtest.mjs), así que un 0-0 temprano baja poco la proyección.
   near(L.remaining({ current: 0, progress: 0.1, mean: 53.5, variance: 174, prior: 8 }).mean, 0.9 * (8 * 53.5) / 8.1);
   const s = L.totalSignal({ id: 'g', progress: 0.1, home: { score: 0 }, away: { score: 0 } }, 53.5, 'football');
-  near(s.projected, 0.9 * (8 * 53.5) / 8.1);
+  const w = 0.19 * 0.4; // curva de la NFL: al 10 % del reloj va el 7.6 % de los puntos esperados
+  near(s.projected, (1 - w) * (8 * 53.5) / (8 + w));
+  near(s.expected, w * 53.5);
+  assert.equal(s.progress, 0.1); // el texto muestra el reloj real
+});
+
+test('scoringShare: curva de anotación de la NFL por cuarto; lineal donde no hay curva', () => {
+  for (const [f, w] of [[0, 0], [0.125, 0.095], [0.25, 0.19], [0.5, 0.5], [0.75, 0.71], [0.875, 0.855], [1, 1]]) near(L.scoringShare('football', f), w, 1e-12);
+  assert.equal(L.scoringShare('basketball', 0.3), 0.3);
+  assert.equal(L.scoringShare('soccer', 0.6), 0.6);
 });
 
 test('liveOver: ya superada, sin tiempo y caso normal', () => {
