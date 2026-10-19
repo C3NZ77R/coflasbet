@@ -51,10 +51,10 @@ test('tenis: rankings recortados y ordenados', () => {
   assert.equal(rk[0].player.name, 'Jannik Sinner');
   assert.equal(rk[0].player.country, 'Italy');
   assert.ok(Number.isFinite(rk[0].points));
-  const many = { rankings: [{ ranks: Array.from({ length: 150 }, (_, i) => ({ current: 150 - i, previous: 1, points: i, athlete: { id: String(i), displayName: `P${i}` } })) }] };
+  const many = { rankings: [{ ranks: Array.from({ length: 200 }, (_, i) => ({ current: 200 - i, previous: 1, points: i, athlete: { id: String(i), displayName: `P${i}` } })) }] };
   const top = normRankings(many);
-  assert.equal(top.length, 100);
-  assert.equal(top[99].rank, 100);
+  assert.equal(top.length, 150);
+  assert.equal(top[149].rank, 150);
 });
 
 // ---------- modelo ----------

@@ -82,7 +82,7 @@ async function withAtp(fn) {
 test('server: /api/tennis/rankings trae el top con Elo', () => withAtp(async () => {
   const { status, body } = await call('/api/tennis/rankings');
   assert.equal(status, 200);
-  assert.ok(body.data.length > 0 && body.data.length <= 100);
+  assert.ok(body.data.length > 0 && body.data.length <= 150);
   assert.equal(body.data[0].rank, 1);
   const zverev = body.data.find((r) => r.player.id === '2375');
   assert.ok(Number.isFinite(zverev.elo));
