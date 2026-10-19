@@ -181,3 +181,7 @@ footer { color: var(--muted); font-size: 12px; text-align: center; padding: 20px
   .toolbar input, .toolbar select { flex: 1; min-width: 0; }
   .dd-val { max-width: 120px; }
 }
+
+/* Mejores apuestas */
+.pk-game + .pk-game { margin-top: 12px; }
+.pk-game h2 { font-size: 16px; margin: 0 0 4px; }

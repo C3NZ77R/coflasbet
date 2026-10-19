@@ -6,12 +6,12 @@ import { LEAGUES, leagueById } from './leagues.js';
 import { parlayOdds } from './betmath.js';
 
 const $ = (s) => document.querySelector(s);
-const LEAGUE_VIEWS = ['props', 'games', 'insights', 'popular'];
+const LEAGUE_VIEWS = ['props', 'games', 'picks', 'insights', 'popular'];
 const DETAIL_VIEWS = ['props', 'games'];
-const NAMES = { props: 'Props', games: 'Partidos', insights: 'Tendencias', popular: 'Populares', 'tennis-rankings': 'Ranking ATP', 'tennis-player': 'Jugador ATP' };
+const NAMES = { props: 'Props', games: 'Partidos', picks: 'Mejores apuestas', insights: 'Tendencias', popular: 'Populares', 'tennis-rankings': 'Ranking ATP', 'tennis-player': 'Jugador ATP' };
 const lastLeague = () => leagueById(store.get('league')) ?? LEAGUES[0];
-// El tenis solo tiene Partidos (sin props, insights ni populares).
-const viewsOf = (lg) => (lg.sport === 'tennis' ? ['games'] : LEAGUE_VIEWS);
+// El tenis solo tiene Partidos y Mejores apuestas (sin props, insights ni populares).
+const viewsOf = (lg) => (lg.sport === 'tennis' ? ['games', 'picks'] : LEAGUE_VIEWS);
 const home = (lg) => `#/${lg.id}/${viewsOf(lg).includes('props') ? 'props' : 'games'}`;
 const defaultHash = () => home(lastLeague());
 
