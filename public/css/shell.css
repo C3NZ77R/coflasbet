@@ -63,17 +63,6 @@
 .fab-count { position: absolute; top: -2px; right: -2px; min-width: 22px; height: 22px; padding: 0 6px; display: grid; place-items: center; border-radius: 999px; background: var(--bg); color: var(--text); border: 1px solid var(--teal); font-size: 12px; font-weight: 800; }
 .slip-fab[aria-expanded="true"] { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--teal); }
 
-/* Ajustes */
-.settings-form fieldset { border: 0; margin: 0; padding: 0; }
-.settings-form legend { font-weight: 700; margin-bottom: 4px; padding: 0; }
-.settings-form .hint { margin-bottom: 10px; }
-.book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; }
-.book-opt { padding: 6px 8px; border: 1px solid var(--line); border-radius: 10px; color: var(--text); cursor: pointer; }
-.book-opt:has(input:checked) { border-color: var(--teal); background: rgba(47,226,196,.06); }
-.settings-row { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-top: 16px; }
-.settings-row label { flex-direction: column; align-items: stretch; gap: 4px; }
-.settings-row input { width: 100%; }
-
 @media (max-width: 420px) {
   .brand { font-size: 18px; }
   .seg button { padding: 5px 8px; font-size: 12px; }

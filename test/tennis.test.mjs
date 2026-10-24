@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SURFACE, normScoreboard, normRankings, eloFrom, ratingOf, matchProb, serveFromMatchProb, matchDist, winProb, setGames, gapOf, setLengthFrom, firstSetGames } from '../lib/tennis.mjs';
+import { SURFACE, normScoreboard, normRankings, getHistory, eloFrom, ratingOf, matchProb, serveFromMatchProb, matchDist, winProb, setGames, gapOf, setLengthFrom, firstSetGames } from '../lib/tennis.mjs';
 
 const fx = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const close = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≠ ${b}`);
@@ -55,6 +55,23 @@ test('tenis: rankings recortados y ordenados', () => {
   const top = normRankings(many);
   assert.equal(top.length, 150);
   assert.equal(top[149].rank, 150);
+});
+
+test('tenis: getHistory pide en vivo cada mes desde el último partido del snapshot hasta hoy', async () => {
+  const real = globalThis.fetch;
+  const urls = [];
+  globalThis.fetch = async (url) => (urls.push(String(url)), new Response(JSON.stringify({ events: [] })));
+  try {
+    await getHistory(24, new Date('2026-11-05T12:00:00Z'));
+  } finally {
+    globalThis.fetch = real;
+  }
+  const got = urls.map((u) => /dates=(\d{6})01-/.exec(u)[1]);
+  // el snapshot de data/ termina el 2026-09-13: sin septiembre, del 14 al 30 se perderían del Elo
+  const last = JSON.parse(readFileSync(new URL('../data/atp-history.json', import.meta.url), 'utf8')).matches.at(-1).date.slice(0, 7).replace('-', '');
+  const from = [last, '202610'].sort()[0]; // hoy 202609; el mes anterior siempre va
+  for (const ym of new Set([from, '202610', '202611'])) assert.ok(got.includes(ym), `${ym} en ${got}`);
+  assert.ok(got.every((ym) => ym >= from), 'lo que ya está en el snapshot no se vuelve a pedir');
 });
 
 // ---------- modelo ----------

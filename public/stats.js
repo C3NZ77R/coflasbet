@@ -1,7 +1,7 @@
 // Estadísticas de jugador por deporte. Lo comparten el servidor (lib/espn.mjs normaliza los game logs de ESPN a estas
 // claves cortas y lib/props.mjs les pone línea propia a las que tienen `market`) y el navegador (pestañas, insights, props).
 // Cada definición: { key, label (corto, como en las pestañas), name (español), market? (id del prop), markets? (otros
-// mercados equivalentes, p. ej. Sí/No de anotar), from? (estadística derivada a partir de las claves crudas) }.
+// mercados equivalentes, p. ej. Sí/No de anotar), from? (estadística derivada a partir de las claves crudas), binary? (0/1 por partido: solo la línea 0.5) }.
 
 // Suma tolerante: null si falta la primera clave (la que define el tipo de jugador); las demás, si faltan, cuentan como 0.
 const sum = (...keys) => (s) => (Number.isFinite(s[keys[0]]) ? keys.reduce((t, k) => t + (Number.isFinite(s[k]) ? s[k] : 0), 0) : null);
@@ -29,8 +29,8 @@ export const STATS = {
     { key: '3pa', label: '3PTA', name: 'Triples intentados' },
     { key: 'ftm', label: 'FTM', name: 'Tiros libres anotados', market: 'player_frees_made' },
     { key: 'fta', label: 'FTA', name: 'Tiros libres intentados', market: 'player_frees_attempts' },
-    { key: 'dd', label: 'DD2', name: 'Doble-doble', market: 'player_double_double', from: doubleDouble },
-    { key: 'td', label: 'TD3', name: 'Triple-doble', market: 'player_triple_double', from: tripleDouble },
+    { key: 'dd', label: 'DD2', name: 'Doble-doble', market: 'player_double_double', from: doubleDouble, binary: true },
+    { key: 'td', label: 'TD3', name: 'Triple-doble', market: 'player_triple_double', from: tripleDouble, binary: true },
   ],
   football: [
     { key: 'pass_yds', label: 'PASS YDS', name: 'Yardas por pase', market: 'player_pass_yds' },
@@ -106,6 +106,3 @@ export function statForMarket(sport, market) {
   const m = String(market || '').replace(/_alternate$/, '');
   return STATS[sport]?.find((d) => d.market === m || d.markets?.includes(m)) ?? null;
 }
-
-// Mercados de props de un deporte (los principales, sin alternativos).
-export const propMarkets = (sport) => [...new Set((STATS[sport] ?? []).flatMap((d) => (d.market ? [d.market] : [])))];

@@ -20,3 +20,55 @@ test('api: game logs del mismo tick van juntos y un jugador sin log rechaza solo
     assert.equal(c.status, 'rejected');
   } finally { globalThis.fetch = real; }
 });
+
+// Responde { source, data: n } contando las llamadas; devuelve la lista de URLs pedidas.
+function fakeFetch() {
+  const urls = [];
+  globalThis.fetch = async (url) => {
+    urls.push(url);
+    return new Response(JSON.stringify({ source: 'espn', data: urls.length }));
+  };
+  return urls;
+}
+
+test('api: sin URLSearchParams.size (Safari ≤16, Chrome <113) la URL conserva sus parámetros', async () => {
+  const real = globalThis.fetch;
+  const size = Object.getOwnPropertyDescriptor(URLSearchParams.prototype, 'size');
+  delete URLSearchParams.prototype.size;
+  const urls = fakeFetch();
+  try {
+    await api.games('nba', '20260101');
+    assert.equal(urls[0], '/api/games?league=nba&date=20260101');
+  } finally {
+    globalThis.fetch = real;
+    if (size) Object.defineProperty(URLSearchParams.prototype, 'size', size);
+  }
+});
+
+test('api: la caché vence a los 60 s', async () => {
+  const real = globalThis.fetch, now = Date.now;
+  const urls = fakeFetch();
+  let t = 1e12;
+  Date.now = () => t;
+  try {
+    await api.get('/api/ttl');
+    await api.get('/api/ttl');
+    assert.equal(urls.length, 1);
+    t += 61_000;
+    await api.get('/api/ttl');
+    assert.equal(urls.length, 2);
+  } finally { globalThis.fetch = real; Date.now = now; }
+});
+
+test('api: la caché guarda a lo sumo 200 respuestas y saca primero la más vieja', async () => {
+  const real = globalThis.fetch;
+  const urls = fakeFetch();
+  try {
+    for (let i = 0; i <= 200; i++) await api.get('/api/cap', { i });
+    assert.equal(urls.length, 201);
+    await api.get('/api/cap', { i: 200 }); // la más nueva sigue en caché
+    assert.equal(urls.length, 201);
+    await api.get('/api/cap', { i: 0 }); // la primera salió
+    assert.equal(urls.length, 202);
+  } finally { globalThis.fetch = real; }
+});

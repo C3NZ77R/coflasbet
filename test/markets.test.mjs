@@ -1,9 +1,13 @@
-// Mercados por deporte desde el modelo de expected(): sumas, identidades entre mercados y casos límite.
+// Mercados por deporte desde el modelo de expected(): sumas, identidades entre mercados y casos límite. getMarkets con
+// ESPN simulado (sin red).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { marketsFor } from '../lib/markets.mjs';
-import { scoreGrid, normalOver, halfLine } from '../lib/pricing.mjs';
-import { matchDist, setGames } from '../lib/tennis.mjs';
+import { readFileSync } from 'node:fs';
+import { marketsFor, getMarkets } from '../lib/markets.mjs';
+import { scoreGrid, normalOver, halfLine, MAX_P, publishable } from '../lib/pricing.mjs';
+import { matchDist, setGames, getHistory, eloFrom, matchProb } from '../lib/tennis.mjs';
+import { getSeasonResults } from '../lib/espn.mjs';
+import { ratingsFromResults, expected } from '../lib/ratings.mjs';
 
 const close = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≠ ${b}`);
 const sumP = (m) => m.selections.reduce((s, x) => s + x.p, 0);
@@ -175,6 +179,15 @@ test('markets: tenis a 5 sets ofrece totales de sets 3.5 y 4.5', () => {
   close(sel(pick(ms, 'ou_sets', 3.5), 'Menos').p, d.sets['3-0'] + d.sets['0-3']);
 });
 
+test('mejores apuestas: a 5 sets, un solo total de sets (la línea más pareja)', async () => {
+  const { picksOf } = await import('../lib/markets.mjs');
+  const ms = marketsFor('tennis', BO5);
+  const ps = picksOf('tennis', ms).filter((x) => x.market === 'ou_sets');
+  assert.equal(ps.length, 1);
+  const even = ms.filter((m) => m.key === 'ou_sets').reduce((a, b) => (Math.abs(b.selections[0].p - 0.5) < Math.abs(a.selections[0].p - 0.5) ? b : a));
+  assert.equal(ps[0].label, even.label);
+});
+
 test('markets: total de games en halfLine(media) y hándicap en halfLine(−margen medio)', () => {
   const ms = marketsFor('tennis', BO3);
   const d = BO3.dist;
@@ -213,4 +226,128 @@ test('mejores apuestas: una por mercado, escalera del resultado y solo la línea
     assert.ok(ps[i].p >= 0.5 && ps[i].minOdds >= 1.05 / ps[i].p - 1e-9);
     if (i) assert.ok(ps[i - 1].p >= ps[i].p);
   }
+});
+
+test('mercados publicados: nada por encima de MAX_P (con dos lados cae el mercado; con más, solo la selección)', () => {
+  for (const model of [{ kind: 'poisson', lh: 1.6, la: 0.8 }, { kind: 'poisson', lh: 2.6, la: 0.4 }]) {
+    const all = marketsFor('soccer', model);
+    const ms = publishable(all);
+    assert.ok(all.some((m) => m.selections.some((s) => s.p > MAX_P)), 'el caso tiene selecciones que topan en 1.01');
+    for (const m of ms) {
+      assert.ok(m.selections.length >= 2, m.label);
+      for (const s of m.selections) assert.ok(s.p <= MAX_P && s.p * s.oddsy <= 1 / 1.05 + 1e-9, `${m.label} ${s.name} ${s.p}`);
+      const full = all.find((x) => x.label === m.label);
+      if (full.selections.length === 2) assert.equal(m.selections.length, 2, m.label);
+    }
+    assert.ok(!ms.some((m) => m.label === 'Goles visitante 3.5')); // Menos 3.5 al 99%: cuota 1.01 sin margen
+  }
+  const ms = publishable(marketsFor('soccer', { kind: 'poisson', lh: 2.6, la: 0.4 }));
+  assert.deepEqual(pick(ms, 'dc').selections.map((s) => s.name), ['Local o visitante', 'Empate o visitante']); // Local o empate al 97%
+  assert.ok(!pick(ms, 'dnb') && pick(ms, '1x2').selections.length === 3);
+  // Un 1X2 suma 1: sin la Local al 98% quedaría incompleto, así que cae entero (la doble oportunidad no suma 1 y se filtra).
+  assert.ok(!pick(publishable(marketsFor('soccer', { kind: 'poisson', lh: 4.5, la: 0.2 })), '1x2'));
+});
+
+// ---------- getMarkets con ESPN simulado ----------
+const fx = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
+async function withEspn(route, fn) {
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const body = await route(new URL(url));
+    return typeof body === 'number' ? new Response('{}', { status: body }) : new Response(JSON.stringify(body ?? {}), { status: body ? 200 : 404 });
+  };
+  try {
+    return await fn();
+  } finally {
+    globalThis.fetch = real;
+  }
+}
+const ev = (id, date, homeId, awayId, hs, as, state = 'post') => ({
+  id, date, seasonType: { type: 2 },
+  competitions: [{ id, date, neutralSite: false, status: { period: 2, type: { state, completed: state === 'post' } },
+    competitors: [{ homeAway: 'home', id: homeId, team: { id: homeId }, score: { value: hs } }, { homeAway: 'away', id: awayId, team: { id: awayId }, score: { value: as } }] }],
+});
+// Ruta de una liga simulada: lista de equipos, calendario de cada equipo con sus partidos y scoreboard/summary.
+const leagueRoute = (espn, events, board) => (u) => {
+  const path = u.pathname.replace(/^\/apis\/site\/v2\/sports\/[a-z]+\//, '');
+  if (path === `${espn}/teams`) return { sports: [{ leagues: [{ teams: [...new Set(events.flatMap((e) => e.competitions[0].competitors.map((c) => c.id)))].map((id) => ({ team: { id } })) }] }] };
+  const team = new RegExp(`^${espn}/teams/(\\d+)/schedule$`).exec(path)?.[1];
+  if (team) return { events: events.filter((e) => e.competitions[0].competitors.some((c) => c.id === team)) };
+  if (path === `${espn}/scoreboard`) return { events: board };
+  if (path === `${espn}/summary`) {
+    const e = board.find((x) => x.id === u.searchParams.get('event'));
+    return e && { header: { id: e.id, competitions: [{ ...e.competitions[0], status: { type: e.competitions[0].status.type } }] } };
+  }
+  return null;
+};
+
+test('mercados: un partido terminado se cotiza con los ratings de antes de jugarlo (lista y detalle)', async () => {
+  const day = (d) => new Date(Date.UTC(2026, 0, 3 + 7 * d, 19)).toISOString();
+  const ids = ['1', '2', '3', '4'];
+  const events = [];
+  let k = 0;
+  for (const h of ids) for (const a of ids) if (h !== a) events.push(ev(`r${k}`, day(k++), h, a, h === '2' ? 2 : 1, a === '2' ? 2 : 1));
+  const g = ev('g', '2026-04-11T19:00:00.000Z', '1', '2', 5, 1); // terminado 5-1, como LaLiga 748515
+  await withEspn(leagueRoute('esp.1', [...events, g], [g]), async () => {
+    const results = await getSeasonResults('laliga');
+    assert.ok(results.some((r) => r.id === 'g'));
+    const p = (opts) => sel(pick(marketsFor('soccer', expected('soccer', ratingsFromResults(results, { sport: 'soccer', ...opts }), '1', '2')), '1x2'), 'Local').p;
+    const list = await getMarkets('laliga', { date: '20260411' });
+    const local = sel(pick(list.data[0].markets, '1x2'), 'Local').p;
+    close(local, p({ asOf: Date.parse(g.date) }), 1e-4);
+    assert.ok(p({}) - local > 0.01, 'sin su propio 5-1');
+    const one = await getMarkets('laliga', { game: 'g' });
+    assert.equal(sel(pick(one.data.markets, '1x2'), 'Local').p, local);
+    for (const m of one.data.markets) for (const s of m.selections) assert.ok(s.p <= MAX_P, `${m.label} ${s.name}`);
+  });
+});
+
+test('mercados: un partido de tenis terminado se cotiza con el Elo de antes de jugarlo', () => withEspn(
+  (u) => (/\/rankings$/.test(u.pathname) ? fx('atp-rankings.json') : /\/scoreboard$/.test(u.pathname) ? fx('atp-month.json') : null),
+  async () => {
+    const { data } = await getMarkets('atp', { game: '182677', date: '20260913' });
+    const history = await getHistory();
+    const m = history.find((x) => x.id === '182677');
+    const p = (elo) => matchProb(elo, m.a.id, m.b.id, m.surface);
+    const ml = sel(pick(data.markets, 'ml'), 'A. Zverev').p; // la de matchDist: reproduce p a 1e-4
+    close(ml, p(eloFrom(history, { asOf: Date.parse(m.date) })), 1e-4);
+    assert.ok(p(eloFrom(history)) - ml > 0.01); // con la final ganada, Zverev subía
+  },
+));
+
+test('mercados: los ratings se piden en paralelo con los partidos', async () => {
+  let board = 0, other = 0, overlap = false;
+  const route = leagueRoute('uefa.champions', [ev('a', '2026-03-01T19:00:00.000Z', '7', '8', 1, 0)], [ev('b', '2026-11-01T19:00:00.000Z', '7', '8', 0, 0, 'pre')]);
+  await withEspn(async (u) => {
+    const isBoard = u.pathname.endsWith('/scoreboard');
+    isBoard ? board++ : other++;
+    overlap ||= board > 0 && other > 0;
+    await new Promise((r) => setTimeout(r, 5));
+    isBoard ? board-- : other--;
+    return route(u);
+  }, async () => {
+    const { data } = await getMarkets('ucl', { date: '20261101' });
+    assert.equal(data.length, 1);
+  });
+  assert.ok(overlap);
+});
+
+test('mercados: si ESPN corta los calendarios, el error se recuerda 60 s antes de volver a pedirlos', async () => {
+  let schedules = 0;
+  const ok = leagueRoute('eng.1', [ev('a', '2026-03-01T19:00:00.000Z', '7', '8', 1, 0)], [ev('b', '2026-11-01T19:00:00.000Z', '7', '8', 0, 0, 'pre')]);
+  const realNow = Date.now;
+  await withEspn((u) => (u.pathname.endsWith('/schedule') ? (schedules++, 403) : ok(u)), async () => {
+    await assert.rejects(getMarkets('epl', { date: '20261101' }), { status: 502 });
+    const n = schedules;
+    assert.ok(n > 0);
+    await assert.rejects(getMarkets('epl', { date: '20261101' }), { status: 502 });
+    assert.equal(schedules, n, 'dentro de los 60 s no se vuelve a pedir a ESPN');
+    Date.now = () => realNow() + 61_000;
+    try {
+      await assert.rejects(getMarkets('epl', { date: '20261101' }), { status: 502 });
+    } finally {
+      Date.now = realNow;
+    }
+    assert.ok(schedules > n, 'pasados 60 s se reintenta');
+  });
 });

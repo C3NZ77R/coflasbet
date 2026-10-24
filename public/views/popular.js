@@ -2,7 +2,8 @@
 // gratis de popularidad global; sin actividad se muestran las mejores rachas L10 de los props disponibles.
 import { leagueById } from '../leagues.js';
 import { statOf } from '../stats.js';
-import { SIDE, H, propKey, statDef, statName, matchup, oddsyOf, oddsHtml, pool, logFor, loadUpcoming } from './insights.js';
+import { propKey } from '../ui.js';
+import { SIDE, H, statDef, statName, matchup, oddsyOf, oddsHtml, pool, logFor, loadUpcoming } from './insights.js';
 
 const TABS = { view: 'Más vistos', add: 'Más agregados' };
 const TOP = 20;

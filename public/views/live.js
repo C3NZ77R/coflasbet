@@ -2,17 +2,16 @@
 // esperado, las pausas del partido (buen momento para apostar) y una calculadora con la línea en vivo de tu casa.
 import { h, fmtPct, fmtOdds, teamLogo, empty, errorBox } from '../ui.js';
 import { STATS } from '../stats.js';
-import { americanToDecimal, expectedValue } from '../betmath.js';
-import { propSignals, totalSignal, liveOver, windowLeft, isActive, LEVELS } from '../live.js';
+import { expectedValue } from '../betmath.js';
+import { propSignals, totalSignal, mainTotal, parseOdds, liveOver, windowLeft, isActive, LEVELS } from '../live.js';
 
 const REFRESH_MS = 15_000;
+const TYPING_MS = 5_000; // sin repintar mientras escribe (iOS cierra el teclado al reemplazar el input)
 const SIDE = { Over: 'Más de', Under: 'Menos de' };
 const UNIT = { football: 'puntos', basketball: 'puntos', soccer: 'goles', baseball: 'carreras' };
 const r1 = (x) => Math.round(x * 10) / 10;
 const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 const toNum = (v) => (String(v ?? '').trim() === '' ? NaN : Number(String(v).replace(',', '.')));
-// La cuota se puede escribir decimal (1.91) o americana (-110, +150).
-const parseOdds = (v) => { const x = toNum(v); return Math.abs(x) >= 100 ? americanToDecimal(x) : x > 1 ? x : null; };
 const parseLine = (v) => { const x = toNum(v); return Number.isFinite(x) && x >= 0 ? x : null; };
 
 const minsAgo = (iso) => Math.max(1, Math.round((Date.now() - Date.parse(iso)) / 60_000));
@@ -51,7 +50,7 @@ function sigCard(sig, sport, inputs) {
     <ul class="lv-why"><li>${paceText(sig, sport)}</li>${sig.script ? h`<li>${sig.script.s > 0 ? 'A favor' : 'En contra'}: ${sig.script.text}</li>` : ''}</ul>
     <div class="lv-calc">
       <label>Línea en vivo de tu casa <input name="line" inputmode="decimal" autocomplete="off" placeholder="${sig.line}" value="${v.line ?? ''}"></label>
-      <label>Cuota para «${SIDE[sig.side]}» <input name="odds" inputmode="decimal" autocomplete="off" placeholder="1.91 o -110" value="${v.odds ?? ''}"></label>
+      <label>Cuota para «${SIDE[sig.side]}» <input name="odds" autocomplete="off" placeholder="1.91 o -110" value="${v.odds ?? ''}"></label>
       <output aria-live="polite">${calcText(sig, v)}</output>
     </div>
   </article>`;
@@ -82,20 +81,23 @@ export default {
     const extras = new Map(); // gameId -> { props, total } | null mientras carga
     const inputs = new Map(); // id de señal -> { line, odds } que escribió el usuario
     const sigById = new Map();
-    let games = [], err = null;
+    let games = [], err = null, typedAt = 0;
 
     const want = (id) => {
       if (extras.has(id)) return;
       extras.set(id, null);
       Promise.all([
         api.props(lg.id, id).then((r) => r.data ?? []).catch(() => []),
-        api.markets(lg.id, id).then((r) => (r.accuracy?.publish === false ? null : r.data?.markets?.find((m) => m.key === 'ou')?.selections?.[0]?.line ?? null)).catch(() => null),
+        api.markets(lg.id, id).then((r) => (r.accuracy?.publish === false ? null : mainTotal(r.data?.markets))).catch(() => null),
       ]).then(([props, total]) => { extras.set(id, { props, total }); paint(); });
     };
 
     const paint = () => {
-      const typing = document.activeElement?.tagName === 'INPUT' && el.contains(document.activeElement);
-      if (typing) return; // no borrar lo que está escribiendo; el próximo refresco pinta
+      // Mientras escribe no se repinta: en iOS reemplazar el input cierra el teclado. Con el foco quieto (en Android queda
+      // en el input al cerrar el teclado) sí repinta y devuelve el foco y el cursor.
+      if (Date.now() - typedAt < TYPING_MS) return;
+      const a = document.activeElement;
+      const typing = a?.tagName === 'INPUT' && el.contains(a) ? { sig: a.closest('[data-sig]')?.dataset.sig, name: a.name, from: a.selectionStart, to: a.selectionEnd } : null;
       sigById.clear();
       const rows = games.map((g) => {
         want(g.id);
@@ -110,6 +112,11 @@ export default {
         <p class="hint"><small>Datos de ESPN; se actualiza cada 15 s. ESPN publica cada jugada con unos minutos de atraso (unos 6 en la NFL), así que tu casa va más adelante: revisa el marcador y el precio antes de apostar.</small></p></div></header>
         ${err ? errorBox(err) : rows.length ? rows.map(([g, x, s]) => gameCard(g, x, s, lg.sport, inputs))
           : h`${empty(`No hay partidos de ${lg.title} en juego ahora.`)}<p><a class="btn" href="#/${lg.id}/games">Ver los próximos partidos</a></p>`}`;
+      const input = typing?.sig && el.querySelector(`[data-sig="${CSS.escape(typing.sig)}"] [name="${typing.name}"]`);
+      if (input) {
+        input.focus();
+        input.setSelectionRange(typing.from, typing.to);
+      }
     };
 
     const load = async () => {
@@ -122,6 +129,7 @@ export default {
     };
 
     el.addEventListener('input', (e) => {
+      typedAt = Date.now();
       const card = e.target.closest('[data-sig]');
       const sig = card && sigById.get(card.dataset.sig);
       if (!sig) return;

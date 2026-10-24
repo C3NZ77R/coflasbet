@@ -1,117 +1,17 @@
 // Matemática de apuestas compartida por el navegador y los tests. Todas las cuotas en formato decimal.
-// Convención: los datos inválidos (cuota <= 1, NaN, faltan lados) devuelven null en vez de lanzar;
-// solo un método de devig desconocido (error de programación) lanza RangeError.
+// Convención: los datos inválidos devuelven null en vez de lanzar.
 
-const ok = (d) => Number.isFinite(d) && d > 1;
-const okAll = (prices) => Array.isArray(prices) && prices.length >= 2 && prices.every(ok);
 const sum = (xs) => xs.reduce((s, x) => s + x, 0);
-const round2 = (x) => Math.round(x * 100) / 100;
-const isHalfStep = (x) => Number.isFinite(x) && Number.isInteger(x * 2);
-
-// Bisección: f(lo) y f(hi) deben tener signos opuestos (o cero).
-function bisect(f, lo, hi) {
-  let flo = f(lo);
-  for (let i = 0; i < 200 && hi - lo > 1e-15; i++) {
-    const mid = (lo + hi) / 2, fm = f(mid);
-    if (fm === 0) return mid;
-    if (fm > 0 === flo > 0) [lo, flo] = [mid, fm];
-    else hi = mid;
-  }
-  return (lo + hi) / 2;
-}
 
 // ---------- Cuotas ----------
-
-export const implied = (odds) => 1 / odds;
 
 export const decimalToAmerican = (d) => (d >= 2 ? Math.round((d - 1) * 100) : Math.round(-100 / (d - 1)));
 
 export const americanToDecimal = (a) => (a > 0 ? 1 + a / 100 : 1 + 100 / -a);
 
-const amOf = (d) => (ok(d) && d < Infinity ? decimalToAmerican(d) : null);
-const fairAm = (p) => (p > 0 ? amOf(1 / p) : null);
-
-export function decimalToFractional(d, maxDen = 100) {
-  const target = d - 1;
-  let best = [Math.round(target), 1];
-  for (let den = 2; den <= maxDen; den++) {
-    const num = Math.round(target * den);
-    if (Math.abs(num / den - target) < Math.abs(best[0] / best[1] - target) - 1e-12) best = [num, den];
-  }
-  return `${best[0]}/${best[1]}`;
-}
-
-// "3/2" → 2.5. Solo positivos con barra; inválido → null.
-export function fractionalToDecimal(frac) {
-  const m = /^\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*$/.exec(String(frac ?? ''));
-  return m && +m[1] > 0 && +m[2] > 0 ? 1 + m[1] / m[2] : null;
-}
-
 export const expectedValue = (prob, odds) => prob * odds - 1;
 
-export const kelly = (prob, odds, fraction = 1) => Math.max(0, (prob * odds - 1) / (odds - 1)) * fraction;
-
-// Probabilidad del modelo Oddsy contra la cuota de la casa del usuario.
-export const compareBook = (p, odds, fraction = 1) => ({ ev: expectedValue(p, odds), kelly: kelly(p, odds, fraction) });
-
 export const parlayOdds = (oddsList) => oddsList.reduce((p, o) => p * o, 1);
-
-// ---------- Devig ----------
-
-const DEVIG = {
-  multiplicative: (q, S) => q.map((x) => x / S),
-  // Resta el mismo margen a cada lado; si un lado queda negativo se recorta a 0 y se renormaliza.
-  additive: (q, S) => q.map((x) => Math.max(0, x - (S - 1) / q.length)),
-  // p_i = q_i^k con k tal que Σ q_i^k = 1 (f decrece en k porque q_i < 1).
-  power(q) {
-    const f = (k) => sum(q.map((x) => x ** k)) - 1;
-    let hi = 1;
-    while (f(hi) > 0) hi *= 2;
-    const k = bisect(f, 0, hi);
-    return q.map((x) => x ** k);
-  },
-  // Shin (1993): z = proporción de dinero informado. Sin margen (S <= 1) el modelo no aplica: multiplicativo.
-  shin(q, S) {
-    if (S <= 1) return q.map((x) => x / S);
-    const p = (z) => q.map((x) => (Math.sqrt(z * z + (4 * (1 - z) * x * x) / S) - z) / (2 * (1 - z)));
-    return p(bisect((z) => sum(p(z)) - 1, 0, 1 - 1e-12));
-  },
-  // Desplaza todos los lados la misma cantidad en el espacio de cuantiles normales.
-  probit(q) {
-    const zs = q.map(normInv);
-    const p = (c) => zs.map((z) => normCdf(z - c));
-    return p(bisect((c) => sum(p(c)) - 1, -40, 40));
-  },
-};
-
-const normalize = (p) => {
-  const t = sum(p);
-  return p.map((x) => x / t);
-};
-
-// Probabilidades justas. method: multiplicative | additive | power | shin | probit | worst
-// ('worst' = la menor probabilidad por lado entre todos los métodos: la más conservadora; no suma 1).
-export function devig(prices, method = 'multiplicative') {
-  if (method !== 'worst' && !DEVIG[method]) throw new RangeError(`Método de devig desconocido: ${method}`);
-  if (!okAll(prices)) return null;
-  const q = prices.map((d) => 1 / d), S = sum(q);
-  if (method !== 'worst') return normalize(DEVIG[method](q, S));
-  const all = Object.values(DEVIG).map((fn) => normalize(fn(q, S)));
-  return q.map((_, i) => Math.min(...all.map((p) => p[i])));
-}
-
-export const noVig = (prices) => devig(prices);
-
-// Margen del mercado: Σ 1/d − 1.
-export const vig = (prices) => (okAll(prices) ? sum(prices.map((d) => 1 / d)) - 1 : null);
-
-// Centavos de un precio americano respecto a la par: −110 → 10, +130 → −30.
-const parCents = (d) => {
-  const a = decimalToAmerican(d);
-  return a < 0 ? -a - 100 : 100 - a;
-};
-// Ancho del mercado en centavos (−110/−110 → 20, −150/+130 → 20). Negativo = mercado sin margen (arbitraje).
-export const width = (a, b) => (ok(a) && ok(b) ? parCents(a) + parCents(b) : null);
 
 // ---------- Acierto, splits e insights ----------
 
@@ -306,26 +206,6 @@ export function normCdf(x) {
   return x > 0 ? 1 - c : c;
 }
 
-// Φ⁻¹(p): Acklam + un paso de Halley con normCdf.
-export function normInv(p) {
-  if (!(p > 0)) return p === 0 ? -Infinity : NaN;
-  if (!(p < 1)) return p === 1 ? Infinity : NaN;
-  const a = [-39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269, -30.66479806614716, 2.506628277459239];
-  const b = [-54.47609879822406, 161.5858368580409, -155.6989798598866, 66.80131188771972, -13.28068155288572];
-  const c = [-0.007784894002430293, -0.3223964580411365, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783];
-  const d = [0.007784695709041462, 0.3224671290700398, 2.445134137142996, 3.754408661907416];
-  const tail = (q) => (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
-  let x;
-  if (p < 0.02425) x = tail(Math.sqrt(-2 * Math.log(p)));
-  else if (p > 1 - 0.02425) x = -tail(Math.sqrt(-2 * Math.log(1 - p)));
-  else {
-    const q = p - 0.5, r = q * q;
-    x = ((((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q) / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
-  }
-  const u = (normCdf(x) - p) * Math.sqrt(2 * Math.PI) * Math.exp((x * x) / 2);
-  return x - u / (1 + (x * u) / 2);
-}
-
 // En espacio logarítmico: sin desbordes por factoriales grandes.
 const lnFactorial = (n) => {
   let s = 0;
@@ -339,24 +219,13 @@ export function poissonPmf(k, lambda) {
   return Math.exp(-lambda + k * Math.log(lambda) - lnFactorial(k));
 }
 
-export function poissonCdf(k, lambda) {
-  if (!(k >= 0) || !(lambda >= 0)) return 0;
-  if (k === Infinity || lambda === 0) return 1;
-  const ll = Math.log(lambda);
-  let s = 0, lf = 0;
-  for (let i = 0; i <= Math.floor(k); i++) {
-    if (i > 1) lf += Math.log(i);
-    const term = Math.exp(-lambda + i * ll - lf);
-    s += term;
-    if (i > lambda && term < 1e-17 * s) break;
-  }
-  return Math.min(1, s);
-}
-
 // ---------- Precios del modelo Oddsy (lib/pricing.mjs los reexporta; el navegador cotiza líneas personalizadas) ----------
 export const MARGIN = 0.05;
-const clampOdds = (o) => Math.round(Math.min(101, Math.max(1.01, o)) * 100) / 100;
-export const price = (p) => ({ p, fair: clampOdds(1 / p), oddsy: clampOdds(1 / (p * (1 + MARGIN))) });
+// Por encima, la cuota Oddsy topa en 1.01 y deja de cobrar el margen: esas selecciones no se publican.
+export const MAX_P = 1 / (1.01 * (1 + MARGIN));
+const clampOdds = (o) => Math.min(101, Math.max(1.01, o));
+// La Oddsy se trunca a 2 decimales: redondeando hacia arriba, p·cuota pasaba de 1/(1 + MARGIN).
+export const price = (p) => ({ p, fair: Math.round(clampOdds(1 / p) * 100) / 100, oddsy: Math.floor(clampOdds(1 / (p * (1 + MARGIN))) * 100 + 1e-9) / 100 }); // + 1e-9: 1.13 llega como 112.999…
 
 // Binomial negativa por recurrencia; sin sobredispersión cae a Poisson.
 export function negBinPmf(k, mean, variance) {
@@ -377,6 +246,7 @@ export function normalOver(mu, sigma, line) {
 // P(más de line) de un prop (lib/props.mjs): normal o binomial negativa con la media y la varianza del jugador. En una
 // línea entera el push se descuenta (la apuesta se devuelve); acotada a [0.01, 0.99].
 export function propOver(kind, mean, variance, line) {
+  if (kind === 'binary') return Math.min(0.99, Math.max(0.01, line < 1 ? mean : 0)); // 0/1 por partido (doble-doble): la media es P(Más 0.5)
   let over, under;
   if (kind === 'normal') {
     const sd = Math.max(Math.sqrt(variance), 1);
@@ -388,174 +258,4 @@ export function propOver(kind, mean, variance, line) {
     under = Number.isInteger(line) ? (line > 0 ? cdf(line - 1) : 0) : 1 - over;
   }
   return Math.min(0.99, Math.max(0.01, over / (over + under)));
-}
-
-// ---------- Calculadoras (docs/spec-calculators.json) ----------
-
-const binom = (n, k) => {
-  let r = 1;
-  for (let i = 1; i <= k; i++) r = (r * (n - k + i)) / i;
-  return r;
-};
-
-function combinations(n, r) {
-  const out = [];
-  const walk = (start, acc) => {
-    if (acc.length === r) return void out.push(acc.slice());
-    for (let i = start; i < n; i++) {
-      acc.push(i);
-      walk(i + 1, acc);
-      acc.pop();
-    }
-  };
-  walk(0, []);
-  return out;
-}
-
-// legs: [{ price, result: 'win'|'loss'|'push'|'pending' }] (o solo cuotas), parlays de tamaño exacto size.
-export function roundRobin(legs, size, stake = 1) {
-  const L = (legs ?? []).map((x) => (typeof x === 'number' ? { price: x } : x));
-  const n = L.length;
-  if (n < 2 || n > 15 || !Number.isInteger(size) || size < 2 || size > n || !(stake > 0) || !L.every((l) => ok(l.price))) return null;
-  const rows = combinations(n, size).map((idx) => {
-    const rs = idx.map((i) => L[i].result ?? 'pending');
-    const result = rs.includes('loss') ? 'loss' : rs.includes('pending') ? 'pending' : rs.every((r) => r === 'push') ? 'push' : 'win';
-    const payout = result === 'loss' ? 0 : result === 'pending' ? null : stake * idx.reduce((p, i) => p * (L[i].result === 'push' ? 1 : L[i].price), 1);
-    return { legs: idx, odds: idx.reduce((p, i) => p * L[i].price, 1), result, payout };
-  });
-  const totalStake = rows.length * stake, maxPayout = sum(rows.map((r) => stake * r.odds));
-  const pending = rows.filter((r) => r.result === 'pending').length, payout = sum(rows.map((r) => r.payout ?? 0));
-  return { combos: rows.length, totalStake, maxPayout, maxProfit: maxPayout - totalStake, payout, profit: pending ? null : payout - totalStake, pending, rows };
-}
-
-// probs: probabilidad de cada pick; payouts[k] = multiplicador bruto con k aciertos (Power 2 picks: [0, 0, 3]).
-export function prizepicksEv({ probs, payouts, stake = 1, bankroll = 0, kellyShare = 1 } = {}) {
-  const n = probs?.length;
-  if (!n || !probs.every((p) => p >= 0 && p <= 1) || !Array.isArray(payouts) || !(stake > 0)) return null;
-  const mult = Array.from({ length: n + 1 }, (_, k) => Math.max(0, Number(payouts[k]) || 0));
-  let dist = [1]; // Poisson-binomial por programación dinámica
-  for (const p of probs) {
-    const next = Array(dist.length + 1).fill(0);
-    dist.forEach((x, k) => {
-      next[k] += x * (1 - p);
-      next[k + 1] += x * p;
-    });
-    dist = next;
-  }
-  const outcomes = dist.map((prob, k) => ({ k, prob, mult: mult[k], ret: stake * mult[k], net: stake * (mult[k] - 1) }));
-  const roi = sum(outcomes.map((o) => o.prob * (o.mult - 1)));
-  // Kelly multi-resultado: maximiza E[ln(1 + f(m − 1))]; su derivada decrece en f.
-  const dlog = (f) => sum(outcomes.map((o) => (o.prob * (o.mult - 1)) / (1 + f * (o.mult - 1))));
-  const f = roi <= 0 ? 0 : dlog(1 - 1e-9) >= 0 ? 1 : bisect(dlog, 0, 1 - 1e-9);
-  const be = (p) => sum(mult.map((m, k) => binom(n, k) * p ** k * (1 - p) ** (n - k) * m)) - 1;
-  return {
-    n, dist, outcomes, roi, expectedProfit: stake * roi, expectedReturn: stake * (1 + roi),
-    pProfit: sum(outcomes.filter((o) => o.mult > 1).map((o) => o.prob)),
-    pLoss: sum(outcomes.filter((o) => o.mult === 0).map((o) => o.prob)),
-    breakEvenP: be(0) >= 0 ? 0 : be(1) < 0 ? null : bisect(be, 0, 1),
-    kelly: f, kellyStake: bankroll * f * kellyShare,
-  };
-}
-
-export function bonusBetConversion({ amount, odds, hedgeOdds, stakeReturned = false } = {}) {
-  if (!(amount > 0) || !ok(odds) || !ok(hedgeOdds)) return null;
-  const bonusPayout = amount * (stakeReturned ? odds : odds - 1);
-  const hedgeStake = round2(bonusPayout / hedgeOdds);
-  const ifBonus = round2(bonusPayout - hedgeStake), ifHedge = round2(hedgeStake * (hedgeOdds - 1));
-  const profit = Math.min(ifBonus, ifHedge);
-  return { bonusPayout, hedge: hedgeStake, ifBonus, ifHedge, profit, rate: profit / amount };
-}
-
-// Dos resultados. { budget }: reparte un total; { stake }: ya hay stake en el lado 1 y se cubre el 2.
-export function hedge(prices, { budget, stake } = {}) {
-  if (prices?.length !== 2 || !okAll(prices)) return null;
-  const [d1, d2] = prices;
-  let s1, s2;
-  if (budget > 0) {
-    s1 = round2((budget * d2) / (d1 + d2));
-    s2 = round2(budget - s1);
-  } else if (stake > 0) [s1, s2] = [round2(stake), round2((stake * d1) / d2)];
-  else return null;
-  const total = round2(s1 + s2), profits = [round2(s1 * d1 - total), round2(s2 * d2 - total)];
-  const minProfit = Math.min(...profits);
-  return { stakes: [s1, s2], total, payouts: [s1 * d1, s2 * d2], profits, minProfit, roi: minProfit / total, isArb: 1 / d1 + 1 / d2 < 1 };
-}
-
-export function hold(prices) {
-  if (!okAll(prices)) return null;
-  const q = prices.map((d) => 1 / d), S = sum(q);
-  return { total: S, overround: S - 1, hold: (S - 1) / S, rows: q.map((x) => ({ implied: x, fair: x / S, fairOdds: S / x, fairAmerican: fairAm(x / S), margin: x - x / S })) };
-}
-
-// Costo del vig ($) de apostar stake al resultado index; negativo = precio favorable.
-export function vigCost(prices, index = 0, stake = 100) {
-  const h = hold(prices), row = h?.rows[index];
-  if (!row || !(stake > 0)) return null;
-  return { ...h, cost: stake * (1 - row.fair * prices[index]), fair: row.fair, fairOdds: row.fairOdds, fairAmerican: row.fairAmerican };
-}
-
-// Contrato de mercado de predicción: precio en centavos (o cuota decimal), N contratos, comisión por contrato en centavos.
-export function predictionMarket({ cents, odds, contracts = 1, fee = 0 } = {}) {
-  const c = cents ?? (ok(odds) ? 100 / odds : NaN);
-  if (!(c > 0 && c < 100) || !(contracts > 0) || !(fee >= 0)) return null;
-  const decimal = 100 / c, cost = (contracts * (c + fee)) / 100;
-  return {
-    cents: c, decimal, american: decimalToAmerican(decimal), fractional: decimalToFractional(decimal), prob: c / 100, complement: 100 - c,
-    cost, fees: (contracts * fee) / 100, payout: contracts, profit: contracts - cost, breakEven: (c + fee) / 100,
-  };
-}
-
-// Valor de medio punto. side: 'spread' | 'over' | 'under'; prices: [lado elegido, contrario].
-// Línea entera: push = probabilidad de caer justo en ella. Línea .5: pushLower / pushHigher =
-// probabilidad de caer justo en la línea entera de abajo / de arriba. rows: [línea − 0.5, base, línea + 0.5].
-export function halfPoint({ prices, line, side = 'spread', push = 0, pushLower = 0, pushHigher = 0 } = {}) {
-  if (prices?.length !== 2 || !okAll(prices) || !isHalfStep(line) || !['spread', 'over', 'under'].includes(side)) return null;
-  const [p] = devig(prices);
-  const towardHigher = side !== 'over'; // el hándicap y el under mejoran con una línea más alta
-  const row = (l, win, pu) => {
-    const loss = 1 - win - pu, fair = win > 0 ? (1 - pu) / win : null, oppFair = loss > 0 ? (1 - pu) / loss : null;
-    return { line: l, win, push: pu, loss, fair, fairAmerican: amOf(fair), oppFair, oppFairAmerican: amOf(oppFair) };
-  };
-  let toward, against, base;
-  if (Number.isInteger(line)) {
-    if (!(push >= 0 && push < 1)) return null;
-    base = row(line, p * (1 - push), push);
-    toward = row(0, p * (1 - push) + push, 0); // el número del push pasa a ganar
-    against = row(0, p * (1 - push), 0); // el número del push pasa a perder
-  } else {
-    if (!(pushLower >= 0 && pushHigher >= 0 && pushLower < 1 && pushHigher < 1)) return null;
-    const [mT, mA] = towardHigher ? [pushHigher, pushLower] : [pushLower, pushHigher];
-    base = row(line, p, 0);
-    toward = row(0, p, mT); // el número perdedor vecino pasa a push
-    against = row(0, p - mA, mA); // el número ganador vecino pasa a push
-  }
-  const [lower, higher] = towardHigher ? [against, toward] : [toward, against];
-  lower.line = line - 0.5;
-  higher.line = line + 0.5;
-  return { p, rows: [lower, base, higher] };
-}
-
-// Hándicap → moneyline justo con margen ~ Normal(−spread, sigma).
-export function spreadToMoneyline(spread, sigma = 13.5) {
-  if (!Number.isFinite(spread) || !(sigma > 0)) return null;
-  const prob = normCdf(-spread / sigma);
-  return { prob, decimal: 1 / prob, american: fairAm(prob), oppProb: 1 - prob, oppDecimal: 1 / (1 - prob), oppAmerican: fairAm(1 - prob) };
-}
-
-// Poisson: { k } → exactamente / al menos / como máximo k; { line } → over/under con push en líneas enteras.
-export function poisson(lambda, { k, line } = {}) {
-  if (!(lambda >= 0) || !Number.isFinite(lambda)) return null;
-  if (line != null) {
-    if (!isHalfStep(line) || line < 0) return null;
-    const push = Number.isInteger(line) ? poissonPmf(line, lambda) : 0;
-    const under = poissonCdf(Math.ceil(line) - 1, lambda), over = Math.max(0, 1 - under - push);
-    const side = (win, loss) => {
-      const fair = win > 0 ? (1 - push) / win : null;
-      return { win, loss, push, fair, american: amOf(fair) };
-    };
-    return { line, over: side(over, under), under: side(under, over) };
-  }
-  if (!Number.isInteger(k) || k < 0) return null;
-  const exact = poissonPmf(k, lambda), atMost = poissonCdf(k, lambda), atLeast = 1 - poissonCdf(k - 1, lambda);
-  return { k, exact, atLeast, atMost, american: { exact: fairAm(exact), atLeast: fairAm(atLeast), atMost: fairAm(atMost) } };
 }

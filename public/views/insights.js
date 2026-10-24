@@ -3,19 +3,20 @@
 import { leagueById } from '../leagues.js';
 import { STATS, statForMarket } from '../stats.js';
 import { insightsFor, teamInsights, decimalToAmerican } from '../betmath.js';
+import { dataOf, propKey, ymd } from '../ui.js';
 
 // --- Utilidades compartidas con popular.js (mismo dueño, fuera del contrato público) ---
 
 export const SIDE = { Over: 'Más de', Under: 'Menos de' };
-// Algunos helpers de ui.js pueden devolver nodos en vez de HTML: se aceptan los dos.
-export const H = (x) => (x?.nodeType ? x.outerHTML : x ?? '');
-// shortcut: architecture.md no fija si api.* devuelve el cuerpo {source, data} o solo data; se aceptan ambos.
-export const unwrap = (r) => (r && !Array.isArray(r) && 'data' in r && 'source' in r ? r.data : r);
-export const propKey = (p) => encodeURIComponent(JSON.stringify({ a: p.athleteId, p: p.player, s: p.stat, l: p.line, o: p.side, g: p.gameId }));
+export const H = (x) => x ?? ''; // HTML de un helper de texto de ui.js
 export const statDef = (sport, p) => STATS[sport]?.find((s) => s.key === p.stat) ?? statForMarket(sport, p.market);
 export const statName = (def, p) => def?.name ?? def?.label ?? p.stat;
 export const matchup = (g, p) => (g ? `${g.away.abbr} @ ${g.home.abbr}` : [p?.team, p?.opp].filter(Boolean).join(' vs '));
-const ymd = (d) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+// Cuota americana escrita a mano: el teclado o un texto copiado pueden traer «−» (U+2212) o «+» al inicio.
+export const americanIn = (v) => {
+  const s = String(v ?? '').trim().replace(/^\+/, '').replace(/^\u2212/, '-');
+  return s && Number.isFinite(Number(s)) ? Number(s) : null;
+};
 
 // Cuota Oddsy (con margen) y justa (1/p) del prop; hay una sola por jugador, estadística, línea y lado.
 export function oddsyOf(props) {
@@ -42,9 +43,9 @@ export function logFor(api, league, p) {
   if (!logs.has(k)) {
     const job = (async () => {
       let id = p.athleteId;
-      if (id == null) id = (unwrap(await api.search(league, p.player)) || []).find((a) => a.name?.toLowerCase() === p.player?.toLowerCase())?.id;
+      if (id == null) id = (dataOf(await api.search(league, p.player)) || []).find((a) => a.name?.toLowerCase() === p.player?.toLowerCase())?.id;
       if (id == null) throw new Error(`Sin id de ESPN para ${p.player}`);
-      return unwrap(await api.gamelog(league, id));
+      return dataOf(await api.gamelog(league, id));
     })();
     logs.set(k, job);
     job.catch(() => logs.delete(k));
@@ -57,8 +58,8 @@ export async function loadUpcoming(api, league) {
   const days = Array.from({ length: 4 }, (_, i) => ymd(new Date(Date.now() + i * 864e5)));
   const [pr, ...gr] = await Promise.allSettled([api.props(league), ...days.map((d) => api.games(league, d))]);
   const games = new Map();
-  for (const r of gr) if (r.status === 'fulfilled') for (const g of unwrap(r.value) || []) games.set(g.id, g);
-  const props = pr.status === 'fulfilled' ? (unwrap(pr.value) || []).filter((p) => games.get(p.gameId)?.status?.state !== 'post') : [];
+  for (const r of gr) if (r.status === 'fulfilled') for (const g of dataOf(r.value) || []) games.set(g.id, g);
+  const props = pr.status === 'fulfilled' ? (dataOf(pr.value) || []).filter((p) => games.get(p.gameId)?.status?.state !== 'post') : [];
   return { games, props, source: pr.value?.source ?? null, error: pr.reason ?? (gr.every((r) => r.status === 'rejected') ? gr[0].reason : null) };
 }
 
@@ -127,8 +128,8 @@ export default {
       <form class="ins-bar" aria-label="Filtros de tendencias">
         ${multi('cat', 'Tipo')}${multi('game', 'Partidos')}${multi('player', 'Jugadores')}${multi('team', 'Equipos')}
         <details class="ins-flt" data-name="odds"><summary>Cuotas<span class="ins-n"></span></summary><div class="ins-opts ins-range">
-          <label>Desde (americana) <input name="oMin" type="number" step="1" placeholder="-300" inputmode="numeric"></label>
-          <label>Hasta (americana) <input name="oMax" type="number" step="1" placeholder="+200" inputmode="numeric"></label>
+          <label>Desde (americana) <input name="oMin" type="text" placeholder="-300"></label>
+          <label>Hasta (americana) <input name="oMax" type="text" placeholder="+200"></label>
         </div></details>
         ${multi('stat', 'Estadísticas')}
         ${sel('minPct', 'Acierto mínimo', [['0', 'Cualquiera'], ['50', '50 %'], ['60', '60 %'], ['70', '70 %'], ['80', '80 %'], ['90', '90 %'], ['100', '100 %']])}
@@ -174,7 +175,7 @@ export default {
       const fd = new FormData(form);
       const num = (k) => (fd.get(k) === '' || fd.get(k) == null ? null : Number(fd.get(k)));
       for (const k of Object.keys(optLists)) f[k] = new Set(fd.getAll(k));
-      Object.assign(f, { oMin: num('oMin'), oMax: num('oMax'), minPct: num('minPct') ?? 0, split: fd.get('split'), side: fd.get('side'), sort: fd.get('sort') });
+      Object.assign(f, { oMin: americanIn(fd.get('oMin')), oMax: americanIn(fd.get('oMax')), minPct: num('minPct') ?? 0, split: fd.get('split'), side: fd.get('side'), sort: fd.get('sort') });
     }
     const pass = (it) => {
       if (f.cat.size && !f.cat.has(it.cat)) return false;
@@ -360,7 +361,7 @@ export default {
       await pool(tasks, 4, async ({ g, ps }) => {
         try {
           if (g) {
-            addTeam(unwrap(await api.game(league, g.id)));
+            addTeam(dataOf(await api.game(league, g.id)));
             prog.games++;
           } else {
             addPlayer(await logFor(api, league, ps[0]), ps, games);

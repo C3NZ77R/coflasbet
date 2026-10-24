@@ -3,11 +3,12 @@
 const PREFIX = 'oddsy.';
 const DEFAULTS = {
   picks: [], // [{ id, label, price (decimal), book, league, gameId, addedAt }]
-  settings: { oddsFormat: 'decimal', books: [], bankroll: 100, kellyMult: 0.25, devigMethod: 'multiplicative' },
+  settings: { oddsFormat: 'decimal' },
   views: {}, // { [propKey]: { view, add, last } } → "Populares" con actividad local
   presets: {}, // { [vista]: [{ name, ... }] }
   league: 'nba',
 };
+const MAX_VIEWS = 300;
 const mem = {};
 const subs = new Map();
 const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
@@ -61,7 +62,8 @@ function track(propKey, kind = 'view') {
   const views = { ...get('views') };
   const cur = views[propKey] ?? { view: 0, add: 0 };
   views[propKey] = { ...cur, [kind]: (cur[kind] ?? 0) + 1, last: Date.now() };
-  return set('views', views);
+  // Solo los MAX_VIEWS más recientes: sin tope Populares se volvía lento y localStorage se llenaba.
+  return set('views', Object.fromEntries(Object.entries(views).sort(([, a], [, b]) => (b?.last ?? 0) - (a?.last ?? 0)).slice(0, MAX_VIEWS)));
 }
 
 // Otra pestaña cambió algo: se recarga y se avisa.
@@ -91,10 +93,12 @@ export function decodePicks(s) {
     const arr = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
     if (!Array.isArray(arr)) return [];
     const str = (v) => (typeof v === 'string' && v ? v.slice(0, 200) : null);
+    const seen = new Set(); // un id repetido se agregaría dos veces y «Quitar» borraría ambos
     return arr.slice(0, 50).flatMap((x) => {
       if (!Array.isArray(x)) return [];
       const [id, label, price, book, league, gameId] = x;
-      if (!str(id) || !str(label) || typeof price !== 'number' || !(price > 1 && price < 100000)) return [];
+      if (!str(id) || !str(label) || typeof price !== 'number' || !(price > 1 && price < 100000) || seen.has(str(id))) return [];
+      seen.add(str(id));
       return [{ id: str(id), label: str(label), price, book: str(book), league: str(league), gameId: str(gameId) }];
     });
   } catch {

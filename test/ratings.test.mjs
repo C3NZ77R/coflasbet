@@ -224,6 +224,8 @@ test('ratings: expected con ratings a mano (normal y poisson, con y sin sede)', 
   assert.equal(e.kind, 'normal');
   assert.equal(e.sigma, SIGMA.basketball);
   assert.equal(e.sigmaT, SIGMA_T.basketball);
+  assert.equal(expected('basketball', nba, 'A', 'B', { league: 'nba' }).sigmaT, SIGMA_T.basketball);
+  assert.equal(expected('basketball', nba, 'A', 'B', { league: 'wnba' }).sigmaT, 16.4); // la WNBA anota menos: su propio σ_T
   const k = MU_SHRINK.basketball;
   assert.ok(k > 0 && k <= 1);
   close(e.mu, 23 * k); // +10 − (−10) + 3

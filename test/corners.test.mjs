@@ -2,7 +2,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { normMatchStats, statRates, expectedStat, statDist, cornersMarkets, cardsMarkets } from '../lib/corners.mjs';
+import { normMatchStats, statRates, expectedStat, statDist, cardsMarkets } from '../lib/corners.mjs';
+import { MAX_P } from '../lib/pricing.mjs';
 
 const fx = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 const close = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≠ ${b}`);
@@ -46,20 +47,23 @@ test('córners: las distribuciones suman 1 y el total es la suma de lados', () =
   close(sum(d.total.map((p, k) => p * k)), sum(d.home.map((p, k) => p * k)) + sum(d.away.map((p, k) => p * k)));
 });
 
-test('córners y tarjetas: mercados con forma Market y probabilidades coherentes', () => {
-  const exp = { home: 5.4, away: 4.1, dispHome: 1.3, dispAway: 1.2 };
-  for (const ms of [cornersMarkets(exp), cardsMarkets({ home: 2.3, away: 2.6, dispHome: 1.1, dispAway: 1.1 })]) {
-    assert.ok(ms.length === 4);
-    for (const m of ms) {
-      assert.ok(m.key && m.label && m.selections.length);
-      for (const s of m.selections) assert.ok(s.p > 0 && s.p < 1 && s.oddsy < s.fair, `${m.key} ${s.name}`);
-    }
-    const x12 = ms.find((m) => m.key.endsWith('_1x2'));
-    close(sum(x12.selections.map((s) => s.p)), 1);
-    const ou = ms.find((m) => m.key.endsWith('_ou'));
-    for (let i = 0; i < ou.selections.length; i += 2) close(ou.selections[i].p + ou.selections[i + 1].p, 1);
+test('tarjetas: mercados con forma Market y probabilidades coherentes', () => {
+  const ms = cardsMarkets({ home: 2.3, away: 2.6, dispHome: 1.1, dispAway: 1.1 });
+  assert.ok(ms.length === 4);
+  for (const m of ms) {
+    assert.ok(m.key && m.label && m.selections.length);
+    for (const s of m.selections) assert.ok(s.p > 0 && s.p < 1 && s.oddsy < s.fair, `${m.key} ${s.name}`);
   }
-  const ou = cornersMarkets(exp).find((m) => m.key === 'corners_ou');
-  assert.deepEqual([...new Set(ou.selections.map((s) => s.line))], [7.5, 8.5, 9.5, 10.5, 11.5]); // cinco líneas, como Betano.co
-  assert.ok(cornersMarkets(exp).find((m) => m.key === 'corners_1x2').selections[0].p > 0.5); // el local saca más
+  const x12 = ms.find((m) => m.key.endsWith('_1x2'));
+  close(sum(x12.selections.map((s) => s.p)), 1);
+  const ou = ms.find((m) => m.key.endsWith('_ou'));
+  for (let i = 0; i < ou.selections.length; i += 2) close(ou.selections[i].p + ou.selections[i + 1].p, 1);
+  assert.ok(x12.selections[0].p < x12.selections[2].p); // la visita saca más
+});
+
+test('tarjetas: nada por encima de MAX_P; en un total cae la línea entera (Más y Menos)', () => {
+  const ms = cardsMarkets({ home: 0.3, away: 4, dispHome: 1.1, dispAway: 1.1 });
+  for (const m of ms) for (const s of m.selections) assert.ok(s.p <= MAX_P, `${m.key} ${s.name} ${s.line}`);
+  const home = ms.find((m) => m.key === 'cards_home_ou'); // Menos 1.5 con media 0.3 sale al 96%
+  assert.deepEqual(home.selections.map((s) => [s.name, s.line]), [['Más', 0.5], ['Menos', 0.5]]);
 });

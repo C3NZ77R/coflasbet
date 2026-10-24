@@ -4,7 +4,7 @@
 //   sourceBadge, barChart) devuelven HTML seguro (objeto "Safe": se convierte a string solo, sirve para
 //   el.innerHTML = ..., dentro de h`...` y en template literals normales).
 // - h`...` escapa TODO valor interpolado salvo otro Safe (h`...` anidado, raw(), helpers de aquí). Los arrays se unen.
-// - Los helpers interactivos (dropdown, toggle, tabs, sortableTable, modal) devuelven un HTMLElement:
+// - Los helpers interactivos (dropdown, sortableTable) devuelven un HTMLElement:
 //   se insertan con append(), no dentro de h`...`.
 import { decimalToAmerican } from './betmath.js';
 import { store } from './store.js';
@@ -42,7 +42,6 @@ export function fmtOdds(decimal, format = store.get('settings').oddsFormat) {
   return a > 0 ? `+${a}` : `${a}`;
 }
 export const fmtPct = (x, d = 1) => (x == null || !Number.isFinite(Number(x)) ? '—' : `${(Number(x) * 100).toFixed(d)}%`);
-export const fmtMoney = (x) => (Number.isFinite(Number(x)) ? `$${Number(x).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—');
 
 export function when(iso) {
   const d = new Date(iso);
@@ -57,6 +56,14 @@ export function ago(iso) {
   for (const [unit, sec] of [['day', 86400], ['hour', 3600], ['minute', 60]]) if (Math.abs(s) >= sec) return rtf.format(Math.round(s / sec), unit);
   return rtf.format(Math.round(s), 'second');
 }
+
+// ---------- datos de las vistas ----------
+const pad = (n) => String(n).padStart(2, '0');
+export const ymd = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`; // fecha local del API: 20261023
+// api.* devuelve el cuerpo { source, data }; se acepta también el dato suelto.
+export const dataOf = (r) => (r && typeof r === 'object' && !Array.isArray(r) && 'data' in r ? r.data : r);
+// Clave de un prop: URL del detalle (#/liga/props/<clave>), id del pick y clave de "Populares".
+export const propKey = (p) => encodeURIComponent(JSON.stringify({ a: p.athleteId ?? null, p: p.player, s: p.stat, l: p.line ?? null, o: p.side, g: p.gameId ?? null }));
 
 // ---------- casas ----------
 // Colores aproximados de marca + iniciales; oddsy = nuestro modelo.
@@ -264,52 +271,6 @@ export function dropdown({ label = '', options = [], value, multi = false, onCha
   return root;
 }
 
-// Interruptor accesible (role="switch").
-export function toggle({ label = '', checked = false, value, onChange } = {}) {
-  let on = !!(value ?? checked);
-  const b = node('button', 'toggle');
-  b.type = 'button';
-  b.setAttribute('role', 'switch');
-  b.innerHTML = h`<span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span><span class="toggle-label">${label}</span>`;
-  const sync = () => b.setAttribute('aria-checked', String(on));
-  sync();
-  b.addEventListener('click', () => { on = !on; sync(); onChange?.(on); });
-  return b;
-}
-
-// Pestañas (role="tablist"), con flechas/Inicio/Fin. Los paneles los maneja la vista en onChange.
-export function tabs({ items, options, value, onChange, label = '' } = {}) {
-  const list = (items ?? options ?? []).map(norm);
-  let cur = value ?? list[0]?.value;
-  const root = node('div', 'tabs-ui');
-  root.setAttribute('role', 'tablist');
-  if (label) root.setAttribute('aria-label', label);
-  root.innerHTML = h`${list.map((t, i) => h`<button type="button" role="tab" data-i="${i}">${t.label}</button>`)}`;
-  const btns = [...root.children];
-  const sync = () => btns.forEach((b, i) => {
-    const on = String(list[i].value) === String(cur);
-    b.setAttribute('aria-selected', String(on));
-    b.tabIndex = on ? 0 : -1;
-  });
-  const pick = (i, focus) => {
-    cur = list[i].value;
-    sync();
-    if (focus) btns[i].focus();
-    onChange?.(cur);
-  };
-  root.addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) pick(+b.dataset.i); });
-  root.addEventListener('keydown', (e) => {
-    const i = btns.indexOf(document.activeElement);
-    if (i < 0) return;
-    const j = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: btns.length - 1 }[e.key];
-    if (j == null) return;
-    e.preventDefault();
-    pick((j + btns.length) % btns.length, true);
-  });
-  sync();
-  return root;
-}
-
 // Tabla ordenable. columns: [{ key, label, render?(row) → Safe|texto, sort?(row) → valor, align?, className?, sortable?, defaultDir? }]
 // render debe devolver h`...` para HTML (un string normal se escapa). Devuelve el contenedor con .setRows(rows).
 export function sortableTable({ columns = [], rows = [], sortKey = null, sortDir = 'desc', onRowClick, pageSize = 100, emptyText = 'No hay resultados.', caption = '' } = {}) {
@@ -372,21 +333,5 @@ export function sortableTable({ columns = [], rows = [], sortKey = null, sortDir
   return wrap;
 }
 
-// Diálogo modal nativo (Escape, foco atrapado y fondo inerte los da <dialog>). body: Node, h`...` o texto.
-export function modal({ title = '', body = '', onClose, className = '' } = {}) {
-  const d = node('dialog', `modal ${className}`.trim());
-  const id = uid('modal');
-  d.setAttribute('aria-labelledby', id);
-  d.innerHTML = h`<div class="modal-in"><div class="modal-head"><h2 id="${id}">${title}</h2><button type="button" class="icon-btn" data-close aria-label="Cerrar">✕</button></div><div class="modal-body"></div></div>`;
-  const b = d.querySelector('.modal-body');
-  if (typeof Node !== 'undefined' && body instanceof Node) b.append(body);
-  else b.innerHTML = part(body);
-  d.addEventListener('click', (e) => { if (e.target === d || e.target.closest('[data-close]')) d.close(); });
-  d.addEventListener('close', () => { d.remove(); onClose?.(d.returnValue); });
-  document.body.append(d);
-  d.showModal();
-  return d;
-}
-
-export const ui = { INJURY, esc, h, raw, fmtOdds, fmtPct, fmtMoney, when, ago, hitBar, bookChip, bookInfo, BOOKS, teamLogo, headshot, dropdown, toggle, tabs, sortableTable, empty, loading, errorBox, sourceBadge, barChart, modal };
+export const ui = { INJURY, esc, h, raw, fmtOdds, fmtPct, when, ago, hitBar, bookChip, bookInfo, BOOKS, teamLogo, headshot, dropdown, sortableTable, empty, loading, errorBox, sourceBadge, barChart };
 export default ui;

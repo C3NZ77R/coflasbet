@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as e from '../lib/espn.mjs';
 import { LEAGUES, leagueById } from '../public/leagues.js';
-import { STATS, statOf, statForMarket, propMarkets } from '../public/stats.js';
+import { STATS, statOf, statForMarket } from '../public/stats.js';
 
 const fx = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 
@@ -160,6 +160,16 @@ test('stats.js: derivadas, mercados y alternativos', () => {
   assert.equal(statForMarket('soccer', 'player_goal_scorer_anytime').key, 'goals');
   assert.equal(statForMarket('baseball', 'pitcher_strikeouts').key, 'k');
   assert.equal(statForMarket('basketball', 'player_first_basket'), null);
-  assert.ok(propMarkets('football').includes('player_reception_yds'));
-  assert.equal(new Set(propMarkets('basketball')).size, propMarkets('basketball').length);
+});
+
+test('getEvent: el Game del summary, sin pedir plantillas, récords ni estadísticas', async () => {
+  const real = globalThis.fetch;
+  const urls = [];
+  globalThis.fetch = async (url) => (urls.push(url), new Response(JSON.stringify(url.endsWith('=1') ? fx('summary-nfl.json') : {})));
+  try {
+    const { id, league, start, status, home, away, neutral } = e.normSummary(fx('summary-nfl.json'), 'nfl');
+    assert.deepEqual(await e.getEvent('nfl', '1'), { id, league, start, status, home, away, neutral });
+    assert.deepEqual(urls, ['https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=1']);
+    await assert.rejects(e.getEvent('nfl', '2'), { status: 404 });
+  } finally { globalThis.fetch = real; }
 });

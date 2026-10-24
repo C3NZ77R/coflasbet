@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { poissonPmf } from '../public/betmath.js';
-import { price, halfLine, negBinPmf, scoreGrid, normalOver, countOver } from '../lib/pricing.mjs';
+import { price, MARGIN, MAX_P, halfLine, negBinPmf, scoreGrid, normalOver, countOver } from '../lib/pricing.mjs';
 
 const near = (a, b, eps = 1e-3) => assert.ok(Math.abs(a - b) < eps, `${a} ≈ ${b}`);
+const close = (a, b) => near(a, b, 1e-12);
 const sum = (xs) => xs.reduce((s, x) => s + x, 0);
 
 test('price: cuota justa y con margen, acotadas', () => {
@@ -12,6 +13,14 @@ test('price: cuota justa y con margen, acotadas', () => {
   assert.equal(r.oddsy, 1.9);
   assert.equal(price(0.999).fair, 1.01);
   assert.equal(price(0.001).fair, 101);
+});
+
+test('price: la cuota Oddsy nunca deja valor al apostador hasta MAX_P (1.01 con margen)', () => {
+  close(MAX_P, 1 / (1.01 * (1 + MARGIN)));
+  for (let p = 0.01; p <= MAX_P; p += 0.0007) assert.ok(p * price(p).oddsy < 1 / (1 + MARGIN) + 1e-9, `p ${p}: oddsy ${price(p).oddsy}`);
+  assert.ok(MAX_P * price(MAX_P).oddsy < 1 / (1 + MARGIN) + 1e-9);
+  assert.equal(price(1 / (1.13 * (1 + MARGIN))).oddsy, 1.13); // truncar no le quita un centavo a una cuota exacta
+  assert.equal(price(0.9909).fair, 1.01); // más allá de MAX_P la cuota ya no puede bajar: no se publica
 });
 
 test('halfLine', () => {

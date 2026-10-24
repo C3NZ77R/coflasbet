@@ -1,1 +1,1 @@
-{ "functions": { "api/**/*.mjs": { "includeFiles": "{lib/**,data/**,docs/accuracy.json,public/leagues.js,public/stats.js,public/betmath.js,public/live.js}" } } }
+{ "buildCommand": "node --test", "outputDirectory": "public", "functions": { "api/**/*.mjs": { "maxDuration": 60, "includeFiles": "{lib/**,data/**,docs/accuracy.json,public/leagues.js,public/stats.js,public/betmath.js,public/live.js}" } } }

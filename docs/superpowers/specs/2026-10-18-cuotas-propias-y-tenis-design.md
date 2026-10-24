@@ -53,7 +53,7 @@ La regla común es estimar la distribución del resultado, sumar la probabilidad
 - **Modelo:** el game log de ESPN da una distribución por jugador y estadística.
   - Conteos (rebotes, asistencias, tiros, goles, ponches): **Poisson**; si la varianza supera a la media, **binomial negativa**.
   - Volúmenes altos (puntos, yardas): **Normal**.
-- Media = 0.5·últimos 10 + 0.3·temporada + 0.2·últimos 5. Línea propia = mediana redondeada a .5. Cuotas más/menos de esa línea y de cualquier línea que elija el usuario.
+- Media = 0.5·últimos 10 + 0.3·todo el log (temporada actual y anterior) + 0.2·últimos 5; la varianza también sale de todo el log. Línea propia = mediana redondeada a .5. Cuotas más/menos de esa línea y de cualquier línea que elija el usuario.
 - Mínimo 8 partidos; con menos se muestra "muestra insuficiente".
 - Las tasas de acierto (L5/L10/L20/temporada/H2H) de la vista `props.js` **no cambian**; solo cambia de dónde sale la línea.
 - **Tenis**, "props" posibles con datos reales: games ganados por el jugador, sets ganados y tasas de acierto de total de games en sus últimos partidos.

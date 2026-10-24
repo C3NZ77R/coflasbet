@@ -1456,100 +1456,130 @@
       "bins": [
         {
           "from": 0,
-          "n": 5284,
-          "said": 0.0488,
-          "hit": 0.0486
+          "n": 6072,
+          "said": 0.0466,
+          "hit": 0.057
         },
         {
           "from": 10,
-          "n": 5466,
-          "said": 0.1501,
-          "hit": 0.1506
+          "n": 5687,
+          "said": 0.1489,
+          "hit": 0.1685
         },
         {
           "from": 20,
-          "n": 5051,
+          "n": 5130,
           "said": 0.2486,
-          "hit": 0.2564
+          "hit": 0.2678
         },
         {
           "from": 30,
-          "n": 4372,
-          "said": 0.3477,
-          "hit": 0.3246
+          "n": 4271,
+          "said": 0.3485,
+          "hit": 0.347
         },
         {
           "from": 40,
-          "n": 3784,
-          "said": 0.4486,
-          "hit": 0.43
+          "n": 3643,
+          "said": 0.4481,
+          "hit": 0.4573
         },
         {
           "from": 50,
-          "n": 3250,
-          "said": 0.5486,
-          "hit": 0.5215
+          "n": 3119,
+          "said": 0.5487,
+          "hit": 0.5454
         },
         {
           "from": 60,
-          "n": 2865,
-          "said": 0.6484,
-          "hit": 0.599
+          "n": 2640,
+          "said": 0.6486,
+          "hit": 0.6121
         },
         {
           "from": 70,
-          "n": 2332,
-          "said": 0.7478,
-          "hit": 0.7007
+          "n": 2167,
+          "said": 0.748,
+          "hit": 0.7199
         },
         {
           "from": 80,
-          "n": 1787,
-          "said": 0.8458,
-          "hit": 0.8047
+          "n": 1550,
+          "said": 0.8452,
+          "hit": 0.8226
         },
         {
           "from": 90,
-          "n": 6930,
-          "said": 0.9934,
-          "hit": 0.9883
+          "n": 6842,
+          "said": 0.994,
+          "hit": 0.9902
         }
       ],
       "priors": {
         "1": {
-          "brier": 0.1506,
-          "logloss": 0.4507,
+          "brier": 0.1501,
+          "logloss": 0.4506,
           "vsBest": {
-            "diff": 0.0068,
+            "diff": 0.0079,
             "se": 0.0009
           }
         },
         "2": {
-          "brier": 0.1493,
-          "logloss": 0.4452,
+          "brier": 0.1487,
+          "logloss": 0.4446,
           "vsBest": {
-            "diff": 0.0013,
+            "diff": 0.0018,
             "se": 0.0004
           }
         },
         "3": {
-          "brier": 0.149,
-          "logloss": 0.4442,
+          "brier": 0.1485,
+          "logloss": 0.4433,
           "vsBest": {
-            "diff": 0.0003,
+            "diff": 0.0005,
             "se": 0.0002
           }
         },
         "5": {
-          "brier": 0.149,
-          "logloss": 0.4439
+          "brier": 0.1484,
+          "logloss": 0.4428
         },
         "0.5": {
-          "brier": 0.1539,
-          "logloss": 0.4652,
+          "brier": 0.1534,
+          "logloss": 0.4658,
           "vsBest": {
-            "diff": 0.0214,
+            "diff": 0.0232,
             "se": 0.0016
+          }
+        }
+      },
+      "curve": {
+        "all": [
+          0.2679,
+          0.5186,
+          0.7787
+        ],
+        "halves": [
+          [
+            0.2696,
+            0.515,
+            0.7734
+          ],
+          [
+            0.2662,
+            0.5224,
+            0.7842
+          ]
+        ],
+        "linear": {
+          "1": 0.4507,
+          "2": 0.4452,
+          "3": 0.4442,
+          "5": 0.4439,
+          "0.5": 0.4652,
+          "vsCurve": {
+            "diff": 0.001,
+            "se": 0.0005
           }
         }
       },
@@ -1557,95 +1587,1507 @@
         {
           "f": 0.25,
           "logloss": {
-            "1": 0.5824,
-            "2": 0.5735,
-            "3": 0.572,
-            "5": 0.5716,
-            "0.5": 0.6097
+            "1": 0.5827,
+            "2": 0.5732,
+            "3": 0.5715,
+            "5": 0.571,
+            "0.5": 0.6111
           }
         },
         {
           "f": 0.5,
           "logloss": {
-            "1": 0.4604,
-            "2": 0.4555,
-            "3": 0.4547,
-            "5": 0.4547,
-            "0.5": 0.4727
+            "1": 0.4609,
+            "2": 0.4553,
+            "3": 0.4542,
+            "5": 0.454,
+            "0.5": 0.4738
           }
         },
         {
           "f": 0.75,
           "logloss": {
-            "1": 0.3092,
-            "2": 0.3067,
-            "3": 0.3059,
-            "5": 0.3054,
-            "0.5": 0.3133
+            "1": 0.3083,
+            "2": 0.3052,
+            "3": 0.3042,
+            "5": 0.3033,
+            "0.5": 0.3126
           }
         }
       ],
       "stats": {
         "pts": {
-          "1": 0.4654,
-          "2": 0.4605,
-          "3": 0.4598,
-          "5": 0.4598,
-          "0.5": 0.4793
+          "1": 0.4647,
+          "2": 0.4587,
+          "3": 0.4576,
+          "5": 0.4572,
+          "0.5": 0.48
         },
         "reb": {
           "1": 0.4548,
-          "2": 0.4494,
-          "3": 0.4483,
-          "5": 0.448,
+          "2": 0.449,
+          "3": 0.4478,
+          "5": 0.4473,
           "0.5": 0.4687
         },
         "ast": {
-          "1": 0.4318,
-          "2": 0.4257,
+          "1": 0.4325,
+          "2": 0.4259,
           "3": 0.4245,
-          "5": 0.424,
-          "0.5": 0.4477
+          "5": 0.4238,
+          "0.5": 0.4488
         }
       },
       "signals": {
-        "n": 10569,
+        "n": 10351,
         "best": 5,
         "priors": {
           "1": {
-            "brier": 0.0666,
-            "logloss": 0.2255,
+            "brier": 0.0645,
+            "logloss": 0.2232,
             "vsBest": {
-              "diff": 0.0109,
-              "se": 0.0019
+              "diff": 0.0119,
+              "se": 0.002
             }
           },
           "2": {
-            "brier": 0.0651,
-            "logloss": 0.2167,
+            "brier": 0.0632,
+            "logloss": 0.2141,
             "vsBest": {
-              "diff": 0.0021,
+              "diff": 0.0025,
               "se": 0.0008
             }
           },
           "3": {
-            "brier": 0.0649,
-            "logloss": 0.2151,
+            "brier": 0.063,
+            "logloss": 0.2123,
             "vsBest": {
-              "diff": 0.0005,
+              "diff": 0.0006,
               "se": 0.0004
             }
           },
           "5": {
-            "brier": 0.0649,
-            "logloss": 0.2146
+            "brier": 0.0631,
+            "logloss": 0.2118
           },
           "0.5": {
-            "brier": 0.0696,
-            "logloss": 0.2463,
+            "brier": 0.0672,
+            "logloss": 0.2438,
             "vsBest": {
-              "diff": 0.0318,
+              "diff": 0.0328,
               "se": 0.0035
+            }
+          }
+        }
+      }
+    }
+  },
+  "props": {
+    "nba": {
+      "season": 2026,
+      "games": 308,
+      "skipped": {
+        "noPlays": 0,
+        "mismatch": 57,
+        "cacheMiss": 0
+      },
+      "share": {
+        "pts": [
+          {
+            "f": 0.25,
+            "share": 0.2655
+          },
+          {
+            "f": 0.5,
+            "share": 0.5152
+          },
+          {
+            "f": 0.75,
+            "share": 0.7776
+          }
+        ],
+        "reb": [
+          {
+            "f": 0.25,
+            "share": 0.2696
+          },
+          {
+            "f": 0.5,
+            "share": 0.5219
+          },
+          {
+            "f": 0.75,
+            "share": 0.7732
+          }
+        ],
+        "ast": [
+          {
+            "f": 0.25,
+            "share": 0.2757
+          },
+          {
+            "f": 0.5,
+            "share": 0.5284
+          },
+          {
+            "f": 0.75,
+            "share": 0.7921
+          }
+        ]
+      },
+      "sample": {
+        "n": 13707,
+        "over": 0.456,
+        "stats": {
+          "pts": {
+            "n": 4584,
+            "over": 0.4965,
+            "current": "blend|all|normal",
+            "best": "blend|all*1.2|normal",
+            "bins": {
+              "blend|all|normal": [
+                {
+                  "from": 10,
+                  "n": 3,
+                  "said": 0.1649,
+                  "hit": 0
+                },
+                {
+                  "from": 20,
+                  "n": 118,
+                  "said": 0.2707,
+                  "hit": 0.322
+                },
+                {
+                  "from": 30,
+                  "n": 680,
+                  "said": 0.3607,
+                  "hit": 0.3868
+                },
+                {
+                  "from": 40,
+                  "n": 1366,
+                  "said": 0.454,
+                  "hit": 0.4414
+                },
+                {
+                  "from": 50,
+                  "n": 1474,
+                  "said": 0.5471,
+                  "hit": 0.519
+                },
+                {
+                  "from": 60,
+                  "n": 744,
+                  "said": 0.641,
+                  "hit": 0.6169
+                },
+                {
+                  "from": 70,
+                  "n": 178,
+                  "said": 0.7404,
+                  "hit": 0.7247
+                },
+                {
+                  "from": 80,
+                  "n": 21,
+                  "said": 0.8316,
+                  "hit": 0.9048
+                }
+              ],
+              "blend|all*1.2|normal": [
+                {
+                  "from": 10,
+                  "n": 2,
+                  "said": 0.1762,
+                  "hit": 0
+                },
+                {
+                  "from": 20,
+                  "n": 72,
+                  "said": 0.2749,
+                  "hit": 0.3333
+                },
+                {
+                  "from": 30,
+                  "n": 637,
+                  "said": 0.363,
+                  "hit": 0.3783
+                },
+                {
+                  "from": 40,
+                  "n": 1455,
+                  "said": 0.4546,
+                  "hit": 0.4392
+                },
+                {
+                  "from": 50,
+                  "n": 1581,
+                  "said": 0.5465,
+                  "hit": 0.525
+                },
+                {
+                  "from": 60,
+                  "n": 685,
+                  "said": 0.6387,
+                  "hit": 0.6204
+                },
+                {
+                  "from": 70,
+                  "n": 139,
+                  "said": 0.7362,
+                  "hit": 0.7626
+                },
+                {
+                  "from": 80,
+                  "n": 13,
+                  "said": 0.8229,
+                  "hit": 0.8462
+                }
+              ]
+            },
+            "models": {
+              "blend|all|normal": {
+                "logloss": 0.6744,
+                "said": 0.5084
+              },
+              "blend|all|count": {
+                "logloss": 0.6802,
+                "said": 0.453,
+                "vsCurrent": {
+                  "diff": 0.0069,
+                  "se": 0.002
+                },
+                "halves": [
+                  0.005,
+                  0.0089
+                ]
+              },
+              "blend|last20|normal": {
+                "logloss": 0.676,
+                "said": 0.5075,
+                "vsCurrent": {
+                  "diff": 0.0016,
+                  "se": 0.0006
+                },
+                "halves": [
+                  0.0011,
+                  0.0022
+                ]
+              },
+              "blend|all*1.2|normal": {
+                "logloss": 0.674,
+                "said": 0.5077,
+                "vsCurrent": {
+                  "diff": -0.0004,
+                  "se": 0.0003
+                },
+                "halves": [
+                  0.0003,
+                  -0.0011
+                ]
+              },
+              "all|all|normal": {
+                "logloss": 0.7158,
+                "said": 0.476,
+                "vsCurrent": {
+                  "diff": 0.0433,
+                  "se": 0.0049
+                },
+                "halves": [
+                  0.0349,
+                  0.0517
+                ]
+              },
+              "last20|all|normal": {
+                "logloss": 0.683,
+                "said": 0.5111,
+                "vsCurrent": {
+                  "diff": 0.0082,
+                  "se": 0.0026
+                },
+                "halves": [
+                  0.0148,
+                  0.0017
+                ]
+              },
+              "last10|all|normal": {
+                "logloss": 0.683,
+                "said": 0.5223,
+                "vsCurrent": {
+                  "diff": 0.0081,
+                  "se": 0.002
+                },
+                "halves": [
+                  0.0083,
+                  0.008
+                ]
+              }
+            },
+            "lines": {
+              "median20": {
+                "over": 0.4965,
+                "said": {
+                  "blend|all|normal": 0.5084,
+                  "blend|all*1.2|normal": 0.5077
+                }
+              },
+              "median20Down": {
+                "over": 0.5382,
+                "said": {
+                  "blend|all|normal": 0.546,
+                  "blend|all*1.2|normal": 0.5423
+                }
+              },
+              "mean20": {
+                "over": 0.4817,
+                "said": {
+                  "blend|all|normal": 0.4959,
+                  "blend|all*1.2|normal": 0.4962
+                }
+              }
+            }
+          },
+          "reb": {
+            "n": 4556,
+            "over": 0.4432,
+            "current": "blend|all|count",
+            "best": "blend|all*1.2|normal",
+            "bins": {
+              "blend|all|count": [
+                {
+                  "from": 10,
+                  "n": 47,
+                  "said": 0.1788,
+                  "hit": 0.2128
+                },
+                {
+                  "from": 20,
+                  "n": 502,
+                  "said": 0.2656,
+                  "hit": 0.3127
+                },
+                {
+                  "from": 30,
+                  "n": 1362,
+                  "said": 0.3529,
+                  "hit": 0.3789
+                },
+                {
+                  "from": 40,
+                  "n": 1414,
+                  "said": 0.4489,
+                  "hit": 0.4562
+                },
+                {
+                  "from": 50,
+                  "n": 853,
+                  "said": 0.5434,
+                  "hit": 0.5428
+                },
+                {
+                  "from": 60,
+                  "n": 295,
+                  "said": 0.6412,
+                  "hit": 0.5661
+                },
+                {
+                  "from": 70,
+                  "n": 66,
+                  "said": 0.7387,
+                  "hit": 0.6818
+                },
+                {
+                  "from": 80,
+                  "n": 14,
+                  "said": 0.8391,
+                  "hit": 0.9286
+                },
+                {
+                  "from": 90,
+                  "n": 3,
+                  "said": 0.9403,
+                  "hit": 1
+                }
+              ],
+              "blend|all*1.2|normal": [
+                {
+                  "from": 10,
+                  "n": 8,
+                  "said": 0.1869,
+                  "hit": 0.375
+                },
+                {
+                  "from": 20,
+                  "n": 172,
+                  "said": 0.2644,
+                  "hit": 0.25
+                },
+                {
+                  "from": 30,
+                  "n": 910,
+                  "said": 0.3595,
+                  "hit": 0.3396
+                },
+                {
+                  "from": 40,
+                  "n": 1545,
+                  "said": 0.4513,
+                  "hit": 0.4045
+                },
+                {
+                  "from": 50,
+                  "n": 1310,
+                  "said": 0.5454,
+                  "hit": 0.5099
+                },
+                {
+                  "from": 60,
+                  "n": 512,
+                  "said": 0.6377,
+                  "hit": 0.582
+                },
+                {
+                  "from": 70,
+                  "n": 86,
+                  "said": 0.7356,
+                  "hit": 0.7093
+                },
+                {
+                  "from": 80,
+                  "n": 12,
+                  "said": 0.8314,
+                  "hit": 0.9167
+                },
+                {
+                  "from": 90,
+                  "n": 1,
+                  "said": 0.906,
+                  "hit": 1
+                }
+              ]
+            },
+            "models": {
+              "blend|all|normal": {
+                "logloss": 0.6692,
+                "said": 0.4781,
+                "vsCurrent": {
+                  "diff": -0.0018,
+                  "se": 0.0017
+                },
+                "halves": [
+                  0.0011,
+                  -0.0047
+                ]
+              },
+              "blend|all|count": {
+                "logloss": 0.6702,
+                "said": 0.4331
+              },
+              "blend|last20|count": {
+                "logloss": 0.6697,
+                "said": 0.4335,
+                "vsCurrent": {
+                  "diff": -0.0006,
+                  "se": 0.0006
+                },
+                "halves": [
+                  -0.0005,
+                  -0.0007
+                ]
+              },
+              "blend|all*1.2|normal": {
+                "logloss": 0.669,
+                "said": 0.4799,
+                "vsCurrent": {
+                  "diff": -0.002,
+                  "se": 0.0017
+                },
+                "halves": [
+                  0.0013,
+                  -0.0054
+                ]
+              },
+              "blend|all*1.2|count": {
+                "logloss": 0.6711,
+                "said": 0.4255,
+                "vsCurrent": {
+                  "diff": 0.001,
+                  "se": 0.0004
+                },
+                "halves": [
+                  0.0009,
+                  0.0011
+                ]
+              },
+              "all|all|count": {
+                "logloss": 0.6862,
+                "said": 0.4194,
+                "vsCurrent": {
+                  "diff": 0.0163,
+                  "se": 0.0039
+                },
+                "halves": [
+                  0.0138,
+                  0.0188
+                ]
+              },
+              "last20|all|count": {
+                "logloss": 0.6766,
+                "said": 0.4287,
+                "vsCurrent": {
+                  "diff": 0.0064,
+                  "se": 0.0029
+                },
+                "halves": [
+                  0.0115,
+                  0.0014
+                ]
+              },
+              "last10|all|count": {
+                "logloss": 0.6842,
+                "said": 0.4408,
+                "vsCurrent": {
+                  "diff": 0.0139,
+                  "se": 0.0018
+                },
+                "halves": [
+                  0.0156,
+                  0.0122
+                ]
+              }
+            },
+            "lines": {
+              "median20": {
+                "over": 0.4432,
+                "said": {
+                  "blend|all|count": 0.4331,
+                  "blend|all*1.2|normal": 0.4799
+                }
+              },
+              "median20Down": {
+                "over": 0.5641,
+                "said": {
+                  "blend|all|count": 0.553,
+                  "blend|all*1.2|normal": 0.5883
+                }
+              },
+              "mean20": {
+                "over": 0.4614,
+                "said": {
+                  "blend|all|count": 0.4487,
+                  "blend|all*1.2|normal": 0.4968
+                }
+              }
+            }
+          },
+          "ast": {
+            "n": 4567,
+            "over": 0.4283,
+            "current": "blend|all|count",
+            "best": "blend|all*1.2|normal",
+            "bins": {
+              "blend|all|count": [
+                {
+                  "from": 0,
+                  "n": 4,
+                  "said": 0.0839,
+                  "hit": 0.5
+                },
+                {
+                  "from": 10,
+                  "n": 181,
+                  "said": 0.1683,
+                  "hit": 0.2265
+                },
+                {
+                  "from": 20,
+                  "n": 791,
+                  "said": 0.2572,
+                  "hit": 0.3135
+                },
+                {
+                  "from": 30,
+                  "n": 1393,
+                  "said": 0.3513,
+                  "hit": 0.3955
+                },
+                {
+                  "from": 40,
+                  "n": 1266,
+                  "said": 0.447,
+                  "hit": 0.4684
+                },
+                {
+                  "from": 50,
+                  "n": 637,
+                  "said": 0.544,
+                  "hit": 0.5086
+                },
+                {
+                  "from": 60,
+                  "n": 225,
+                  "said": 0.6389,
+                  "hit": 0.6578
+                },
+                {
+                  "from": 70,
+                  "n": 61,
+                  "said": 0.7372,
+                  "hit": 0.7049
+                },
+                {
+                  "from": 80,
+                  "n": 9,
+                  "said": 0.8329,
+                  "hit": 0.6667
+                }
+              ],
+              "blend|all*1.2|normal": [
+                {
+                  "from": 0,
+                  "n": 1,
+                  "said": 0.0922,
+                  "hit": 1
+                },
+                {
+                  "from": 10,
+                  "n": 51,
+                  "said": 0.1692,
+                  "hit": 0.1176
+                },
+                {
+                  "from": 20,
+                  "n": 387,
+                  "said": 0.2622,
+                  "hit": 0.2403
+                },
+                {
+                  "from": 30,
+                  "n": 992,
+                  "said": 0.3571,
+                  "hit": 0.3569
+                },
+                {
+                  "from": 40,
+                  "n": 1476,
+                  "said": 0.4504,
+                  "hit": 0.4194
+                },
+                {
+                  "from": 50,
+                  "n": 1126,
+                  "said": 0.5437,
+                  "hit": 0.4849
+                },
+                {
+                  "from": 60,
+                  "n": 430,
+                  "said": 0.639,
+                  "hit": 0.614
+                },
+                {
+                  "from": 70,
+                  "n": 98,
+                  "said": 0.7337,
+                  "hit": 0.6939
+                },
+                {
+                  "from": 80,
+                  "n": 6,
+                  "said": 0.843,
+                  "hit": 0.8333
+                }
+              ]
+            },
+            "models": {
+              "blend|all|normal": {
+                "logloss": 0.6619,
+                "said": 0.455,
+                "vsCurrent": {
+                  "diff": -0.0054,
+                  "se": 0.0023
+                },
+                "halves": [
+                  -0.0055,
+                  -0.0054
+                ]
+              },
+              "blend|all|count": {
+                "logloss": 0.6664,
+                "said": 0.4012
+              },
+              "blend|last20|count": {
+                "logloss": 0.6645,
+                "said": 0.4016,
+                "vsCurrent": {
+                  "diff": -0.002,
+                  "se": 0.0008
+                },
+                "halves": [
+                  -0.0019,
+                  -0.002
+                ]
+              },
+              "blend|all*1.2|normal": {
+                "logloss": 0.6616,
+                "said": 0.4583,
+                "vsCurrent": {
+                  "diff": -0.0058,
+                  "se": 0.0024
+                },
+                "halves": [
+                  -0.0055,
+                  -0.0061
+                ]
+              },
+              "blend|all*1.2|count": {
+                "logloss": 0.6681,
+                "said": 0.3938,
+                "vsCurrent": {
+                  "diff": 0.0018,
+                  "se": 0.0004
+                },
+                "halves": [
+                  0.002,
+                  0.0017
+                ]
+              },
+              "all|all|count": {
+                "logloss": 0.6918,
+                "said": 0.3767,
+                "vsCurrent": {
+                  "diff": 0.0264,
+                  "se": 0.005
+                },
+                "halves": [
+                  0.0256,
+                  0.0273
+                ]
+              },
+              "last20|all|count": {
+                "logloss": 0.6757,
+                "said": 0.398,
+                "vsCurrent": {
+                  "diff": 0.0095,
+                  "se": 0.0033
+                },
+                "halves": [
+                  0.0064,
+                  0.0126
+                ]
+              },
+              "last10|all|count": {
+                "logloss": 0.6848,
+                "said": 0.4113,
+                "vsCurrent": {
+                  "diff": 0.0183,
+                  "se": 0.0023
+                },
+                "halves": [
+                  0.0195,
+                  0.0171
+                ]
+              }
+            },
+            "lines": {
+              "median20": {
+                "over": 0.4283,
+                "said": {
+                  "blend|all|count": 0.4012,
+                  "blend|all*1.2|normal": 0.4583
+                }
+              },
+              "median20Down": {
+                "over": 0.6081,
+                "said": {
+                  "blend|all|count": 0.59,
+                  "blend|all*1.2|normal": 0.625
+                }
+              },
+              "mean20": {
+                "over": 0.4565,
+                "said": {
+                  "blend|all|count": 0.4354,
+                  "blend|all*1.2|normal": 0.4949
+                }
+              }
+            }
+          }
+        }
+      },
+      "outOfSample": {
+        "games": 1014,
+        "n": 39834,
+        "over": 0.4454,
+        "stats": {
+          "pts": {
+            "n": 13278,
+            "over": 0.478,
+            "current": "blend|all|normal",
+            "best": "blend|all*1.2|normal",
+            "bins": {
+              "blend|all|normal": [
+                {
+                  "from": 10,
+                  "n": 14,
+                  "said": 0.1846,
+                  "hit": 0.3571
+                },
+                {
+                  "from": 20,
+                  "n": 379,
+                  "said": 0.2671,
+                  "hit": 0.3166
+                },
+                {
+                  "from": 30,
+                  "n": 1958,
+                  "said": 0.3606,
+                  "hit": 0.3749
+                },
+                {
+                  "from": 40,
+                  "n": 4163,
+                  "said": 0.4531,
+                  "hit": 0.4348
+                },
+                {
+                  "from": 50,
+                  "n": 4209,
+                  "said": 0.5466,
+                  "hit": 0.5006
+                },
+                {
+                  "from": 60,
+                  "n": 2015,
+                  "said": 0.6407,
+                  "hit": 0.5945
+                },
+                {
+                  "from": 70,
+                  "n": 476,
+                  "said": 0.7377,
+                  "hit": 0.6828
+                },
+                {
+                  "from": 80,
+                  "n": 64,
+                  "said": 0.8261,
+                  "hit": 0.75
+                }
+              ],
+              "blend|all*1.2|normal": [
+                {
+                  "from": 10,
+                  "n": 5,
+                  "said": 0.1915,
+                  "hit": 0.4
+                },
+                {
+                  "from": 20,
+                  "n": 260,
+                  "said": 0.2712,
+                  "hit": 0.3038
+                },
+                {
+                  "from": 30,
+                  "n": 1775,
+                  "said": 0.362,
+                  "hit": 0.3628
+                },
+                {
+                  "from": 40,
+                  "n": 4474,
+                  "said": 0.4535,
+                  "hit": 0.4345
+                },
+                {
+                  "from": 50,
+                  "n": 4502,
+                  "said": 0.5461,
+                  "hit": 0.5042
+                },
+                {
+                  "from": 60,
+                  "n": 1866,
+                  "said": 0.639,
+                  "hit": 0.6034
+                },
+                {
+                  "from": 70,
+                  "n": 360,
+                  "said": 0.7357,
+                  "hit": 0.7028
+                },
+                {
+                  "from": 80,
+                  "n": 36,
+                  "said": 0.8175,
+                  "hit": 0.8056
+                }
+              ]
+            },
+            "models": {
+              "blend|all|normal": {
+                "logloss": 0.6793,
+                "said": 0.504
+              },
+              "blend|all|count": {
+                "logloss": 0.6807,
+                "said": 0.4531,
+                "vsCurrent": {
+                  "diff": 0.0027,
+                  "se": 0.001
+                },
+                "halves": [
+                  0.0011,
+                  0.0042
+                ]
+              },
+              "blend|last20|normal": {
+                "logloss": 0.6797,
+                "said": 0.5023,
+                "vsCurrent": {
+                  "diff": 0.0005,
+                  "se": 0.0004
+                },
+                "halves": [
+                  0.0004,
+                  0.0005
+                ]
+              },
+              "blend|all*1.2|normal": {
+                "logloss": 0.6785,
+                "said": 0.5037,
+                "vsCurrent": {
+                  "diff": -0.0008,
+                  "se": 0.0002
+                },
+                "halves": [
+                  -0.0009,
+                  -0.0006
+                ]
+              },
+              "all|all|normal": {
+                "logloss": 0.7091,
+                "said": 0.4644,
+                "vsCurrent": {
+                  "diff": 0.0314,
+                  "se": 0.0026
+                },
+                "halves": [
+                  0.0233,
+                  0.0396
+                ]
+              },
+              "last20|all|normal": {
+                "logloss": 0.6859,
+                "said": 0.5087,
+                "vsCurrent": {
+                  "diff": 0.0066,
+                  "se": 0.0015
+                },
+                "halves": [
+                  0.0056,
+                  0.0077
+                ]
+              },
+              "last10|all|normal": {
+                "logloss": 0.6912,
+                "said": 0.5216,
+                "vsCurrent": {
+                  "diff": 0.011,
+                  "se": 0.0012
+                },
+                "halves": [
+                  0.0135,
+                  0.0085
+                ]
+              }
+            },
+            "lines": {
+              "median20": {
+                "over": 0.478,
+                "said": {
+                  "blend|all|normal": 0.504,
+                  "blend|all*1.2|normal": 0.5037
+                }
+              },
+              "median20Down": {
+                "over": 0.5121,
+                "said": {
+                  "blend|all|normal": 0.5389,
+                  "blend|all*1.2|normal": 0.5358
+                }
+              },
+              "mean20": {
+                "over": 0.4669,
+                "said": {
+                  "blend|all|normal": 0.4941,
+                  "blend|all*1.2|normal": 0.4946
+                }
+              }
+            }
+          },
+          "reb": {
+            "n": 13278,
+            "over": 0.4361,
+            "current": "blend|all|count",
+            "best": "blend|last20|count",
+            "bins": {
+              "blend|all|count": [
+                {
+                  "from": 10,
+                  "n": 96,
+                  "said": 0.1789,
+                  "hit": 0.2396
+                },
+                {
+                  "from": 20,
+                  "n": 1411,
+                  "said": 0.2638,
+                  "hit": 0.3154
+                },
+                {
+                  "from": 30,
+                  "n": 4076,
+                  "said": 0.3542,
+                  "hit": 0.3739
+                },
+                {
+                  "from": 40,
+                  "n": 4270,
+                  "said": 0.4478,
+                  "hit": 0.4515
+                },
+                {
+                  "from": 50,
+                  "n": 2412,
+                  "said": 0.5442,
+                  "hit": 0.5245
+                },
+                {
+                  "from": 60,
+                  "n": 793,
+                  "said": 0.6377,
+                  "hit": 0.5763
+                },
+                {
+                  "from": 70,
+                  "n": 190,
+                  "said": 0.7367,
+                  "hit": 0.6526
+                },
+                {
+                  "from": 80,
+                  "n": 28,
+                  "said": 0.8408,
+                  "hit": 0.7857
+                },
+                {
+                  "from": 90,
+                  "n": 2,
+                  "said": 0.9469,
+                  "hit": 1
+                }
+              ],
+              "blend|last20|count": [
+                {
+                  "from": 10,
+                  "n": 106,
+                  "said": 0.1781,
+                  "hit": 0.2358
+                },
+                {
+                  "from": 20,
+                  "n": 1450,
+                  "said": 0.2639,
+                  "hit": 0.3186
+                },
+                {
+                  "from": 30,
+                  "n": 3953,
+                  "said": 0.3539,
+                  "hit": 0.3729
+                },
+                {
+                  "from": 40,
+                  "n": 4287,
+                  "said": 0.4479,
+                  "hit": 0.4479
+                },
+                {
+                  "from": 50,
+                  "n": 2493,
+                  "said": 0.5439,
+                  "hit": 0.5271
+                },
+                {
+                  "from": 60,
+                  "n": 825,
+                  "said": 0.6385,
+                  "hit": 0.5842
+                },
+                {
+                  "from": 70,
+                  "n": 152,
+                  "said": 0.7339,
+                  "hit": 0.6645
+                },
+                {
+                  "from": 80,
+                  "n": 12,
+                  "said": 0.8332,
+                  "hit": 1
+                }
+              ]
+            },
+            "models": {
+              "blend|all|normal": {
+                "logloss": 0.6732,
+                "said": 0.4735,
+                "vsCurrent": {
+                  "diff": 0.0007,
+                  "se": 0.0009
+                },
+                "halves": [
+                  0.0002,
+                  0.0012
+                ]
+              },
+              "blend|all|count": {
+                "logloss": 0.6719,
+                "said": 0.4315
+              },
+              "blend|last20|count": {
+                "logloss": 0.6713,
+                "said": 0.4312,
+                "vsCurrent": {
+                  "diff": -0.0005,
+                  "se": 0.0004
+                },
+                "halves": [
+                  -0.0013,
+                  0.0003
+                ]
+              },
+              "blend|all*1.2|count": {
+                "logloss": 0.6717,
+                "said": 0.4247,
+                "vsCurrent": {
+                  "diff": 0,
+                  "se": 0.0002
+                },
+                "halves": [
+                  0,
+                  -0.0001
+                ]
+              },
+              "all|all|count": {
+                "logloss": 0.6888,
+                "said": 0.4153,
+                "vsCurrent": {
+                  "diff": 0.0176,
+                  "se": 0.0024
+                },
+                "halves": [
+                  0.0145,
+                  0.0207
+                ]
+              },
+              "last20|all|count": {
+                "logloss": 0.6753,
+                "said": 0.4294,
+                "vsCurrent": {
+                  "diff": 0.0039,
+                  "se": 0.0016
+                },
+                "halves": [
+                  0.0036,
+                  0.0042
+                ]
+              },
+              "last10|all|count": {
+                "logloss": 0.6854,
+                "said": 0.4407,
+                "vsCurrent": {
+                  "diff": 0.0133,
+                  "se": 0.0011
+                },
+                "halves": [
+                  0.0135,
+                  0.0131
+                ]
+              }
+            },
+            "lines": {
+              "median20": {
+                "over": 0.4361,
+                "said": {
+                  "blend|all|count": 0.4315,
+                  "blend|last20|count": 0.4312
+                }
+              },
+              "median20Down": {
+                "over": 0.5564,
+                "said": {
+                  "blend|all|count": 0.5507,
+                  "blend|last20|count": 0.5535
+                }
+              },
+              "mean20": {
+                "over": 0.4544,
+                "said": {
+                  "blend|all|count": 0.4501,
+                  "blend|last20|count": 0.4522
+                }
+              }
+            }
+          },
+          "ast": {
+            "n": 13278,
+            "over": 0.4221,
+            "current": "blend|all|count",
+            "best": "blend|all*1.2|normal",
+            "bins": {
+              "blend|all|count": [
+                {
+                  "from": 0,
+                  "n": 3,
+                  "said": 0.0782,
+                  "hit": 0
+                },
+                {
+                  "from": 10,
+                  "n": 433,
+                  "said": 0.17,
+                  "hit": 0.224
+                },
+                {
+                  "from": 20,
+                  "n": 2276,
+                  "said": 0.2588,
+                  "hit": 0.3102
+                },
+                {
+                  "from": 30,
+                  "n": 3925,
+                  "said": 0.3522,
+                  "hit": 0.3839
+                },
+                {
+                  "from": 40,
+                  "n": 3800,
+                  "said": 0.4466,
+                  "hit": 0.4466
+                },
+                {
+                  "from": 50,
+                  "n": 1998,
+                  "said": 0.5428,
+                  "hit": 0.527
+                },
+                {
+                  "from": 60,
+                  "n": 667,
+                  "said": 0.6411,
+                  "hit": 0.6297
+                },
+                {
+                  "from": 70,
+                  "n": 148,
+                  "said": 0.7322,
+                  "hit": 0.6757
+                },
+                {
+                  "from": 80,
+                  "n": 27,
+                  "said": 0.8334,
+                  "hit": 0.8519
+                },
+                {
+                  "from": 90,
+                  "n": 1,
+                  "said": 0.9087,
+                  "hit": 1
+                }
+              ],
+              "blend|all*1.2|normal": [
+                {
+                  "from": 0,
+                  "n": 2,
+                  "said": 0.095,
+                  "hit": 0
+                },
+                {
+                  "from": 10,
+                  "n": 149,
+                  "said": 0.1725,
+                  "hit": 0.2215
+                },
+                {
+                  "from": 20,
+                  "n": 1042,
+                  "said": 0.2622,
+                  "hit": 0.2639
+                },
+                {
+                  "from": 30,
+                  "n": 2901,
+                  "said": 0.3547,
+                  "hit": 0.3323
+                },
+                {
+                  "from": 40,
+                  "n": 4320,
+                  "said": 0.4509,
+                  "hit": 0.4111
+                },
+                {
+                  "from": 50,
+                  "n": 3357,
+                  "said": 0.5442,
+                  "hit": 0.4823
+                },
+                {
+                  "from": 60,
+                  "n": 1249,
+                  "said": 0.6391,
+                  "hit": 0.6149
+                },
+                {
+                  "from": 70,
+                  "n": 235,
+                  "said": 0.7316,
+                  "hit": 0.6426
+                },
+                {
+                  "from": 80,
+                  "n": 22,
+                  "said": 0.8233,
+                  "hit": 0.7727
+                },
+                {
+                  "from": 90,
+                  "n": 1,
+                  "said": 0.9113,
+                  "hit": 1
+                }
+              ]
+            },
+            "models": {
+              "blend|all|normal": {
+                "logloss": 0.6639,
+                "said": 0.4554,
+                "vsCurrent": {
+                  "diff": -0.0015,
+                  "se": 0.0011
+                },
+                "halves": [
+                  -0.0008,
+                  -0.0022
+                ]
+              },
+              "blend|all|count": {
+                "logloss": 0.6643,
+                "said": 0.4056
+              },
+              "blend|last20|count": {
+                "logloss": 0.6644,
+                "said": 0.4054,
+                "vsCurrent": {
+                  "diff": 0.0003,
+                  "se": 0.0005
+                },
+                "halves": [
+                  0,
+                  0.0006
+                ]
+              },
+              "blend|all*1.2|normal": {
+                "logloss": 0.6635,
+                "said": 0.4588,
+                "vsCurrent": {
+                  "diff": -0.0019,
+                  "se": 0.0012
+                },
+                "halves": [
+                  -0.0015,
+                  -0.0023
+                ]
+              },
+              "blend|all*1.2|count": {
+                "logloss": 0.6651,
+                "said": 0.3987,
+                "vsCurrent": {
+                  "diff": 0.0009,
+                  "se": 0.0002
+                },
+                "halves": [
+                  0.0007,
+                  0.0011
+                ]
+              },
+              "all|all|count": {
+                "logloss": 0.6919,
+                "said": 0.3793,
+                "vsCurrent": {
+                  "diff": 0.0293,
+                  "se": 0.0028
+                },
+                "halves": [
+                  0.0245,
+                  0.0341
+                ]
+              },
+              "last20|all|count": {
+                "logloss": 0.6721,
+                "said": 0.4051,
+                "vsCurrent": {
+                  "diff": 0.0076,
+                  "se": 0.0018
+                },
+                "halves": [
+                  0.0072,
+                  0.008
+                ]
+              },
+              "last10|all|count": {
+                "logloss": 0.6804,
+                "said": 0.4175,
+                "vsCurrent": {
+                  "diff": 0.0156,
+                  "se": 0.0013
+                },
+                "halves": [
+                  0.0168,
+                  0.0143
+                ]
+              }
+            },
+            "lines": {
+              "median20": {
+                "over": 0.4221,
+                "said": {
+                  "blend|all|count": 0.4056,
+                  "blend|all*1.2|normal": 0.4588
+                }
+              },
+              "median20Down": {
+                "over": 0.5874,
+                "said": {
+                  "blend|all|count": 0.5797,
+                  "blend|all*1.2|normal": 0.6162
+                }
+              },
+              "mean20": {
+                "over": 0.4532,
+                "said": {
+                  "blend|all|count": 0.4377,
+                  "blend|all*1.2|normal": 0.4928
+                }
+              }
             }
           }
         }

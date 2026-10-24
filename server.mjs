@@ -17,7 +17,8 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; ch
 
 // ---------- validación de parámetros ----------
 const RX = {
-  date: /^\d{8}$/,
+  // Fecha real: 20261399 cumple \d{8} y ESPN respondería 502.
+  date: { test: (v) => /^(19|20)\d{6}$/.test(v) && new Date(Date.UTC(v.slice(0, 4), v.slice(4, 6) - 1, v.slice(6))).toISOString().slice(0, 10).replaceAll('-', '') === v },
   id: /^\d{1,12}$/,
   ids: /^\d{1,12}(,\d{1,12}){0,39}$/,
   season: /^(19|20)\d\d$/,
@@ -25,7 +26,7 @@ const RX = {
 };
 const bad = (msg) => espn.httpError(400, msg);
 function param(url, name, rx, required = false) {
-  const v = url.searchParams.get(name);
+  const v = url.searchParams.get(name)?.trim(); // antes de validar: q=%20%20 llegaba a ESPN como query=
   if (v == null || v === '') {
     if (required) throw bad(`Falta el parámetro ${name}`);
     return null;
@@ -66,12 +67,12 @@ const ROUTES = {
   '/api/gamelogs': async (url) => {
     const league = teamLeague(url);
     const ids = [...new Set(param(url, 'ids', RX.ids, true).split(','))];
-    const logs = await espn.mapLimit(ids, 6, (id) => espn.getGamelog(league, id).catch(() => null));
+    const logs = await espn.mapLimit(ids, 2, (id) => espn.getGamelog(league, id).catch(() => null));
     return { source: 'espn', data: Object.fromEntries(ids.map((id, i) => [id, logs[i]])) };
   },
   '/api/roster': async (url) => ({ source: 'espn', data: await espn.getRoster(teamLeague(url), param(url, 'team', RX.id, true)) }),
   '/api/injuries': async (url) => ({ source: 'espn', data: await espn.getInjuries(teamLeague(url)) }),
-  '/api/search': async (url) => ({ source: 'espn', data: await espn.searchAthletes(teamLeague(url), param(url, 'q', RX.q, true).trim()) }),
+  '/api/search': async (url) => ({ source: 'espn', data: await espn.searchAthletes(teamLeague(url), param(url, 'q', RX.q, true)) }),
   '/api/props': async (url) => {
     const lg = leagueParam(url);
     const game = param(url, 'game', RX.id);
@@ -90,7 +91,7 @@ const ROUTES = {
 };
 
 // Caché compartida en la CDN de Vercel (la memoria de cada instancia no se comparte): los ratings piden un calendario por equipo.
-const EDGE_S = { '/api/live': 10, '/api/markets': 1800, '/api/picks': 1800, '/api/props': 1800, '/api/accuracy': 86400, '/api/tennis/rankings': 3600, '/api/tennis/player': 1800 };
+const EDGE_S = { '/api/live': 10, '/api/games': 15, '/api/game': 15, '/api/markets': 1800, '/api/picks': 1800, '/api/props': 1800, '/api/accuracy': 86400, '/api/tennis/rankings': 3600, '/api/tennis/player': 1800 };
 const json = (res, status, body, edge = 0) => res.writeHead(status, {
   'content-type': 'application/json; charset=utf-8',
   'cache-control': edge ? `public, max-age=0, s-maxage=${edge}, stale-while-revalidate=${edge * 4}` : 'no-store',
@@ -115,7 +116,7 @@ export async function handler(req, res) {
   } catch (err) {
     const status = err.status || (err instanceof URIError ? 400 : 502);
     json(res, status, { error: err.status ? err.message : status === 400 ? 'Ruta inválida' : 'Error al consultar los datos' });
-    if (status === 502 && !err.status) console.error(err);
+    if (status >= 500) console.error(`${url.pathname} → ${status}:`, err.status ? err.message : err); // sin la query: solo ruta y mensaje
   }
 }
 

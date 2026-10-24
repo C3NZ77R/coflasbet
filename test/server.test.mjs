@@ -35,6 +35,7 @@ async function withNba(fn) {
   globalThis.fetch = async (url) => {
     const u = new URL(url);
     const body = u.pathname.endsWith('/summary') ? (u.searchParams.get('event') === '2' ? neutral : summary)
+      : u.pathname.endsWith('/scoreboard') ? fixture('scoreboard-nba.json')
       : /\/teams\/\d+\/schedule$/.test(u.pathname) ? fixture('schedule-nba.json')
         : u.pathname.endsWith('/basketball/nba/teams') ? { sports: [{ leagues: [{ teams: [{ team: { id: '8' } }, { team: { id: '5' } }] }] }] } : null;
     return body ? new Response(JSON.stringify(body)) : new Response('{}', { status: 404 });
@@ -151,5 +152,52 @@ test('server: /api/gamelogs junta varios jugadores y deja en null el que falla',
     assert.deepEqual(Object.keys(body.data).sort(), ['3112335', '999']);
     assert.ok(body.data['3112335'].games.length > 0);
     assert.equal(body.data['999'], null);
+  } finally { globalThis.fetch = real; }
+});
+
+test('server: /api/games y /api/game duran 15 s en la CDN, como la caché en memoria del marcador', () => withNba(async () => {
+  for (const path of ['/api/games?league=nba&date=20261020', '/api/game?league=nba&id=1']) {
+    const { status, headers } = await call(path);
+    assert.equal(status, 200, path);
+    assert.match(headers['cache-control'], /s-maxage=15,/, path);
+  }
+}));
+
+test('server: un error de ESPN (5xx) queda en el log con la ruta y el mensaje', async () => {
+  const [realFetch, realError] = [globalThis.fetch, console.error];
+  const logged = [];
+  globalThis.fetch = async () => new Response('{}', { status: 500 });
+  console.error = (...args) => logged.push(args.join(' '));
+  try {
+    assert.equal((await call('/api/injuries?league=nba')).status, 502);
+    assert.match(logged.join('\n'), /\/api\/injuries.*ESPN respondió 500/);
+  } finally { [globalThis.fetch, console.error] = [realFetch, realError]; }
+});
+
+test('server: date debe ser una fecha real y q se recorta antes de validarse', async () => {
+  const real = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error('sin red'); };
+  try {
+    for (const path of ['/api/games?league=nba&date=20261399', '/api/picks?league=nba&date=20260230', '/api/markets?league=nba&date=18991231']) {
+      assert.equal((await call(path)).body.error, 'Parámetro inválido: date', path);
+    }
+    assert.notEqual((await call('/api/games?league=nba&date=20240229')).body.error, 'Parámetro inválido: date');
+    assert.equal((await call('/api/search?league=nba&q=%20%20')).body.error, 'Falta el parámetro q');
+    assert.equal((await call('/api/search?league=nba&q=a%20')).body.error, 'Parámetro inválido: q');
+  } finally { globalThis.fetch = real; }
+});
+
+test('server: /api/gamelogs no tiene más de 4 pedidos a ESPN en vuelo', async () => {
+  const real = globalThis.fetch;
+  let now = 0, max = 0;
+  globalThis.fetch = async (url) => {
+    max = Math.max(max, ++now);
+    await new Promise((r) => setTimeout(r, 5));
+    now--;
+    return new Response(JSON.stringify(new URL(url).pathname.endsWith('/gamelog') ? fixture('gamelog-nba.json') : fixture('athlete-nba.json')));
+  };
+  try {
+    assert.equal((await call('/api/gamelogs?league=nba&ids=11,12,13,14,15,16')).status, 200);
+    assert.ok(max <= 4, `${max} en vuelo`);
   } finally { globalThis.fetch = real; }
 });

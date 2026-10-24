@@ -1,7 +1,6 @@
 // Mejores apuestas (#/<liga>/picks): por partido de hoy a +2 días, las selecciones más probables según el modelo, con la
 // cuota mínima a la que vale la pena y cuánto se cumplió ese tipo de predicción en el backtest (/api/picks).
-import { h, fmtPct, fmtOdds, when, empty } from '../ui.js';
-import { ymd } from './games.js';
+import { h, fmtPct, fmtOdds, when, empty, ymd } from '../ui.js';
 
 // "Local o empate" → "Millonarios o empate"; el tenis ya trae los nombres de los jugadores.
 const named = (text, g) => String(text).replace(/\bLocal\b/g, g.home?.name ?? 'Local').replace(/\bVisitante\b/g, g.away?.name ?? 'Visitante');
@@ -26,9 +25,13 @@ export default {
   title: 'Mejores apuestas',
   async render(el, { api, leagueInfo: lg }) {
     const days = [0, 1, 2].map((i) => ymd(new Date(Date.now() + i * 864e5)));
-    const res = await Promise.all(days.map((d) => Promise.all([api.games(lg.id, d), api.get('/api/picks', { league: lg.id, date: d })])));
+    // Cada petición falla por separado: un error en el día +2 no tapa los picks de hoy.
+    const failed = [];
+    const safe = (p) => p.catch((err) => (failed.push(err), { data: [] }));
+    const res = await Promise.all(days.map((d) => Promise.all([safe(api.games(lg.id, d)), safe(api.get('/api/picks', { league: lg.id, date: d }))])));
+    if (failed.length === days.length * 2) throw failed[0];
     const games = new Map(res.flatMap(([gs]) => gs.data ?? []).map((g) => [g.id, g]));
-    const acc = res[0][1].accuracy;
+    const acc = res.map(([, pk]) => pk.accuracy).find(Boolean); // la del primer día que respondió
     const rows = res.flatMap(([, pk]) => pk.data ?? []).map((x) => [games.get(x.gameId), x.picks])
       .filter(([g, ps]) => g?.status?.state === 'pre' && ps.length).sort(([a], [b]) => a.start.localeCompare(b.start));
     el.innerHTML = h`<header class="view-head"><div><h1>Mejores apuestas · ${lg.title}</h1>

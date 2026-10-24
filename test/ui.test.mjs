@@ -80,6 +80,22 @@ test('compartir: decode descarta entradas inválidas', () => {
   assert.equal(decodePicks(enc(Array.from({ length: 80 }, (_, i) => [`id${i}`, 'x', 2]))).length, 50);
 });
 
+test('compartir: decode ignora ids repetidos (un enlace armado no duplica picks)', () => {
+  const enc = (v) => btoa(JSON.stringify(v));
+  assert.deepEqual(decodePicks(enc([['a', 'A', 2], ['a', 'A otra vez', 3], ['b', 'B', 2]])).map((p) => [p.id, p.label]), [['a', 'A'], ['b', 'B']]);
+});
+
+test('store: track guarda solo los 300 props vistos más recientemente', () => {
+  store.set('views', Object.fromEntries(Array.from({ length: 400 }, (_, i) => [`k${i}`, { view: 1, add: 0, last: i }])));
+  try {
+    store.track('nuevo');
+    const views = store.get('views');
+    assert.equal(Object.keys(views).length, 300);
+    assert.ok(views.nuevo && views.k399 && views.k101);
+    assert.ok(!views.k100 && !views.k0);
+  } finally { store.set('views', {}); }
+});
+
 test('store: addPick reemplaza por id, removePick y track', () => {
   store.set('picks', []);
   store.addPick({ id: 'a', label: 'A', price: 2 });
@@ -143,4 +159,40 @@ test('Partidos: la tabla de mercados muestra probabilidad, Justa y Oddsy de cada
   assert.equal(html.match(/Más probable/g).length, markets.length);
   assert.equal(ctx.picks.length, markets.flatMap((m) => m.selections).length);
   assert.ok(ctx.picks.every((p) => p.book === 'oddsy'));
+});
+
+test('Mejores apuestas: si falla un día se muestran los otros; si falla todo, error', async () => {
+  const { default: view } = await import('../public/views/picks.js');
+  const game = { id: 'g1', start: '2099-01-01T00:00:00Z', status: { state: 'pre' }, home: { name: 'Millonarios' }, away: { name: 'Nacional' } };
+  const fakeApi = (okDays) => {
+    const seen = [];
+    const day = (d) => (seen.includes(d) || seen.push(d), seen.indexOf(d));
+    const fail = () => Promise.reject(new Error('caído'));
+    return {
+      games: async (lg, d) => (okDays.includes(day(d)) ? { data: [game] } : fail()),
+      get: async (path, { date }) => (okDays.includes(day(date)) ? { accuracy: { publish: true }, data: [{ gameId: 'g1', picks: [{ market: 'ml', name: 'Local', p: 0.6, minOdds: 1.8 }] }] } : fail()),
+    };
+  };
+  const el = {};
+  await view.render(el, { api: fakeApi([0]), leagueInfo: { id: 'colombia', title: 'Liga BetPlay' } });
+  assert.match(String(el.innerHTML), /Gana Millonarios/);
+  await assert.rejects(view.render({}, { api: fakeApi([]), leagueInfo: { id: 'colombia', title: 'Liga BetPlay' } }), /caído/);
+});
+
+test('Tendencias: el rango de cuotas acepta «−» (U+2212) y «+» al inicio', async () => {
+  const { americanIn } = await import('../public/views/insights.js');
+  assert.equal(americanIn('−300'), -300);
+  assert.equal(americanIn('+200'), 200);
+  assert.equal(americanIn(' -150 '), -150);
+  for (const blank of ['', '  ', null, '-', 'abc']) assert.equal(americanIn(blank), null);
+});
+
+test('Props: la línea por defecto del detalle es la misma que la del servidor (propLine)', async () => {
+  const { medianLine } = await import('../public/views/props.js');
+  const { propLine } = await import('../lib/props.mjs');
+  // Del más reciente al más viejo: los 10 primeros bajos y los 15 siguientes altos (la mediana de 10 y la de 20 difieren).
+  const vals = [...Array(10).fill(3), ...Array(15).fill(20)];
+  assert.equal(medianLine(vals), propLine(vals).line);
+  for (const v of [[7, 9, 8, 12, 5, 6, 11, 10], [0, 0, 1, 0, 2, 0, 0, 1, 0]]) assert.equal(medianLine(v), propLine(v).line);
+  assert.equal(medianLine([]), 0.5);
 });

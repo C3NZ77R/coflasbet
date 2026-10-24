@@ -1,6 +1,6 @@
 // En vivo: con lo que lleva un jugador (o el marcador) y cuánto falta, proyecta el final y avisa cuando el ritmo se sale
 // de lo normal. Funciones puras: las usan la vista En vivo, el servidor (lib/espn.mjs → normLive) y los tests.
-import { propOver } from './betmath.js';
+import { propOver, americanToDecimal } from './betmath.js';
 import { statOf } from './stats.js';
 
 const clamp01 = (x) => (Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0);
@@ -27,8 +27,8 @@ export function progress(sport, league, { period, clock, detail } = {}) {
 
 // Cuántos partidos vale el promedio previo frente al ritmo de hoy. Marcador 8: scripts/live-backtest.mjs (NFL 2025, NBA
 // 2025-26) da el menor log-loss con 8 en la NFL, donde el ritmo del marcador casi no informa, y en la NBA de 2 a 8 empatan.
-// Jugador 5: scripts/live-props-backtest.mjs (puntos, rebotes y asistencias de la NBA 2025-26) le gana a 1 por 7 errores
-// estándar; de 3 a 13 empatan. shortcut: medido solo en la NBA (las jugadas de la NFL no traen atletas).
+// Jugador 5: scripts/live-props-backtest.mjs (puntos, rebotes y asistencias de la NBA 2025-26, con playerShare) le gana a
+// 1 por 9 errores estándar; de 3 a 20 empatan. shortcut: medido solo en la NBA (las jugadas de la NFL no traen atletas).
 const PRIOR = { player: 5, total: 8 };
 
 // Lo que falta: el ritmo mezcla lo esperado antes del partido (mean) con lo que lleva (current) en la fracción jugada.
@@ -102,7 +102,7 @@ export function propSignals(props, live, sport) {
     if (current == null) continue;
     const [team, opp] = pl.teamId === live.home.id ? [live.home, live.away] : [live.away, live.home];
     const margin = (team.score ?? 0) - (opp.score ?? 0);
-    const sig = signal({ id: pr.id, kind: pr.kind, current, f, mean: pr.mean, variance: pr.variance, line: pr.line,
+    const sig = signal({ id: pr.id, kind: pr.kind, current, f, w: playerShare(sport, f), mean: pr.mean, variance: pr.variance, line: pr.line,
       script: (side) => scriptFor(sport, pr.stat, side, { margin, progress: f, fouls: pl.stats.pf ?? 0 }) });
     if (sig) out.push({ ...sig, player: pr.player, athleteId: pr.athleteId, team: team.abbr, stat: pr.stat });
   }
@@ -116,26 +116,44 @@ export function propSignals(props, live, sport) {
 }
 
 // Total del partido contra la línea previa de Oddsy (mercado 'ou'). Desvíos como SIGMA_T de lib/ratings.mjs (el test
-// lo compara); en conteos, varianza = dispersión × media (fútbol ~ Poisson; béisbol, sobredisperso).
-export const TOTAL = { football: { kind: 'normal', sd: 13.2 }, basketball: { kind: 'normal', sd: 19.2 }, soccer: { kind: 'count', disp: 1 }, baseball: { kind: 'count', disp: 2 } };
+// lo compara); en conteos, varianza = dispersión × media (fútbol ~ Poisson; béisbol, sobredisperso). Por liga antes que
+// por deporte: la WNBA (16.4, reajustado con la WNBA 2025 en caché) anota menos que la NBA.
+export const TOTAL = { football: { kind: 'normal', sd: 13.2 }, basketball: { kind: 'normal', sd: 19.2 }, wnba: { kind: 'normal', sd: 16.4 }, soccer: { kind: 'count', disp: 1 }, baseball: { kind: 'count', disp: 2 } };
 export function totalSignal(live, line, sport) {
-  const t = TOTAL[sport], f = live.progress;
+  const t = TOTAL[live.league] ?? TOTAL[sport], f = live.progress;
   if (!t || !(line > 0) || f < MIN_F || f > MAX_F) return null;
   const variance = t.kind === 'normal' ? t.sd ** 2 : t.disp * line;
   return signal({ id: `${live.id}|total`, kind: t.kind, current: (live.home.score ?? 0) + (live.away.score ?? 0), f, w: scoringShare(sport, f), mean: line, variance, line, prior: PRIOR.total });
 }
 
+// Línea del total principal: el fútbol trae seis 'ou' (0.5 a 5.5); vale la más pareja, como picksOf en lib/markets.mjs.
+const evenness = (m) => Math.abs(m.selections[0].p - 0.5);
+export const mainTotal = (markets) => (markets ?? []).filter((m) => m.key === 'ou')
+  .reduce((a, m) => (a && evenness(a) <= evenness(m) ? a : m), null)?.selections[0].line ?? null;
+
+// Cuota decimal (1.91 o 1,91) o americana (-110, +150). iOS escribe el menos como U+2212.
+export function parseOdds(v) {
+  const x = Number(String(v ?? '').trim().replace('−', '-').replace(',', '.'));
+  return Math.abs(x) >= 100 ? americanToDecimal(x) : x > 1 ? x : null;
+}
+
 // Parte del total que se anota, en promedio, al terminar el 1.º, 2.º y 3.er cuarto, de la temporada anterior a la del
 // backtest. NFL 2024 (272 partidos): el 2.º y el 4.º rinden más por los finales de mitad. NBA 2024-25 (1231): el 4.º rinde
-// ~24 %; en 2025-26 mejora el log-loss por 0.0016 ± 0.0004 (pareado). shortcut: la WNBA usa la de la NBA sin medir, y los
-// props de jugador siguen lineales.
+// ~24 %; en 2025-26 mejora el log-loss por 0.0016 ± 0.0004 (pareado). shortcut: la WNBA usa la de la NBA sin medir.
 const CURVE = { football: [0.19, 0.5, 0.71], basketball: [0.25, 0.5, 0.753] };
-export function scoringShare(sport, f) {
-  const c = CURVE[sport];
+export function scoringShare(sport, f, curves = CURVE) {
+  const c = curves[sport];
   if (!c) return f;
   const pts = [0, ...c, 1], i = Math.min(3, Math.floor(f * 4));
   return pts[i] + (pts[i + 1] - pts[i]) * (f * 4 - i);
 }
+
+// Lo mismo para un jugador (puntos, rebotes, asistencias): los de la rotación juegan más al principio de cada mitad y
+// descansan en el 4.º, que les rinde ~22 %. NBA 2025-26 (scripts/live-props-backtest.mjs, 41 121 filas): medida en una
+// mitad de la temporada y probada en la otra, baja el log-loss por 0.0010 ± 0.0005 (pareado). shortcut: sin jugadas de
+// 2024-25 en caché, la curva es de la misma temporada del backtest; la NFL sigue lineal (sus jugadas no traen atletas).
+const PLAYER_CURVE = { basketball: [0.268, 0.519, 0.779] };
+export const playerShare = (sport, f) => scoringShare(sport, f, PLAYER_CURVE);
 
 // ---------- pausas: momento para apostar ----------
 // Orden: lo específico antes que "timeout" o "end". Duraciones típicas en segundos (estimación, no reloj oficial).

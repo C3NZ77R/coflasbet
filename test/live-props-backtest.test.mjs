@@ -1,7 +1,7 @@
 // Backtest de PRIOR.player: acumulados por cuarto desde las jugadas, filas sin fuga, P(Más) igual que la vista y comparación pareada. Sin red.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cumulative, propRows, overAt, paired } from '../scripts/live-props-backtest.mjs';
+import { cumulative, propRows, overAt, paired, shares, crossFit } from '../scripts/live-props-backtest.mjs';
 import { propLine } from '../lib/props.mjs';
 import { propSignals } from '../public/live.js';
 
@@ -60,4 +60,18 @@ test('paired: diferencia de log-loss promedio por partido con el error entre par
   near(p.diff, m);
   near(p.se, Math.sqrt(((d[0] - m) ** 2 + (d[1] - m) ** 2) / 2));
   near(paired(rows, 5, 1).diff, -m);
+});
+
+test('shares y crossFit: parte del final por cuarto; cada mitad de la temporada lleva la curva de la otra', () => {
+  const row = (game, f, current, final) => ({ game, f, current, final });
+  const rows = [['g1', 4, 10], ['g2', 2, 10], ['g3', 3, 6], ['g4', 1, 6]].flatMap(([g, q1, fin]) => [row(g, 0.25, q1, fin), row(g, 0.5, fin / 2, fin), row(g, 0.75, fin * 0.8, fin)]);
+  near(shares(rows)[0], 10 / 32);
+  const { fit, rows: cv } = crossFit(rows);
+  near(fit[0][0], 6 / 20);
+  near(fit[1][0], 4 / 12);
+  assert.equal(cv.length, rows.length);
+  near(cv.find((r) => r.game === 'g1' && r.f === 0.25).w, 4 / 12); // g1 y g2: primera mitad → curva de g3 y g4
+  near(cv.find((r) => r.game === 'g4' && r.f === 0.75).w, 0.8);
+  const lin = (r) => overAt({ ...r, kind: 'count', mean: 5, variance: 7, line: 4.5, won: true, w: r.f }, 5);
+  near(paired(cv.map((r) => ({ ...r, won: true })), lin, lin).diff, 0); // paired también acepta funciones fila → P(Más)
 });

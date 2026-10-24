@@ -50,8 +50,8 @@ test('playerProps: Over y Under a la línea propia con cuota Oddsy < justa', () 
     assert.deepEqual([p.gameId, p.eventId, p.team, p.opp, p.athleteId, p.player], ['401871339', '401871339', 'BOS', 'DET', '4433188', 'Devin Carter']);
     const twin = props.find((q) => q.stat === p.stat && q.line === p.line && q.side !== p.side);
     assert.ok(Math.abs(p.p + twin.p - 1) < 1e-12);
-    // El navegador cotiza otras líneas con kind, mean y variance: en la línea Oddsy da la misma p.
-    const over = propOver(p.kind, p.mean, p.variance, p.line);
+    // El navegador cotiza otras líneas con kind, mean y variance: en la línea Oddsy da la misma p. Doble-doble: la media.
+    const over = p.kind === 'binary' ? p.mean : propOver(p.kind, p.mean, p.variance, p.line);
     assert.ok(Math.abs((p.side === 'Over' ? over : 1 - over) - p.p) < 1e-12, `${p.id}`);
   }
   assert.equal(new Set(props.map((p) => p.id)).size, props.length);
@@ -112,4 +112,70 @@ test('getProps(liga) sin partido: a lo sumo 4 pedidos a ESPN en vuelo y sin pedi
   assert.equal(urls.filter((u) => u.includes('/gamelog')).length, 6 * 3 * 2); // 6 plantillas × 3 jugadores × 2 temporadas
   assert.ok(!urls.some((u) => /\/athletes\/\d+$/.test(new URL(u).pathname)), 'el perfil sale de la plantilla');
   assert.ok(peak > 1 && peak <= 4, `pico ${peak}`);
+});
+
+test('doble-doble y triple-doble: 0/1 por partido, una sola línea 0.5 con P(Más) = la media mezclada', () => {
+  const games = Array.from({ length: 20 }, (_, i) => ({ stats: { pts: 24, reb: i % 5 ? 11 : 6, ast: 4 } })); // 80 % doble-doble
+  const dd = playerProps({ athlete: { id: '7', name: 'Pívot' }, games }, 'basketball', ctx).filter((p) => p.stat === 'dd');
+  assert.deepEqual(dd.map((p) => [p.side, p.line]), [['Over', 0.5], ['Under', 0.5]]); // antes: Más 1.5, imposible
+  assert.ok(Math.abs(dd[0].p - 0.8) < 0.05, `p ${dd[0].p}`); // antes: 0.40 en la línea 0.5
+  assert.equal(dd[0].kind, 'binary');
+  const r = propLine(Array(12).fill(1), 'binary');
+  assert.equal(r.line, 0.5);
+  assert.equal(r.pOver, 0.99); // tope como las demás
+});
+
+const reply = (body) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
+// Scoreboard con un partido por [local, visita, estado, inicio].
+const board = (games) => {
+  const b = fx('scoreboard-nba.json'), [ev] = b.events, comp = ev.competitions[0];
+  b.events = games.map(([h, a, state, date]) => ({ ...ev, id: `9${h}${a}`, date, status: { ...ev.status, type: { ...ev.status.type, state } },
+    competitions: [{ ...comp, date, competitors: comp.competitors.map((c) => ({ ...c, team: { ...c.team, id: c.homeAway === 'home' ? h : a } })) }] }));
+  return b;
+};
+// ESPN simulado para getProps sin partido: scoreboard(url) da el tablero; down(url), si ESPN corta con 403. Plantillas de 3.
+const mockEspn = (t, scoreboard, down = () => false) => {
+  const urls = [];
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    urls.push(String(url));
+    const u = new URL(url), team = /teams\/(\d+)\/roster$/.exec(u.pathname)?.[1];
+    const off = down(u);
+    if (off) return new Response('{}', { status: off === true ? 403 : off });
+    if (u.pathname.endsWith('/scoreboard')) return reply(scoreboard(u));
+    if (team) {
+      const r = fx('roster-nba.json');
+      return reply({ ...r, team: { ...r.team, id: team }, athletes: r.athletes.map((a) => ({ ...a, id: `${team}0${a.id}` })) });
+    }
+    if (u.pathname.endsWith('/gamelog')) return reply(u.searchParams.get('season') ? rekey(fx('gamelog-nba.json'), 'p') : fx('gamelog-nba.json'));
+    return new Response('{}', { status: 404 });
+  });
+  return urls;
+};
+
+test('getProps: con más del 10 % de plantillas o de game logs caídos, 502 (no se cachea un vacío); uno caído entre 18 sigue', async (t) => {
+  let down = (u) => u.pathname.endsWith('/roster');
+  mockEspn(t, () => board([['70', '71', 'pre', '2026-10-21T23:00Z'], ['72', '73', 'pre', '2026-10-21T23:00Z'], ['74', '75', 'pre', '2026-10-21T23:00Z']]), (u) => down(u));
+  await assert.rejects(getProps('mlb'), { status: 502, message: /plantillas/ }); // antes: 200 con data: [] y 30 min en la CDN
+  const failed = (ids) => (u) => ids.some((id) => u.pathname.endsWith(`/athletes/${id}/gamelog`));
+  down = failed(['7004433188', '7105142621']); // 2 de 18 jugadores
+  await assert.rejects(getProps('mlb'), { status: 502, message: /game logs/ });
+  down = failed(['7004433188']);
+  assert.ok(Array.isArray((await getProps('mlb')).data));
+});
+
+test('getProps: un 404 (jugador sin game log) no cuenta como caída', async (t) => {
+  // Liga que no usa otro test: la caché de fetchJson guarda tableros y game logs entre tests.
+  mockEspn(t, () => board([['80', '81', 'pre', '2026-10-21T23:00Z'], ['82', '83', 'pre', '2026-10-21T23:00Z'], ['84', '85', 'pre', '2026-10-21T23:00Z']]),
+    (u) => u.pathname.includes('/athletes/80') && u.pathname.endsWith('/gamelog') && 404); // 6 de 18
+  assert.ok(Array.isArray((await getProps('epl')).data));
+});
+
+test('getProps(liga) de noche: si ya empezaron todos los de hoy, los de mañana según el día de ESPN (hora de Nueva York)', async (t) => {
+  // 02:00Z del 22 son las 22:00 del 21 en Nueva York: mañana es el 22, no el 23.
+  const today = board([['60', '61', 'in', '2026-10-21T23:30Z'], ['62', '63', 'post', '2026-10-22T02:00Z']]);
+  const next = board([['64', '65', 'pre', '2026-10-22T23:30Z'], ['66', '67', 'pre', '2026-10-23T00:00Z']]);
+  const urls = mockEspn(t, (u) => (u.searchParams.get('dates') === '20261022' ? next : today));
+  const res = await getProps('nba');
+  assert.deepEqual(urls.filter((u) => u.includes('/scoreboard')).map((u) => new URL(u).searchParams.get('dates')), [null, '20261022']);
+  assert.deepEqual(new Set(res.data.map((p) => p.gameId)), new Set(['96465', '96667']));
 });

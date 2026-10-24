@@ -1,7 +1,7 @@
-// Shell de Oddsy Bet: router por hash, montaje de vistas, chips de liga, ajustes y boleto "Mis picks".
+// Shell de Oddsy Bet: router por hash, montaje de vistas, chips de liga y boleto "Mis picks".
 import { api } from './api.js';
 import { store, encodePicks, decodePicks } from './store.js';
-import { ui, h, empty, fmtOdds, fmtPct, bookInfo, bookChip, BOOKS, modal, raw } from './ui.js';
+import { ui, h, empty, fmtOdds, fmtPct, bookInfo, bookChip, raw } from './ui.js';
 import { LEAGUES, leagueById } from './leagues.js';
 import { parlayOdds } from './betmath.js';
 
@@ -37,7 +37,7 @@ function navigate(hash, { replace = false } = {}) {
 }
 
 // ---------- router ----------
-let seq = 0, cleanup = null, lastKey = '', lastName = '';
+let seq = 0, cleanup = null, lastKey = '';
 function runCleanup() {
   const fn = cleanup;
   cleanup = null;
@@ -63,10 +63,10 @@ async function route() {
   const key = `${r.name}/${league.id}/${r.params.id ?? ''}`;
   if (key !== lastKey) {
     window.scrollTo(0, 0);
-    if (lastName && r.name !== lastName) main.focus({ preventScroll: true });
+    // También al abrir un detalle o cambiar de liga: el enlace pulsado desaparece y el foco caería en <body>.
+    if (lastKey) main.focus({ preventScroll: true });
   }
   lastKey = key;
-  lastName = r.name;
   setTitle(NAMES[r.name], r.league);
 
   const ctx = { league: league.id, leagueInfo: league, route: r.name, params: r.params, query: r.query, api, store, ui, navigate };
@@ -115,7 +115,8 @@ function updateChrome(r, league) {
 function importShare(query) {
   const incoming = decodePicks(query.get('p'));
   const have = new Set(store.get('picks').map((p) => p.id));
-  const add = incoming.filter((p) => !have.has(p.id)).map((p) => ({ ...p, addedAt: Date.now() }));
+  // El boleto nunca pasa de 50 picks, el mismo tope que decodePicks.
+  const add = incoming.filter((p) => !have.has(p.id)).slice(0, Math.max(0, 50 - have.size)).map((p) => ({ ...p, addedAt: Date.now() }));
   if (add.length) store.set('picks', [...store.get('picks'), ...add]);
   toast(incoming.length
     ? `Se agregaron ${add.length} de ${incoming.length} picks del enlace compartido.`
@@ -193,41 +194,6 @@ function closeSlip(focusFab) {
   if (focusFab) $('#slipFab').focus();
 }
 
-// ---------- ajustes ----------
-const DEVIG = { multiplicative: 'Multiplicativo', additive: 'Aditivo', power: 'Power', shin: 'Shin', probit: 'Probit', worst: 'Peor caso' };
-const KELLY = { 1: 'Completo (1)', 0.5: 'Medio (½)', 0.25: 'Cuarto (¼)', 0.1: 'Décimo (0.1)' };
-function openSettings() {
-  const s = store.get('settings');
-  const form = document.createElement('form');
-  form.method = 'dialog';
-  form.className = 'settings-form';
-  form.innerHTML = h`<fieldset><legend>Mis casas</legend>
-      <p class="hint">Marca las casas de apuestas donde juegas. Si no marcas ninguna, se muestran todas.</p>
-      <div class="book-grid">${Object.keys(BOOKS).map((k) => h`<label class="book-opt"><input type="checkbox" name="books" value="${k}"${s.books.includes(k) ? raw(' checked') : ''}> ${bookChip(k)}</label>`)}</div>
-    </fieldset>
-    <div class="settings-row">
-      <label>Bankroll (dinero para apostar) <input name="bankroll" type="number" min="1" step="1" required value="${s.bankroll}"></label>
-      <label>Tamaño de apuesta (Kelly) <select name="kellyMult">${Object.entries(KELLY).map(([v, t]) => h`<option value="${v}"${Number(v) === Number(s.kellyMult) ? raw(' selected') : ''}>${t}</option>`)}</select></label>
-      <label>Cómo quitar el margen de la casa (devig) <select name="devigMethod">${Object.entries(DEVIG).map(([v, t]) => h`<option value="${v}"${v === s.devigMethod ? raw(' selected') : ''}>${t}</option>`)}</select></label>
-    </div>
-    <div class="modal-actions"><button type="submit" class="btn" value="cancel" formnovalidate>Cancelar</button><button type="submit" class="btn btn-primary" value="save">Guardar</button></div>`;
-  form.addEventListener('submit', (e) => {
-    if (e.submitter?.value !== 'save') return;
-    const f = new FormData(form);
-    const bankroll = Number(f.get('bankroll'));
-    store.set('settings', {
-      ...store.get('settings'),
-      books: f.getAll('books').map(String),
-      bankroll: bankroll > 0 ? bankroll : s.bankroll,
-      kellyMult: Number(f.get('kellyMult')) || s.kellyMult,
-      devigMethod: DEVIG[f.get('devigMethod')] ? f.get('devigMethod') : s.devigMethod,
-    });
-    toast('Ajustes guardados.');
-    route();
-  });
-  modal({ title: 'Ajustes', body: form, onClose: () => $('#settingsBtn').focus() });
-}
-
 let lastFormat = store.get('settings').oddsFormat;
 function syncOddsToggle() {
   for (const b of document.querySelectorAll('[data-odds]')) b.setAttribute('aria-pressed', String(b.dataset.odds === lastFormat));
@@ -247,14 +213,13 @@ function toast(msg) {
 $('#view').addEventListener('click', (e) => { if (e.target.closest('[data-retry]')) route(); });
 $('[data-skip]').addEventListener('click', (e) => { e.preventDefault(); $('#view').focus(); });
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape' || document.querySelector('dialog[open]')) return;
+  if (e.key !== 'Escape') return;
   if (slipOpen && !wide.matches) closeSlip(true);
 });
 
 for (const b of document.querySelectorAll('[data-odds]')) {
   b.addEventListener('click', () => store.set('settings', { ...store.get('settings'), oddsFormat: b.dataset.odds }));
 }
-$('#settingsBtn').addEventListener('click', openSettings);
 
 $('#slipFab').addEventListener('click', () => (slipOpen ? closeSlip() : openSlip()));
 $('#slip').addEventListener('click', (e) => {

@@ -147,27 +147,6 @@ th[aria-sort] .th-sort { color: var(--text); }
 .dd-opt[aria-pressed="true"] { color: var(--teal); font-weight: 700; }
 .dd-clear { background: none; border: 0; color: var(--teal); font-size: 13px; font-weight: 600; padding: 8px 10px; text-align: left; border-top: 1px solid var(--line); }
 
-/* Interruptor */
-.toggle { display: inline-flex; align-items: center; gap: 8px; background: none; border: 0; padding: 4px 0; color: var(--text); font-size: 14px; font-weight: 600; }
-.toggle-track { width: 36px; height: 20px; border-radius: 999px; background: var(--line); position: relative; transition: background .15s; flex: none; }
-.toggle-thumb { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); transition: transform .15s, background .15s; }
-.toggle[aria-checked="true"] .toggle-track { background: rgba(47,226,196,.35); }
-.toggle[aria-checked="true"] .toggle-thumb { transform: translateX(16px); background: var(--teal); }
-
-/* Pestañas */
-.tabs-ui { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; max-width: 100%; }
-.tabs-ui::-webkit-scrollbar { display: none; }
-.tabs-ui [role="tab"] { flex: none; background: none; border: 0; color: var(--muted); padding: 6px 14px; border-radius: 999px; white-space: nowrap; font-weight: 600; font-size: 14px; }
-.tabs-ui [role="tab"][aria-selected="true"] { color: var(--text); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--teal); }
-
-/* Modal */
-dialog.modal { padding: 0; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); color: var(--text); width: min(640px, calc(100vw - 24px)); max-height: calc(100vh - 32px); }
-dialog.modal::backdrop { background: rgba(0,0,0,.7); backdrop-filter: blur(4px); }
-.modal-in { padding: 18px 20px 20px; }
-.modal-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
-.modal-head h2 { margin: 0; font-size: 18px; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-
 /* Aviso flotante */
 .toast { position: fixed; left: 50%; bottom: 96px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; z-index: 60; max-width: calc(100vw - 32px); padding: 10px 16px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--teal); font-size: 14px; font-weight: 600; transition: opacity .2s, transform .2s; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }

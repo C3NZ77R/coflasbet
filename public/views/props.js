@@ -20,7 +20,7 @@ const ALLOWED = { pts: 'points', reb: 'rebounds', ast: 'assists', '3pm': 'three'
 // --- utilidades ---
 const str = (x) => (x == null ? '' : String(x)); // los helpers de texto de ui.js devuelven objetos Safe
 const esc = ui.esc;
-const dataOf = (r) => (r && typeof r === 'object' && !Array.isArray(r) && 'data' in r ? r.data : r);
+const { dataOf, propKey } = ui;
 const norm = (s) => String(s ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const sameId = (a, b) => a != null && b != null && String(a) === String(b);
 const fmtLine = (x) => (Number.isFinite(x) ? String(x) : '—');
@@ -38,10 +38,10 @@ const skel = '<span class="pp-skel" aria-label="Cargando"></span>';
 const inSlip = (store, id) => store.get('picks').some((x) => x.id === id);
 const valsOf = (games, sport, stat) => games.map((g) => S.statOf(sport, stat, g.stats)).filter(Number.isFinite);
 const curSeason = (games) => Math.max(...games.map((g) => g.season).filter(Number.isFinite));
+// Igual que propLine en lib/props.mjs: halfLine(mediana de los últimos 20). vals: del más reciente al más viejo.
+export const medianLine = (vals) => { const med = bm.summarize(vals.slice(0, 20)).median; return med == null ? 0.5 : Math.floor(med) + 0.5; };
 
-// Mismo formato de clave que insights.js, popular.js y games.js, para que sus enlaces abran este detalle.
-export const propKey = (p) => encodeURIComponent(JSON.stringify({ a: p.athleteId ?? null, p: p.player, s: p.stat, l: p.line ?? null, o: p.side, g: p.gameId ?? null }));
-// El router ya decodifica el segmento; se acepta también la clave sin decodificar.
+// Clave de propKey (ui.js). El router ya decodifica el segmento; se acepta también la clave sin decodificar.
 export function parsePropKey(key) {
   for (const raw of [key, safeDecode(key)]) {
     try {
@@ -368,6 +368,7 @@ async function renderList(el, ctx) {
       f.dir = f.sort === key ? (f.dir === 'asc' ? 'desc' : 'asc') : key === 'player' ? 'asc' : 'desc';
       f.sort = key;
       paintTable();
+      root.querySelector(`[data-sort="${key}"]`)?.focus(); // la tabla se redibuja: el foco vuelve al mismo botón
     } else if (act === 'more') { shown += PAGE; paintTable(); }
     else if (act === 'reset') { Object.assign(f, defaults()); paintBar(); refresh(); }
     else if (act === 'add') {
@@ -389,9 +390,17 @@ async function renderList(el, ctx) {
   });
   playerSearch(root, ctx, defs[0]?.key ?? 'pts');
   const offPop = popovers(root);
-  const offSettings = store.on('settings', () => alive && paintTable());
-  const offPicks = store.on('picks', () => alive && root.querySelectorAll('tbody tr').forEach((tr) => { const r = rowMap.get(tr.dataset.k); if (r) tr.innerHTML = rowInner(r); }));
-  return () => { alive = false; offPop(); offSettings(); offPicks(); };
+  // Solo cambian los botones (como syncPicks en games.js): redibujar las filas le quitaba el foco.
+  const offPicks = store.on('picks', (list) => {
+    const ids = new Set(list.map((p) => p.id));
+    for (const b of root.querySelectorAll('[data-act="add"]')) {
+      const on = ids.has(b.dataset.k);
+      b.setAttribute('aria-pressed', String(on));
+      b.setAttribute('aria-label', b.getAttribute('aria-label').replace(/^(Quitar del|Agregar al)/, on ? 'Quitar del' : 'Agregar al'));
+      b.textContent = on ? '✓' : '+';
+    }
+  });
+  return () => { alive = false; offPop(); offPicks(); };
 }
 
 // ======================= DETALLE =======================
@@ -443,11 +452,7 @@ async function renderDetail(el, ctx) {
     return { ...base, line, side, p: pr.p, fair: pr.fair, books: [{ key: 'oddsy', title: 'Oddsy', price: pr.oddsy }] };
   };
   const lineOf = (stat) => mine.find((p) => p.stat === stat)?.line ?? null;
-  function defaultLine(stat) {
-    if (lineOf(stat) != null) return lineOf(stat);
-    const med = bm.summarize(valsOf(games.slice(0, 10), sport, stat)).median;
-    return med == null ? 0.5 : Math.floor(med) + 0.5;
-  }
+  const defaultLine = (stat) => lineOf(stat) ?? (S.STATS[sport]?.find((d) => d.key === stat)?.binary ? 0.5 : medianLine(valsOf(games, sport, stat))); // 0/1 por partido
   const minutesMax = Math.ceil(Math.max(0, ...games.map((g) => g.minutes).filter(Number.isFinite)));
   const s = { stat: k.stat ?? statsHere[0]?.key ?? defs[0]?.key, line: k.line, side: k.side, win: 'l10', loc: 'all', rest: 'all', result: 'all', margin: 20, minMin: 0, mate: '', mateMode: 'with', tab: 'matchup' };
   if (!Number.isFinite(s.line)) s.line = defaultLine(s.stat);
@@ -492,6 +497,7 @@ async function renderDetail(el, ctx) {
     </div></div>`;
   const root = el.firstElementChild;
 
+  const addText = (on, sel) => (on ? '✓ En el boleto' : `+ Agregar ${ui.fmtOdds(oddsy(sel).price)}`);
   function hctl() {
     const d = def(), over = propFor(s.stat, s.line, 'Over'), under = propFor(s.stat, s.line, 'Under');
     const sel = s.side === 'Over' ? over : under, on = inSlip(store, keyNow()), ours = lineOf(s.stat);
@@ -504,7 +510,7 @@ async function renderDetail(el, ctx) {
       ${ours == null ? `<p class="pp-muted">${esc(why)}</p>`
         : `<p class="pp-avg">Línea Oddsy <b>${esc(fmtLine(ours))}</b>${ours !== s.line ? ` <button type="button" class="pp-link" data-act="ourline">Volver a la línea Oddsy</button>` : ''}</p>`}
       ${sel ? `<p class="pp-avg">Prob. <b>${esc(ui.fmtPct(sel.p, 1))}</b> · Justa <b>${esc(ui.fmtOdds(sel.fair))}</b> · Oddsy <b>${esc(ui.fmtOdds(oddsy(sel).price))}</b> ${str(ui.sourceBadge('oddsy'))}</p>
-        <div class="pp-addbox"><button type="button" class="pp-btn" data-act="addbest" aria-pressed="${on}">${on ? '✓ En el boleto' : `+ Agregar ${esc(ui.fmtOdds(oddsy(sel).price))}`}</button></div>`
+        <div class="pp-addbox"><button type="button" class="pp-btn" data-act="addbest" aria-pressed="${on}">${esc(addText(on, sel))}</button></div>`
         : ''}`;
   }
 
@@ -612,8 +618,8 @@ async function renderDetail(el, ctx) {
       else s[key] = v;
     } else if (t.dataset.act === 'addbest') {
       const p = propFor(s.stat, s.line, s.side);
-      if (!p) return;
-      togglePick(ctx, keyNow(), `${pk.player} · ${propText(s.side, s.line, def(), s.stat)}`, oddsy(p), gameId);
+      if (p) togglePick(ctx, keyNow(), `${pk.player} · ${propText(s.side, s.line, def(), s.stat)}`, oddsy(p), gameId);
+      return; // el oyente de picks actualiza el botón sin redibujar
     } else if (t.dataset.act === 'ourline') {
       if (lineOf(s.stat) == null) return;
       s.line = lineOf(s.stat);
@@ -637,9 +643,15 @@ async function renderDetail(el, ctx) {
   root.addEventListener('input', onField);
   root.addEventListener('change', onField);
   const offPop = popovers(root);
-  const offPicks = store.on('picks', () => root.isConnected && (root.querySelector('[data-hctl]').innerHTML = hctl()));
-  const offSettings = store.on('settings', () => root.isConnected && paint());
-  return () => { offPop(); offPicks(); offSettings(); };
+  // Solo cambia el botón: redibujar el encabezado le quitaba el foco.
+  const offPicks = store.on('picks', () => {
+    const b = root.querySelector('[data-act="addbest"]'), sel = propFor(s.stat, s.line, s.side);
+    if (!b || !sel) return;
+    const on = inSlip(store, keyNow());
+    b.setAttribute('aria-pressed', String(on));
+    b.textContent = addText(on, sel);
+  });
+  return () => { offPop(); offPicks(); };
 }
 
 export default {

@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as L from '../public/live.js';
 import { SIGMA_T } from '../lib/ratings.mjs';
+import { marketsFor } from '../lib/markets.mjs';
 
 const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≈ ${b}`);
 
@@ -120,6 +121,16 @@ test('propSignals: el contexto sube una señal temprana (z ≈ 1) a moderada', (
   assert.equal(sigs[0].level, 2); // z ≈ 1.06 → temprana; DAL gana por 14 en el 2º tiempo → moderada
 });
 
+test('playerShare: curva de los jugadores de la NBA por cuarto, lineal en la NFL; propSignals la usa', () => {
+  for (const [f, w] of [[0, 0], [0.125, 0.134], [0.25, 0.268], [0.5, 0.519], [0.75, 0.779], [1, 1]]) near(L.playerShare('basketball', f), w, 1e-12);
+  assert.equal(L.playerShare('football', 0.6), 0.6);
+  const live = { progress: 0.5, home: { id: 'h', abbr: 'H', score: 50 }, away: { id: 'v', abbr: 'V', score: 50 }, players: [{ id: 'a', teamId: 'h', stats: { pts: 25, pf: 0 } }] };
+  const [s] = L.propSignals([prop('a', 'pts', 29.5, 30, 50)], live, 'basketball');
+  near(s.expected, 0.519 * 30); // a la mitad del reloj se espera el 51.9 % de su media, no el 50 %
+  near(s.rem.mean, L.remaining({ current: 25, progress: 0.519, mean: 30, variance: 50 }).mean);
+  assert.equal(s.progress, 0.5);
+});
+
 test('totalSignal: marcador contra la línea previa de Oddsy', () => {
   assert.equal(L.totalSignal(liveGame(), 44.5, 'football'), null); // 28 a la mitad vs 22 esperados: normal en la NFL
   const s = L.totalSignal(liveGame({ home: { id: '10', score: 21 }, away: { id: '20', score: 21 } }), 44.5, 'football');
@@ -129,6 +140,33 @@ test('totalSignal: marcador contra la línea previa de Oddsy', () => {
   assert.equal(L.totalSignal(liveGame(), 44.5, 'tennis'), null);
   assert.equal(L.TOTAL.football.sd, SIGMA_T.football);
   assert.equal(L.TOTAL.basketball.sd, SIGMA_T.basketball);
+  assert.equal(L.TOTAL.wnba.sd, SIGMA_T.wnba);
+});
+
+test('totalSignal: la WNBA usa su propio desvío del total; la NBA, el del básquet', () => {
+  const g = (league) => ({ id: 'w', league, progress: 0.5, home: { score: 50 }, away: { score: 50 } });
+  const z = (sd) => (100 - L.scoringShare('basketball', 0.5) * 160.5) / Math.sqrt(sd ** 2 * L.scoringShare('basketball', 0.5));
+  near(L.totalSignal(g('wnba'), 160.5, 'basketball').z, z(16.4));
+  near(L.totalSignal(g('nba'), 160.5, 'basketball').z, z(L.TOTAL.basketball.sd));
+});
+
+test('mainTotal: la línea del total más parejo; el fútbol trae seis y la NBA y la NFL una', () => {
+  assert.equal(L.mainTotal(marketsFor('soccer', { kind: 'poisson', lh: 1.45, la: 1.1 })), 2.5);
+  for (const sport of ['basketball', 'football']) {
+    const ms = marketsFor(sport, { kind: 'normal', mu: 3, sigma: 12, total: sport === 'football' ? 44.2 : 224.6, sigmaT: SIGMA_T[sport] });
+    assert.equal(L.mainTotal(ms), ms.find((m) => m.key === 'ou').selections[0].line);
+  }
+  assert.equal(L.mainTotal(undefined), null);
+  assert.equal(L.mainTotal([]), null);
+});
+
+test('parseOdds: decimal con punto o coma, americana con −, - o +', () => {
+  near(L.parseOdds('-110'), 1 + 100 / 110);
+  near(L.parseOdds('−110'), 1 + 100 / 110); // U+2212 del teclado de iOS/Mac
+  assert.equal(L.parseOdds('+150'), 2.5);
+  assert.equal(L.parseOdds(' 1,91 '), 1.91);
+  assert.equal(L.parseOdds('110'), 2.1);
+  for (const v of ['', null, 'abc', '1', '0.9']) assert.equal(L.parseOdds(v), null);
 });
 
 test('stopOf y windowLeft: tipos de pausa de ESPN y cuenta regresiva estimada', () => {

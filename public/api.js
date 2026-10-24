@@ -1,6 +1,8 @@
 // Cliente del API de server.mjs. Cada función devuelve el cuerpo completo { source, data, remaining? }.
-// Caché en sessionStorage de 60 s por URL y deduplicación de peticiones simultáneas.
+// Caché en memoria de 60 s por URL y deduplicación de peticiones simultáneas.
 const TTL = 60_000;
+const MAX = 200; // un lote de /api/gamelogs pesa ~2 MB: en sessionStorage llenaba la cuota y dejaba de cachear
+const cache = new Map(); // url -> { at, body }, de la más vieja a la más nueva
 const inflight = new Map();
 
 const param = (v) => (v && typeof v === 'object' ? v.id ?? String(v) : v); // acepta ctx.league (objeto) o 'nba'
@@ -8,13 +10,12 @@ const param = (v) => (v && typeof v === 'object' ? v.id ?? String(v) : v); // ac
 export async function get(path, params = {}, { fresh = false } = {}) {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v != null && v !== '') qs.set(k, param(v));
-  const url = qs.size ? `${path}?${qs}` : path;
-  const ck = `api:${url}`;
+  const s = String(qs); // sin qs.size: Safari ≤16 y Chrome <113 no lo tienen
+  const url = s ? `${path}?${s}` : path;
   if (!fresh) {
-    try {
-      const hit = JSON.parse(sessionStorage.getItem(ck));
-      if (hit && Date.now() - hit.at < TTL) return hit.body;
-    } catch { /* sin sessionStorage */ }
+    const hit = cache.get(url);
+    if (hit && Date.now() - hit.at < TTL) return hit.body;
+    cache.delete(url); // vencida
     if (inflight.has(url)) return inflight.get(url);
   }
   const p = (async () => {
@@ -31,7 +32,9 @@ export async function get(path, params = {}, { fresh = false } = {}) {
       throw Object.assign(new Error(`Respuesta inválida del servidor (${res.status}).`), { status: res.status });
     }
     if (!res.ok) throw Object.assign(new Error(body?.error || `El servidor respondió ${res.status}.`), { status: res.status });
-    try { sessionStorage.setItem(ck, JSON.stringify({ at: Date.now(), body })); } catch { /* cuota llena: sin caché */ }
+    cache.delete(url); // al final del Map: se saca primero la más vieja
+    cache.set(url, { at: Date.now(), body });
+    if (cache.size > MAX) cache.delete(cache.keys().next().value);
     return body;
   })();
   inflight.set(url, p);

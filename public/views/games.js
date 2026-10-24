@@ -4,7 +4,8 @@
 import * as bm from '../betmath.js';
 import { leagueById } from '../leagues.js';
 import { statForMarket } from '../stats.js';
-import { ui as baseUi } from '../ui.js';
+import { ui as baseUi, dataOf, propKey, ymd } from '../ui.js';
+import { mainTotal } from '../live.js';
 
 const DAYS = 15; // hoy + 14
 const TENNIS_DAYS = 3; // ESPN solo publica el cuadro de los próximos días
@@ -18,8 +19,6 @@ let ui = baseUi; // ctx.ui de la vista montada (solo hay una a la vez)
 const esc = (s) => ui.esc(s ?? '');
 
 // ---------- utilidades puras (exportadas para pruebas) ----------
-const pad = (n) => String(n).padStart(2, '0');
-export const ymd = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
 const signed = (x) => (x == null ? '' : x > 0 ? `+${x}` : x === 0 ? 'PK' : String(x));
 const lineTxt = (m, s) => (m.key.startsWith('ou') ? s.line : signed(s.line)); // totales sin signo
 // Mercado principal de la tarjeta: 1X2 en fútbol, ganador en el resto.
@@ -57,7 +56,6 @@ const HOW = {
 };
 
 // ---------- piezas de UI ----------
-const unwrap = (r) => (r && !Array.isArray(r) && 'data' in r ? r : { data: r, source: null });
 const timeOf = (iso) => new Date(iso).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
 const isLive = (g) => g.status?.state === 'in' || (g.status?.state === 'pre' && Date.parse(g.start) <= Date.now());
 const selName = (g, s) => (s.name === 'Local' ? g.home.abbr || g.home.name : s.name === 'Visitante' ? g.away.abbr || g.away.name : s.name);
@@ -165,11 +163,11 @@ async function renderList(root, ctx, lg, state) {
 
   const today = new Date();
   const days = Array.from({ length: tennis ? TENNIS_DAYS : DAYS }, (_, i) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + i));
-  const res = await Promise.allSettled(days.map((d) => api.games(lg.id, ymd(d)).then(unwrap)));
+  const res = await Promise.allSettled(days.map((d) => api.games(lg.id, ymd(d)).then(dataOf)));
   if (state.dead) return;
   const byDate = new Map();
   res.forEach((r, i) => {
-    if (r.status === 'fulfilled' && r.value.data?.length) byDate.set(ymd(days[i]), r.value.data);
+    if (r.status === 'fulfilled' && r.value?.length) byDate.set(ymd(days[i]), r.value);
   });
   if (!byDate.size) {
     const err = res.find((r) => r.status === 'rejected');
@@ -217,7 +215,7 @@ async function renderList(root, ctx, lg, state) {
   // Tendencia de cada lado desde GameDetail.lastFive (se pide solo para las tarjetas visibles).
   const loadTrend = async (card) => {
     const id = card.dataset.id;
-    if (!state.details.has(id)) state.details.set(id, api.game(lg.id, id).then((r) => unwrap(r).data).catch(() => null));
+    if (!state.details.has(id)) state.details.set(id, api.game(lg.id, id).then(dataOf).catch(() => null));
     const d = await state.details.get(id);
     if (state.dead || !card.isConnected) return;
     for (const side of ['away', 'home']) {
@@ -267,9 +265,10 @@ async function renderList(root, ctx, lg, state) {
 
   // Marcadores en vivo: cada 60 s si el día elegido tiene partidos en juego.
   state.timer = setInterval(async () => {
+    if (document.hidden) return; // pestaña oculta: no se gasta red
     if (!byDate.get(state.date)?.some(isLive)) return;
     try {
-      const fresh = unwrap(await api.get('/api/games', { league: lg.id, date: state.date }, { fresh: true })).data;
+      const fresh = dataOf(await api.get('/api/games', { league: lg.id, date: state.date }, { fresh: true }));
       if (state.dead || !fresh?.length) return;
       byDate.set(state.date, fresh);
       drawList();
@@ -285,11 +284,10 @@ function headerHtml(d) {
       ${d.status?.state !== 'pre' && t.score != null ? `<span class="gm-hscore">${esc(t.score)}</span>` : ''}</div>`;
   };
   const p = d.predictor;
-  const pct = (x) => (x > 1 ? x / 100 : x); // ESPN puede dar 0-100
   const pred = p && p.homeWinPct != null && p.awayWinPct != null
-    ? `<div class="gm-pred"><span>${esc(d.away.abbr)} ${esc(ui.fmtPct(pct(p.awayWinPct), 0))}</span>
-        <span class="gm-predbar" role="img" aria-label="${esc(`Probabilidad de ganar según ESPN: ${d.away.abbr} ${ui.fmtPct(pct(p.awayWinPct), 0)}, ${d.home.abbr} ${ui.fmtPct(pct(p.homeWinPct), 0)}`)}"><i style="width:${(pct(p.awayWinPct) * 100).toFixed(1)}%"></i></span>
-        <span>${esc(ui.fmtPct(pct(p.homeWinPct), 0))} ${esc(d.home.abbr)}</span><small>Probabilidad de ganar según ESPN</small></div>`
+    ? `<div class="gm-pred"><span>${esc(d.away.abbr)} ${esc(ui.fmtPct(p.awayWinPct, 0))}</span>
+        <span class="gm-predbar" role="img" aria-label="${esc(`Probabilidad de ganar según ESPN: ${d.away.abbr} ${ui.fmtPct(p.awayWinPct, 0)}, ${d.home.abbr} ${ui.fmtPct(p.homeWinPct, 0)}`)}"><i style="width:${(p.awayWinPct * 100).toFixed(1)}%"></i></span>
+        <span>${esc(ui.fmtPct(p.homeWinPct, 0))} ${esc(d.home.abbr)}</span><small>Probabilidad de ganar según ESPN</small></div>`
     : '';
   const when = d.status?.state === 'pre' ? esc(ui.when(d.start)) : statusHtml(d);
   return `<div class="gm-hrow">${team('away')}<span class="gm-at">@</span>${team('home')}</div>
@@ -314,15 +312,16 @@ export function marketTables(d, mk, ctx, trends = {}) {
   const head = '<thead><tr><th scope="col">Opción</th><th scope="col">Probabilidad</th><th scope="col">Justa</th><th scope="col">Oddsy</th></tr></thead>';
   const row = (m, s, top) => `<tr${s === top ? ' class="gm-top1"' : ''}><th scope="row">${esc(selName(d, s))}${s.line != null ? ` <span class="gm-line">${esc(lineTxt(m, s))}</span>` : ''}${s === top ? ' <small class="gm-tag">Más probable</small>' : ''}</th>
     <td><span class="gm-pc"><span class="gm-pbar" aria-hidden="true"><i style="width:${(s.p * 100).toFixed(1)}%"></i></span>${esc(ui.fmtPct(s.p))}</span></td><td>${esc(ui.fmtOdds(s.fair))}</td><td>${selBtn(d, m, s, ctx, true)}</td></tr>`;
-  const seen = new Set();
+  const seen = new Set(), main = mainTotal(mk.data.markets);
   return `<p class="gm-src">${ui.sourceBadge('oddsy')} Abre un mercado para ver todas las opciones. Toca una cuota Oddsy para agregarla a Mis picks.</p>
     <details class="gm-how"><summary>¿Cómo leer estas cuotas?</summary><dl>
       <dt>Probabilidad</dt><dd>Qué tan probable es, según Oddsy.</dd>
       <dt>Justa</dt><dd>La cuota sin margen: 1 dividido por la probabilidad.</dd>
       <dt>Oddsy</dt><dd>La cuota justa con un margen del 5%.</dd></dl></details>`
     + mk.data.markets.map((m, i) => {
-      const t = !seen.has(m.key) && trends[m.key];
-      seen.add(m.key);
+      // La tendencia del total va en la línea principal (fútbol tiene 0.5 a 5.5), no en la primera.
+      const t = !seen.has(m.key) && (m.key !== 'ou' || m.selections[0].line === main) && trends[m.key];
+      if (t) seen.add(m.key);
       const top = m.selections.reduce((a, b) => (b.p > a.p ? b : a));
       const first = m.selections[0];
       const how = HOW[m.key]?.(selName(d, first), first.line, m);
@@ -378,7 +377,6 @@ function propsHtml(props, league, gameId, sport, kind) {
   }
   const top = (p) => (p.books ?? []).reduce((b, x) => (x.price > (b?.price ?? 0) ? x : b), null);
   const statName = (p) => statForMarket(sport, p.market)?.name || p.stat || p.market;
-  const keyOf = (p) => encodeURIComponent(JSON.stringify({ a: p.athleteId ?? null, p: p.player, s: p.stat, l: p.line, o: p.side, g: p.gameId ?? gameId }));
   // Jugador → (estadística, línea) → lados.
   const groups = new Map();
   for (const p of list) {
@@ -393,7 +391,7 @@ function propsHtml(props, league, gameId, sport, kind) {
     if (!p) return '<td class="gm-na">—</td>';
     const b = top(p);
     const label = `${p.side === 'Over' ? 'Más de' : p.side === 'Under' ? 'Menos de' : p.side} ${p.line}`;
-    return `<td>${kind === 'player' ? `<a href="#/${esc(league)}/props/${keyOf(p)}" aria-label="${esc(`${p.player}: ${label} ${statName(p)}, ver detalle`)}">` : ''}${esc(p.line)} ${b ? `<b>${esc(ui.fmtOdds(b.price))}</b>${ui.bookChip(b.title || b.key)}` : ''}${kind === 'player' ? '</a>' : ''}</td>`;
+    return `<td>${kind === 'player' ? `<a href="#/${esc(league)}/props/${propKey(p)}" aria-label="${esc(`${p.player}: ${label} ${statName(p)}, ver detalle`)}">` : ''}${esc(p.line)} ${b ? `<b>${esc(ui.fmtOdds(b.price))}</b>${ui.bookChip(b.title || b.key)}` : ''}${kind === 'player' ? '</a>' : ''}</td>`;
   };
   return [...groups].sort((a, b) => a[0].localeCompare(b[0], 'es')).map(([who, g]) => `<section class="gm-player"><h3>${esc(who)}${g.team ? ` <small>${esc(g.team)}</small>` : ''}</h3>
     <div class="scroll"><table><thead><tr><th scope="col">Estadística</th><th scope="col">Más de</th><th scope="col">Menos de</th></tr></thead><tbody>
@@ -459,14 +457,14 @@ function insightsHtml(d) {
 async function renderDetail(root, ctx, lg, id, state) {
   const { api } = ctx;
   root.innerHTML = `<a class="gm-back" href="#/${esc(lg.id)}/games">← Partidos</a><div data-detail>${ui.loading()}</div>`;
-  const [dRes, mRes] = await Promise.allSettled([api.game(lg.id, id).then(unwrap), api.markets(lg.id, id)]);
+  const [dRes, mRes] = await Promise.allSettled([api.game(lg.id, id).then(dataOf), api.markets(lg.id, id)]);
   if (state.dead) return;
   const box = root.querySelector('[data-detail]');
-  if (dRes.status === 'rejected' || !dRes.value.data) {
+  if (dRes.status === 'rejected' || !dRes.value) {
     box.innerHTML = ui.errorBox(dRes.reason ?? new Error('Partido no encontrado'));
     return;
   }
-  const d = dRes.value.data;
+  const d = dRes.value;
   const mk = mRes.status === 'fulfilled' ? mRes.value : { error: mRes.reason };
   const pc = { league: lg.id, store: ctx.store, picks: [] };
   state.cleanups.push(syncPicks(root, pc));
@@ -497,11 +495,11 @@ async function renderDetail(root, ctx, lg, id, state) {
     const slot = panel.querySelector('[data-props]');
     if (!slot || slot.dataset.done) return;
     slot.dataset.done = '1';
-    propsP ??= api.props(lg.id, id).then(unwrap);
+    propsP ??= api.props(lg.id, id);
     try {
       const r = await propsP;
       if (state.dead) return;
-      slot.innerHTML = (r.source ? `<p class="gm-src">${ui.sourceBadge(r.source)}</p>` : '') + propsHtml(r.data ?? [], lg.id, id, lg.sport, slot.dataset.props);
+      slot.innerHTML = (r.source ? `<p class="gm-src">${ui.sourceBadge(r.source)}</p>` : '') + propsHtml(dataOf(r) ?? [], lg.id, id, lg.sport, slot.dataset.props);
     } catch (err) {
       if (!state.dead) slot.innerHTML = ui.errorBox(err);
       delete slot.dataset.done;
@@ -511,9 +509,10 @@ async function renderDetail(root, ctx, lg, id, state) {
   root.addEventListener('click', (e) => onPickClick(e, pc) || onTabClick(root, e, loadProps));
 
   state.timer = setInterval(async () => {
+    if (document.hidden) return;
     if (!isLive(d)) return;
     try {
-      const fresh = unwrap(await api.get('/api/game', { league: lg.id, id }, { fresh: true })).data;
+      const fresh = dataOf(await api.get('/api/game', { league: lg.id, id }, { fresh: true }));
       if (state.dead || !fresh) return;
       Object.assign(d, { status: fresh.status, home: fresh.home, away: fresh.away });
       root.querySelector('[data-head]').innerHTML = headerHtml(d);
